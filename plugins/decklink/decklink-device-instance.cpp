@@ -14,7 +14,10 @@
 static inline enum video_format ConvertPixelFormat(BMDPixelFormat format)
 {
 	switch (format) {
-	case bmdFormat8BitBGRA: return VIDEO_FORMAT_BGRX;
+	case bmdFormat8BitBGRA:    return VIDEO_FORMAT_BGRA;
+	case bmdFormat10BitRGB:    return VIDEO_FORMAT_R210;
+	case bmdFormat10BitRGBX:   return VIDEO_FORMAT_R10B;
+	case bmdFormat10BitRGBXLE: return VIDEO_FORMAT_R10L;
 
 	default:
 	case bmdFormat8BitYUV:;
