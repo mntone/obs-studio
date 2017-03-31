@@ -1003,11 +1003,21 @@ inline bool DShowInput::Activate(obs_data_t *settings)
 	if (device.Start() != Result::Success)
 		return false;
 
-	bool success = video_format_get_parameters(
-			cs, range,
-			frame.color_matrix,
-			frame.color_range_min,
-			frame.color_range_max);
+	bool success = false;
+	if (videoConfig.internalFormat == VideoFormat::ARGB ||
+			videoConfig.internalFormat == VideoFormat::XRGB) {
+		success = video_format_get_rgb_parameters(
+				8, range,
+				frame.color_matrix,
+				frame.color_range_min,
+				frame.color_range_max);
+	} else {
+		success = video_format_get_parameters(
+				cs, range,
+				frame.color_matrix,
+				frame.color_range_min,
+				frame.color_range_max);
+	}
 	if (!success) {
 		blog(LOG_ERROR, "Failed to get video format parameters for " \
 		                "video format %u", cs);
