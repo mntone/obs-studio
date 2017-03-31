@@ -162,9 +162,17 @@ void DeckLinkDeviceInstance::SetupVideoFormat(DeckLinkDeviceMode *mode_)
 	colorRange = decklink->GetColorRange();
 	currentFrame.full_range = colorRange == VIDEO_RANGE_FULL;
 
-	video_format_get_parameters(activeColorSpace, colorRange,
-			currentFrame.color_matrix, currentFrame.color_range_min,
-			currentFrame.color_range_max);
+  if (pixelFormat != bmdFormat8BitYUV)
+    video_format_get_rgb_parameters(
+				get_video_bit_per_channel(currentFrame.format),
+				colorRange,
+				currentFrame.color_matrix,  
+       	currentFrame.color_range_min, 
+       	currentFrame.color_range_max); 
+  else 
+    video_format_get_parameters(activeColorSpace, colorRange, 
+        currentFrame.color_matrix, currentFrame.color_range_min, 
+        currentFrame.color_range_max); 
 
 #ifdef LOG_SETUP_VIDEO_FORMAT
 	LOG(LOG_INFO, "Setup video format: %s, %s, %s",
