@@ -48,6 +48,11 @@ enum video_format {
 	VIDEO_FORMAT_BGRX,
 	VIDEO_FORMAT_Y800, /* grayscale */
 
+	/* packed uncompressed 10-bit formats */
+	VIDEO_FORMAT_R210, /* A2BGR10 */
+	VIDEO_FORMAT_R10B, /* RGB10X2 */
+	VIDEO_FORMAT_R10L, /* RGB10X2 (LE) */
+
 	/* planar 4:4:4 */
 	VIDEO_FORMAT_I444,
 };
@@ -99,6 +104,9 @@ static inline bool format_is_yuv(enum video_format format)
 	case VIDEO_FORMAT_BGRA:
 	case VIDEO_FORMAT_BGRX:
 	case VIDEO_FORMAT_Y800:
+	case VIDEO_FORMAT_R210:
+	case VIDEO_FORMAT_R10B:
+	case VIDEO_FORMAT_R10L:
 		return false;
 	}
 
@@ -118,6 +126,9 @@ static inline const char *get_video_format_name(enum video_format format)
 	case VIDEO_FORMAT_BGRX: return "BGRX";
 	case VIDEO_FORMAT_I444: return "I444";
 	case VIDEO_FORMAT_Y800: return "Y800";
+	case VIDEO_FORMAT_R210: return "r210";
+	case VIDEO_FORMAT_R10B: return "R10b";
+	case VIDEO_FORMAT_R10L: return "R10l";
 	case VIDEO_FORMAT_NONE:;
 	}
 

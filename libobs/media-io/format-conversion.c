@@ -322,3 +322,84 @@ void decompress_422(
 		}
 	}
 }
+
+void decompress_r210(
+		const uint8_t *input, const uint32_t in_linesize,
+		uint32_t start_y, uint32_t end_y,
+		uint8_t *output, uint32_t out_linesize)
+{
+	uint32_t width = min_uint32(in_linesize, out_linesize) / 4;
+	uint32_t y;
+
+	for (y = start_y; y < end_y; y++) {
+		const uint32_t *input0;
+		register uint32_t *output0;
+		uint32_t x;
+
+		input0 = (const uint32_t*)(input + y * in_linesize);
+		output0 = (uint32_t*)(output + y * out_linesize);
+
+		for (x = 0; x < width; x++) {
+			uint32_t out = *(input0++);
+			uint32_t r = ((out << 4) & 0x3F0) | ((out >> 12) & 0x0F);
+			uint32_t g = ((out >> 2) & 0x3C0) | ((out >> 18) & 0x3F);
+			uint32_t b = ((out >> 8) & 0x300) |  (out >> 24);
+			
+			*(output0++) = 0xC0000000 | (b << 20) | (g << 10) | r;
+		}
+	}
+}
+
+void decompress_r10b(
+		const uint8_t *input, const uint32_t in_linesize,
+		uint32_t start_y, uint32_t end_y,
+		uint8_t *output, uint32_t out_linesize)
+{
+	uint32_t width = min_uint32(in_linesize, out_linesize) / 4;
+	uint32_t y;
+
+	for (y = start_y; y < end_y; y++) {
+		const uint32_t *input0;
+		register uint32_t *output0;
+		uint32_t x;
+
+		input0 = (const uint32_t*)(input + y * in_linesize);
+		output0 = (uint32_t*)(output + y * out_linesize);
+
+		for (x = 0; x < width; x++) {
+			uint32_t out = *(input0++);
+			uint32_t r = ((out <<  2) & 0x3FC) | ((out >> 14) & 0x3);
+			uint32_t g = ((out >>  4) & 0x3F0) | ((out >> 20) & 0xF);
+			uint32_t b = ((out >> 10) & 0x3C0) |  (out >> 26);
+			
+			*(output0++) = 0xC0000000 | (b << 20) | (g << 10) | r;
+		}
+	}
+}
+
+void decompress_r10l(
+		const uint8_t *input, const uint32_t in_linesize,
+		uint32_t start_y, uint32_t end_y,
+		uint8_t *output, uint32_t out_linesize)
+{
+	uint32_t width = min_uint32(in_linesize, out_linesize) / 4;
+	uint32_t y;
+
+	for (y = start_y; y < end_y; y++) {
+		const uint32_t *input0;
+		register uint32_t *output0;
+		uint32_t x;
+
+		input0 = (const uint32_t*)(input + y * in_linesize);
+		output0 = (uint32_t*)(output + y * out_linesize);
+
+		for (x = 0; x < width; x++) {
+			uint32_t out = *(input0++);
+			
+			*(output0++) = 0xC0000000 |
+					((out & 0xFFC00000) >> 22) |
+					((out & 0x003FF000) >>  2) |
+					((out & 0x00000FFC) << 18);
+		}
+	}
+}

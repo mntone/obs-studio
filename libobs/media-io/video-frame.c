@@ -91,6 +91,17 @@ void video_frame_init(struct video_frame *frame, enum video_format format,
 		frame->linesize[0] = width*4;
 		break;
 
+	case VIDEO_FORMAT_R210:
+	case VIDEO_FORMAT_R10B:
+	case VIDEO_FORMAT_R10L:
+		size = width;
+		ALIGN_SIZE(size, 64);
+		size *= height * 4;
+		ALIGN_SIZE(size, alignment);
+		frame->data[0] = bmalloc(size);
+		frame->linesize[0] = size/height;
+		break;
+
 	case VIDEO_FORMAT_I444:
 		size = width * height;
 		ALIGN_SIZE(size, alignment);
@@ -129,6 +140,9 @@ void video_frame_copy(struct video_frame *dst, const struct video_frame *src,
 	case VIDEO_FORMAT_RGBA:
 	case VIDEO_FORMAT_BGRA:
 	case VIDEO_FORMAT_BGRX:
+	case VIDEO_FORMAT_R210:
+	case VIDEO_FORMAT_R10B:
+	case VIDEO_FORMAT_R10L:
 		memcpy(dst->data[0], src->data[0], src->linesize[0] * cy);
 		break;
 
