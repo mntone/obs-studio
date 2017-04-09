@@ -16,6 +16,9 @@ public:
 	virtual ~DeckLinkDeviceMode(void);
 
 	BMDDisplayMode GetDisplayMode(void) const;
+	BMDDisplayModeFlags GetDisplayModeFlags(void) const;
 	long long GetId(void) const;
 	const std::string& GetName(void) const;
+
+	void SetMode(IDeckLinkDisplayMode *mode);
 };
