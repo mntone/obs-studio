@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>981</width>
-    <height>748</height>
+    <width>1072</width>
+    <height>944</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -139,8 +139,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>818</width>
-              <height>697</height>
+              <width>898</width>
+              <height>871</height>
              </rect>
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_19">
@@ -3130,8 +3130,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>98</width>
-              <height>28</height>
+              <width>872</width>
+              <height>105</height>
              </rect>
             </property>
            </widget>
@@ -3266,7 +3266,7 @@
          <item row="3" column="1">
           <widget class="QStackedWidget" name="fpsTypes">
            <property name="currentIndex">
-            <number>0</number>
+            <number>2</number>
            </property>
            <widget class="QWidget" name="page">
             <layout class="QHBoxLayout" name="horizontalLayout_2">
@@ -3501,8 +3501,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>803</width>
-              <height>738</height>
+              <width>883</width>
+              <height>1081</height>
              </rect>
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_16">
@@ -3641,7 +3641,133 @@
                      </item>
                     </widget>
                    </item>
+                   <item row="3" column="0">
+                    <widget class="QLabel" name="label_65">
+                     <property name="text">
+                      <string>Basic.Settings.Advanced.Video.Transfer</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="3" column="1">
+                    <widget class="QComboBox" name="comboBox">
+                     <item>
+                      <property name="text">
+                       <string>BT.709-5</string>
+                      </property>
+                     </item>
+                     <item>
+                      <property name="text">
+                       <string>NTSC</string>
+                      </property>
+                     </item>
+                     <item>
+                      <property name="text">
+                       <string>PAL</string>
+                      </property>
+                     </item>
+                     <item>
+                      <property name="text">
+                       <string>sRGB</string>
+                      </property>
+                     </item>
+                    </widget>
+                   </item>
+                   <item row="4" column="0">
+                    <widget class="QLabel" name="label_64">
+                     <property name="text">
+                      <string>Basic.Settings.Advanced.Video.ColorPrim</string>
+                     </property>
+                    </widget>
+                   </item>
                    <item row="4" column="1">
+                    <widget class="QComboBox" name="colorPrim">
+                     <item>
+                      <property name="text">
+                       <string>BT.709-5 (sRGB)</string>
+                      </property>
+                     </item>
+                     <item>
+                      <property name="text">
+                       <string>BT.470-6 System M</string>
+                      </property>
+                     </item>
+                     <item>
+                      <property name="text">
+                       <string>PAL</string>
+                      </property>
+                     </item>
+                     <item>
+                      <property name="text">
+                       <string>NTSC</string>
+                      </property>
+                     </item>
+                     <item>
+                      <property name="text">
+                       <string>BT.2020</string>
+                      </property>
+                     </item>
+                    </widget>
+                   </item>
+                   <item row="5" column="0">
+                    <widget class="QLabel" name="label_33">
+                     <property name="text">
+                      <string>Basic.Settings.Advanced.Video.ColorSpace</string>
+                     </property>
+                     <property name="buddy">
+                      <cstring>colorSpace</cstring>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="5" column="1">
+                    <layout class="QHBoxLayout" name="horizontalLayout_20">
+                     <property name="leftMargin">
+                      <number>0</number>
+                     </property>
+                     <property name="topMargin">
+                      <number>0</number>
+                     </property>
+                     <property name="rightMargin">
+                      <number>0</number>
+                     </property>
+                     <property name="bottomMargin">
+                      <number>0</number>
+                     </property>
+                     <item>
+                      <widget class="QComboBox" name="colorSpace">
+                       <item>
+                        <property name="text">
+                         <string notr="true">BT.709-5</string>
+                        </property>
+                       </item>
+                       <item>
+                        <property name="text">
+                         <string notr="true">BT.601-6</string>
+                        </property>
+                       </item>
+                      </widget>
+                     </item>
+                     <item>
+                      <widget class="QLabel" name="label_34">
+                       <property name="sizePolicy">
+                        <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+                         <horstretch>0</horstretch>
+                         <verstretch>0</verstretch>
+                        </sizepolicy>
+                       </property>
+                       <property name="text">
+                        <string>Basic.Settings.Advanced.Video.ColorRange</string>
+                       </property>
+                       <property name="buddy">
+                        <cstring>colorRange</cstring>
+                       </property>
+                      </widget>
+                     </item>
+                     <item>
+                      <widget class="QComboBox" name="colorRange"/>
+                     </item>
+                    </layout>
+                   </item>
+                   <item row="6" column="1">
                     <layout class="QHBoxLayout" name="horizontalLayout_18">
                      <property name="leftMargin">
                       <number>0</number>
@@ -3670,65 +3796,6 @@
                       </widget>
                      </item>
                     </layout>
-                   </item>
-                   <item row="3" column="1">
-                    <layout class="QHBoxLayout" name="horizontalLayout_20">
-                     <property name="leftMargin">
-                      <number>0</number>
-                     </property>
-                     <property name="topMargin">
-                      <number>0</number>
-                     </property>
-                     <property name="rightMargin">
-                      <number>0</number>
-                     </property>
-                     <property name="bottomMargin">
-                      <number>0</number>
-                     </property>
-                     <item>
-                      <widget class="QComboBox" name="colorSpace">
-                       <item>
-                        <property name="text">
-                         <string notr="true">709</string>
-                        </property>
-                       </item>
-                       <item>
-                        <property name="text">
-                         <string notr="true">601</string>
-                        </property>
-                       </item>
-                      </widget>
-                     </item>
-                     <item>
-                      <widget class="QLabel" name="label_34">
-                       <property name="sizePolicy">
-                        <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-                         <horstretch>0</horstretch>
-                         <verstretch>0</verstretch>
-                        </sizepolicy>
-                       </property>
-                       <property name="text">
-                        <string>Basic.Settings.Advanced.Video.ColorRange</string>
-                       </property>
-                       <property name="buddy">
-                        <cstring>colorRange</cstring>
-                       </property>
-                      </widget>
-                     </item>
-                     <item>
-                      <widget class="QComboBox" name="colorRange"/>
-                     </item>
-                    </layout>
-                   </item>
-                   <item row="3" column="0">
-                    <widget class="QLabel" name="label_33">
-                     <property name="text">
-                      <string>Basic.Settings.Advanced.Video.ColorSpace</string>
-                     </property>
-                     <property name="buddy">
-                      <cstring>colorSpace</cstring>
-                     </property>
-                    </widget>
                    </item>
                   </layout>
                  </widget>
@@ -4210,8 +4277,6 @@
   <tabstop>renderer</tabstop>
   <tabstop>adapter</tabstop>
   <tabstop>colorFormat</tabstop>
-  <tabstop>colorSpace</tabstop>
-  <tabstop>colorRange</tabstop>
   <tabstop>disableOSXVSync</tabstop>
   <tabstop>resetOSXVSync</tabstop>
   <tabstop>monitoringDevice</tabstop>

@@ -17,6 +17,7 @@
 
 #include <inttypes.h>
 
+#include "media-io/color-management.h"
 #include "media-io/format-conversion.h"
 #include "media-io/video-frame.h"
 #include "media-io/audio-io.h"
@@ -1458,6 +1459,58 @@ bool set_async_texture_size(struct obs_source *source,
 	return !!source->async_texture;
 }
 
+bool set_async_colorpref(struct obs_source *source,
+		const struct obs_source_frame *frame)
+{
+	struct video_output_info const  *voi = video_output_get_info(obs_get_video());
+	enum video_colorprim_type const ocp  = voi->colorspace == VIDEO_CS_709 ? VIDEO_CP_BT709_5 : VIDEO_CP_NTSC;
+	int                             bit;
+	bool                            yuv;
+	int                             ret;
+
+	if (source->async_output_colorprim == ocp &&
+	    source->async_format2          == frame->format &&
+	    source->async_full_range       == frame->full_range &&
+	    source->async_transfer         == frame->transfer  &&
+	    source->async_colorprim        == frame->colorprim &&
+	    source->async_colormatrix      == frame->colormatrix)
+		return true;
+
+	source->async_output_colorprim = ocp;
+	source->async_format2          = frame->format;
+	source->async_full_range       = frame->full_range;
+	source->async_transfer         = frame->transfer;
+	source->async_colorprim        = frame->colorprim;
+	source->async_colormatrix      = frame->colormatrix;
+
+	bit = get_video_colorbit(source->async_format2);
+	yuv = format_is_yuv(source->async_format2);
+
+	ret = get_colorpref(
+		source->async_cache_width, source->async_cache_height,
+		!source->async_full_range,
+		bit,
+		yuv,
+		source->async_transfer,
+		VIDEO_TRANS_BT709_5,
+		source->async_colorprim,
+		ocp,
+		source->async_colorprim,
+		&source->async_transfer_technique,
+		source->async_colorprim_data,
+		source->async_colormatrix_data,
+		source->async_color_range_min,
+		source->async_color_range_max);
+	if (ret > 0)
+		return false;
+
+	source->async_use_colormatrix =
+		strcmp(source->async_transfer_technique, "Draw") != 0;
+	source->async_use_colorprim = source->async_use_colormatrix &&
+		strcmp(source->async_transfer_technique, "DrawMatrix") != 0;
+	return true;
+}
+
 static void upload_raw_frame(gs_texture_t *tex,
 		const struct obs_source_frame *frame)
 {
@@ -1478,14 +1531,7 @@ static void upload_raw_frame(gs_texture_t *tex,
 					frame->width, false);
 			break;
 
-		case CONVERT_R210:
-		case CONVERT_R10B:
-		case CONVERT_R10L:
-			gs_texture_set_image(tex, frame->data[0],
-					frame->linesize[0], false);
-			break;
-
-		case CONVERT_NONE:
+		default:
 			assert(false && "No conversion requested");
 			break;
 	}
@@ -1595,14 +1641,9 @@ bool update_async_texture(struct obs_source *source,
 	uint8_t           *ptr;
 	uint32_t          linesize;
 
-	source->async_flip       = frame->flip;
-	source->async_full_range = frame->full_range;
-	memcpy(source->async_color_matrix, frame->color_matrix,
-			sizeof(frame->color_matrix));
-	memcpy(source->async_color_range_min, frame->color_range_min,
-			sizeof frame->color_range_min);
-	memcpy(source->async_color_range_max, frame->color_range_max,
-			sizeof frame->color_range_max);
+	source->async_flip        = frame->flip;
+
+	set_async_colorpref(source, frame);
 
 	if (source->async_gpu_conversion && texrender)
 		return update_async_texrender(source, frame, tex, texrender);
@@ -1651,8 +1692,9 @@ bool update_async_texture(struct obs_source *source,
 }
 
 static inline void obs_source_draw_texture(struct obs_source *source,
-		gs_effect_t *effect, float *color_matrix,
-		float const *color_range_min, float const *color_range_max)
+		gs_effect_t *effect, float const *colormatrix,
+		float const *rangemin, float const *rangemax,
+		float const *colorprim)
 {
 	gs_texture_t *tex = source->async_texture;
 	gs_eparam_t  *param;
@@ -1660,21 +1702,24 @@ static inline void obs_source_draw_texture(struct obs_source *source,
 	if (source->async_texrender)
 		tex = gs_texrender_get_texture(source->async_texrender);
 
-	if (color_range_min) {
-		size_t const size = sizeof(float) * 3;
-		param = gs_effect_get_param_by_name(effect, "color_range_min");
-		gs_effect_set_val(param, color_range_min, size);
+	if (colormatrix) {
+		param = gs_effect_get_param_by_name(effect, "colormatrix");
+		gs_effect_set_val(param, colormatrix, sizeof(float) * 16);
 	}
 
-	if (color_range_max) {
-		size_t const size = sizeof(float) * 3;
-		param = gs_effect_get_param_by_name(effect, "color_range_max");
-		gs_effect_set_val(param, color_range_max, size);
+	if (rangemin) {
+		param = gs_effect_get_param_by_name(effect, "rangemin");
+		gs_effect_set_val(param, rangemin, sizeof(float) * 3);
 	}
 
-	if (color_matrix) {
-		param = gs_effect_get_param_by_name(effect, "color_matrix");
-		gs_effect_set_val(param, color_matrix, sizeof(float) * 16);
+	if (rangemax) {
+		param = gs_effect_get_param_by_name(effect, "rangemax");
+		gs_effect_set_val(param, rangemax, sizeof(float) * 3);
+	}
+
+	if (colorprim) {
+		param = gs_effect_get_param_by_name(effect, "colorprim");
+		gs_effect_set_val(param, colorprim, sizeof(float) * 16);
 	}
 
 	param = gs_effect_get_param_by_name(effect, "image");
@@ -1685,24 +1730,22 @@ static inline void obs_source_draw_texture(struct obs_source *source,
 
 static void obs_source_draw_async_texture(struct obs_source *source)
 {
-	gs_effect_t    *effect        = gs_get_effect();
-	bool           yuv           = format_is_yuv(source->async_format);
-	bool           limited_range = yuv && !source->async_full_range;
-	const char     *type         = yuv ? "DrawMatrix" : "Draw";
-	bool           def_draw      = (!effect);
-	gs_technique_t *tech          = NULL;
-
+	gs_effect_t    *effect  = gs_get_effect();
+	bool           def_draw = (!effect);
+	gs_technique_t *tech    = NULL;
+		
 	if (def_draw) {
-		effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
-		tech = gs_effect_get_technique(effect, type);
+		effect = obs->video.color_management_effect;
+		tech = gs_effect_get_technique(effect, source->async_transfer_technique);
 		gs_technique_begin(tech);
 		gs_technique_begin_pass(tech, 0);
 	}
 
 	obs_source_draw_texture(source, effect,
-			yuv ? source->async_color_matrix : NULL,
-			limited_range ? source->async_color_range_min : NULL,
-			limited_range ? source->async_color_range_max : NULL);
+			source->async_use_colormatrix ? source->async_colormatrix_data : NULL,
+			source->async_use_colormatrix ? source->async_color_range_min : NULL,
+			source->async_use_colormatrix ? source->async_color_range_max : NULL,
+			source->async_use_colorprim ? source->async_colorprim_data : NULL);
 
 	if (def_draw) {
 		gs_technique_end_pass(tech);
@@ -2239,6 +2282,9 @@ static void copy_frame_data(struct obs_source_frame *dst,
 		memcpy(dst->color_range_min, src->color_range_min, size);
 		memcpy(dst->color_range_max, src->color_range_max, size);
 	}
+	dst->transfer    = src->transfer;
+	dst->colorprim   = src->colorprim;
+	dst->colormatrix = src->colormatrix;
 
 	switch (src->format) {
 	case VIDEO_FORMAT_I420:

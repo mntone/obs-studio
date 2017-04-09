@@ -63,6 +63,87 @@ enum video_colorspace {
 	VIDEO_CS_709,
 };
 
+/*
+ * Default: BT.709
+ */
+enum video_transfer_type {
+	VIDEO_TRANS_DEFAULT       = -1,
+	VIDEO_TRANS_BT709_5       =  1,  /* BT.709-5 */
+	VIDEO_TRANS_UNSPECIFIED   =  2,
+	VIDEO_TRANS_NTSC          =  4,  /* BT.470-6 System M  */
+	VIDEO_TRANS_PAL           =  5,  /* BT.470-6 System B, G */
+	VIDEO_TRANS_BT601_6       =  6,  /* same as 1 */
+	VIDEO_TRANS_SMPTE_240M    =  7,  /* SMPTE 240M */
+	VIDEO_TRANS_LINEAR        =  8,
+	VIDEO_TRANS_LOG           =  9,
+	VIDEO_TRANS_LOG_SQRT      = 10,
+	VIDEO_TRANS_XVYCC         = 11,  /* IEC 61966-2-4 */
+	VIDEO_TRANS_BT1361_0      = 12,  /* BT.1361-0 */
+	VIDEO_TRANS_SRGB          = 13,  /* IEC 61966-2-1 */
+	VIDEO_TRANS_BT2020_2_10   = 14,  /* BT.2020 10-bit, same as 1 */
+	VIDEO_TRANS_BT2020_2_12   = 15,  /* BT.2020 12-bit, same as 1 */
+
+	/* HDR; no support */
+	VIDEO_TRANS_PQ            = 16,  /* SMPTE ST 2084, BT.2100 */
+	VIDEO_TRANS_SMPTE_ST428_1 = 17,  /* SMPTE ST 428-1 */
+	VIDEO_TRANS_HLG           = 18,  /* ARIB STD-B67 */
+	
+	/* internal use only */
+	VIDEO_TRANS_ADOBERGB      = 1000,
+};
+
+/*
+ * Default:
+ * <= 720 x <= 486: NTSC
+ * <= 720 x <= 576: PAL
+ * >=3840 x >=2160: BT.2020
+ * other          : BT.709
+ */
+enum video_colorprim_type {
+	VIDEO_CP_DEFAULT        = -1,
+	VIDEO_CP_BT709_5        =  1,  /* BT.709-5, sRGB */
+	VIDEO_CP_UNSPECIFIED    =  2,
+	VIDEO_CP_BT470_6        =  4,  /* BT.470-6 System M (NTSC 1953) */
+	VIDEO_CP_PAL            =  5,  /* BT.601-6 625 (BT.470-6 System B, G) */
+	VIDEO_CP_NTSC           =  6,  /* BT.601-6 525 (SMPTE ST 170M) */
+	VIDEO_CP_SMPTE240M      =  7,  /* SMPTE 240M, same as 6 */
+	VIDEO_CP_FILM           =  8,
+	VIDEO_CP_BT2020_2       =  9,  /* BT.2020-2 */
+	VIDEO_CP_SMPTE_428_1    = 10,  /* SMPTE 428-1, no support */
+	VIDEO_CP_SMPTE_RP431_2  = 11,  /* SMPTE RP 431-2 */
+	VIDEO_CP_SMPTE_RP432_1  = 12,  /* SMPTE RP 432-1 */
+	VIDEO_CP_EBU_TECH3213_E = 22,  /* EBU Tech. 3213-E */
+
+	/* internal use only */
+	VIDEO_CP_NTSC_J         = 1000, /* NTSC + D93 */
+	VIDEO_CP_ADOBE_RGB,             /* Adobe RGB */
+	VIDEO_CP_DCI_P3_D65,            /* DCI-P3 D65 */
+	VIDEO_CP_DCI_P3,                /* DCI-P3 */
+};
+
+/*
+ * Default:
+ * <   720: BT.601
+ * >=  720: BT.709
+ * >= 2160: BT.2020NC
+ */
+enum video_colormatrix_type {
+	VIDEO_CM_DEFAULT      = -1,
+	VIDEO_CM_GBR          =  0,  /* no support */
+	VIDEO_CM_BT709_6      =  1,
+	VIDEO_CM_UNSPECIFIED  =  2,
+	VIDEO_CM_FCC          =  4,
+	VIDEO_CM_PAL          =  5,  /* BT.601-6 625 (BT.470-6 System B, G), same as 6 */
+	VIDEO_CM_NTSC         =  6,  /* BT.601-6 525 (SMPTE ST 170M), same as 5 */
+	VIDEO_CM_SMPTE_240M   =  7,  /* SMPTE 240M */
+	VIDEO_CM_YCGCO        =  8,  /* no support */
+	VIDEO_CM_BT2020NC     =  9,  /* BT.2020 Non-constant luminance */
+	VIDEO_CM_BT2020C      = 10,  /* BT.2020 Constant luminance */
+	VIDEO_CM_YDZDX        = 11,  /* no support */
+
+	VIDEO_CM_BT601_6      = VIDEO_CM_NTSC,
+};
+
 enum video_range_type {
 	VIDEO_RANGE_DEFAULT,
 	VIDEO_RANGE_PARTIAL,
@@ -133,6 +214,30 @@ static inline const char *get_video_format_name(enum video_format format)
 	}
 
 	return "None";
+}
+
+static inline int get_video_colorbit(enum video_format format)
+{
+	switch (format) {
+	case VIDEO_FORMAT_I420:
+	case VIDEO_FORMAT_NV12:
+	case VIDEO_FORMAT_YVYU:
+	case VIDEO_FORMAT_YUY2:
+	case VIDEO_FORMAT_UYVY:
+	case VIDEO_FORMAT_I444:
+	case VIDEO_FORMAT_RGBA:
+	case VIDEO_FORMAT_BGRA:
+	case VIDEO_FORMAT_BGRX:
+	case VIDEO_FORMAT_Y800:
+		return 8;
+
+	case VIDEO_FORMAT_R210:
+	case VIDEO_FORMAT_R10B:
+	case VIDEO_FORMAT_R10L:
+		return 10;
+	}
+
+	return 8;
 }
 
 enum video_scale_type {

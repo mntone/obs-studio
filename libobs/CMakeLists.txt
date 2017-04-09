@@ -252,6 +252,7 @@ set(libobs_mediaio_SOURCES
 	media-io/audio-io.c
 	media-io/video-frame.c
 	media-io/format-conversion.c
+	media-io/color-management.c
 	media-io/audio-resampler-ffmpeg.c
 	media-io/video-scaler-ffmpeg.c
 	media-io/media-remux.c)
@@ -262,6 +263,7 @@ set(libobs_mediaio_HEADERS
 	media-io/audio-math.h
 	media-io/video-frame.h
 	media-io/format-conversion.h
+	media-io/color-management.h
 	media-io/audio-resampler.h
 	media-io/video-scaler.h
 	media-io/media-remux.h

@@ -226,11 +226,15 @@ struct obs_source_frame {
 	uint64_t            timestamp;
 
 	enum video_format   format;
-	float               color_matrix[16];
+	float               color_matrix[16];   // obsolute
 	bool                full_range;
-	float               color_range_min[3];
-	float               color_range_max[3];
+	float               color_range_min[3]; // obsolute
+	float               color_range_max[3]; // obsolute
 	bool                flip;
+
+	enum video_transfer_type    transfer;
+	enum video_colorprim_type   colorprim;
+	enum video_colormatrix_type colormatrix; // yuv source only
 
 	/* used internally by libobs */
 	volatile long       refs;

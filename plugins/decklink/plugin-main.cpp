@@ -237,7 +237,7 @@ static obs_properties_t *decklink_get_properties(void *data)
 
 	obs_property_list_add_int(list, "8-bit YUV", bmdFormat8BitYUV);
 	obs_property_list_add_int(list, "8-bit BGRA", bmdFormat8BitBGRA);
-#if 0
+#if true
 	obs_property_list_add_int(list, "10-bit RGB (r210)", bmdFormat10BitRGB);
 	obs_property_list_add_int(list, "10-bit RGB (R10b)", bmdFormat10BitRGBX);
 #endif
@@ -264,6 +264,41 @@ static obs_properties_t *decklink_get_properties(void *data)
 			SPEAKERS_STEREO);
 
 	obs_properties_add_bool(props, BUFFERING, TEXT_BUFFERING);
+
+	list = obs_properties_add_list(props, "transfer", "Transfer",
+			OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(list, "Default (BT.709)", VIDEO_TRANS_DEFAULT);
+	obs_property_list_add_int(list, "BT.709", VIDEO_TRANS_BT709_5);
+	obs_property_list_add_int(list, "NTSC", VIDEO_TRANS_NTSC);
+	obs_property_list_add_int(list, "PAL", VIDEO_TRANS_PAL);
+	obs_property_list_add_int(list, "SMPTE 240M", VIDEO_TRANS_SMPTE_240M);
+	obs_property_list_add_int(list, "Linear", VIDEO_TRANS_LINEAR);
+	//obs_property_list_add_int(list, "Log", VIDEO_TRANS_LOG);
+	//obs_property_list_add_int(list, "Log Sqrt", VIDEO_TRANS_LOG_SQRT);
+	obs_property_list_add_int(list, "xvYCC", VIDEO_TRANS_XVYCC);
+	//obs_property_list_add_int(list, "BT.1361-0", VIDEO_TRANS_BT1361_0);
+	obs_property_list_add_int(list, "sRGB", VIDEO_TRANS_SRGB);
+	obs_property_list_add_int(list, "Adobe RGB", VIDEO_TRANS_ADOBERGB);
+
+	list = obs_properties_add_list(props, "colorprim", "Color Primaries",
+			OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(list, "Default", VIDEO_CP_DEFAULT);
+	obs_property_list_add_int(list, "BT.709", VIDEO_CP_BT709_5);
+	obs_property_list_add_int(list, "PAL", VIDEO_CP_PAL);
+	obs_property_list_add_int(list, "NTSC", VIDEO_CP_NTSC);
+	obs_property_list_add_int(list, "BT.2020-2", VIDEO_CP_BT2020_2);
+	obs_property_list_add_int(list, "SMPTE RP 432-1", VIDEO_CP_SMPTE_RP432_1);
+	obs_property_list_add_int(list, "EBU Tech. 3213-E", VIDEO_CP_EBU_TECH3213_E);
+	obs_property_list_add_int(list, "Adobe RGB", VIDEO_CP_ADOBE_RGB);
+	obs_property_list_add_int(list, "DCI-P3 D65", VIDEO_CP_DCI_P3_D65);
+
+	list = obs_properties_add_list(props, "colormatrix", "Color Matrix",
+			OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(list, "Default", VIDEO_CM_DEFAULT);
+	obs_property_list_add_int(list, "BT.709-6", VIDEO_CM_BT709_6);
+	obs_property_list_add_int(list, "FCC", VIDEO_CM_FCC);
+	obs_property_list_add_int(list, "BT.601-6", VIDEO_CM_BT601_6);
+	obs_property_list_add_int(list, "BT.2020 (Non-constant)", VIDEO_CM_BT2020NC);
 
 	UNUSED_PARAMETER(data);
 	return props;

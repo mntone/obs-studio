@@ -337,7 +337,7 @@ void deinterlace_render(obs_source_t *s)
 	if (yuv) {
 		gs_eparam_t *color_matrix = gs_effect_get_param_by_name(
 				effect, "color_matrix");
-		gs_effect_set_val(color_matrix, s->async_color_matrix,
+		gs_effect_set_val(color_matrix, s->async_colormatrix_data,
 				sizeof(float) * 16);
 	}
 	if (limited_range) {

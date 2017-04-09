@@ -166,11 +166,16 @@ void DeckLinkDeviceInstance::SetupVideoFormat(DeckLinkDeviceMode *mode_)
 			currentFrame.color_matrix, currentFrame.color_range_min,
 			currentFrame.color_range_max);
 
+	obs_data_t *settings = obs_source_get_settings(decklink->GetSource());
+	currentFrame.transfer = (video_transfer_type)obs_data_get_int(settings, "transfer");
+	currentFrame.colorprim = (video_colorprim_type)obs_data_get_int(settings, "colorprim");
+	currentFrame.colormatrix = (video_colormatrix_type)obs_data_get_int(settings, "colormatrix");
+
 #ifdef LOG_SETUP_VIDEO_FORMAT
-	LOG(LOG_INFO, "Setup video format: %s, %s, %s",
+	LOG(LOG_INFO, "Setup video format: %s, %s, %s, %d, %d, %d",
 			pixelFormat == bmdFormat8BitYUV ? "YUV" : "RGB",
 			activeColorSpace == VIDEO_CS_709 ? "BT.709" : "BT.601",
-			colorRange == VIDEO_RANGE_FULL ? "full" : "limited");
+			colorRange == VIDEO_RANGE_FULL ? "full" : "limited", currentFrame.transfer, currentFrame.colorprim, currentFrame.colormatrix);
 #endif
 }
 

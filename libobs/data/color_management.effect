@@ -1,0 +1,233 @@
+uniform float4x4 ViewProj;
+uniform float4x4 colormatrix;
+uniform float3 rangemin = {0.0, 0.0, 0.0};
+uniform float3 rangemax = {1.0, 1.0, 1.0};
+uniform float4x4 colorprim;
+uniform texture2d image;
+
+sampler_state def_sampler {
+	Filter   = Linear;
+	AddressU = Clamp;
+	AddressV = Clamp;
+};
+
+struct VertInOut {
+	float4 pos : POSITION;
+	float2 uv  : TEXCOORD0;
+};
+
+VertInOut VSDefault(VertInOut vert_in)
+{
+	VertInOut vert_out;
+	vert_out.pos = mul(float4(vert_in.pos.xyz, 1.0), ViewProj);
+	vert_out.uv  = vert_in.uv;
+	return vert_out;
+}
+
+float4 PSDrawBare(VertInOut vert_in) : TARGET
+{
+	return image.Sample(def_sampler, vert_in.uv);
+}
+
+float4 PSDrawMatrix(VertInOut vert_in) : TARGET
+{
+	float4 pqr = image.Sample(def_sampler, vert_in.uv);
+	pqr.xyz = saturate(
+		mul(float4(clamp(pqr.xyz, rangemin, rangemax), 1.0), colormatrix).xyz);
+	return pqr;
+}
+
+
+float4 ColorMatrix(float4 pqr)
+{
+	pqr.xyz = clamp(pqr.xyz, rangemin, rangemax);
+	return float4(mul(float4(pqr.xyz, 1.0), colormatrix).xyz, pqr.w);
+}
+
+float4 ColorPrim(float4 rgb)
+{
+	return float4(mul(float4(rgb.xyz, 1.0), colorprim).xyz, rgb.w);
+}
+
+
+/*
+ * Q = P^Gamma 
+ */
+float4 PowerGamma(float4 rgb, float g) 
+{
+	return float4(pow(rgb.xyz, g), rgb.w);
+}
+float4 NtscGammaRev(float4 rgb)     { return PowerGamma(rgb, 2.2); }
+float4 PalGammaRev(float4 rgb)      { return PowerGamma(rgb, 2.8); }
+float4 AdobergbGammaRev(float4 rgb) { return PowerGamma(rgb, 563.0 / 256.0); }
+float4 NtscGamma(float4 rgb)        { return PowerGamma(rgb, 1.0 / 2.2); }
+float4 PalGamma(float4 rgb)         { return PowerGamma(rgb, 1.0 / 2.8); }
+float4 AdobergbGamma(float4 rgb)    { return PowerGamma(rgb, 256.0 / 563.0); }
+
+/*
+ * P: Y', Q: Linear
+ * Q = ((P + a)/(1 + a))^Gamma | P >  c
+ * Q = P/b                     | P <= c
+ */
+#define GUMUT_CONV_REV(value, tmp) \
+float tmp = saturate(value); \
+if (tmp > c) { \
+	value = pow((tmp + a) / e, g); \
+} else { \
+	value = tmp / b; \
+}
+float4 GammaRev(float4 rgb, float g, float a, float b, float c) 
+{
+	float e = 1.0 + a;
+	GUMUT_CONV_REV(rgb.x, tx);
+	GUMUT_CONV_REV(rgb.y, ty);
+	GUMUT_CONV_REV(rgb.z, tz);
+	return rgb;
+}
+float4 Bt709GammaRev(float4 rgb)
+{ return GammaRev(rgb, 1.0 / 0.45, 0.09929682680944, 4.5, 0.018053968510807); }
+float4 Smpte240mGammaRev(float4 rgb)
+{ return GammaRev(rgb, 1.0 / 0.45, 0.1115, 4.0, 0.0913); }
+float4 SrgbGammaRev(float4 rgb)
+{ return GammaRev(rgb, 2.4, 0.055, 12.92, 0.04045); }
+
+/*
+ * Q: Linear, R: Y'
+ * R = (1 + a)Q^Gamma - a | Q >  c
+ * R = bQ                 | Q <= c
+ */
+#define GUMUT_CONV(value, tmp) \
+float tmp = saturate(value); \
+if (tmp > c) { \
+	value = pow(tmp, g) * e - a; \
+} else { \
+	value = tmp * b; \
+}
+float4 Gamma(float4 rgb, float g, float a, float b, float c)
+{
+	float e = 1.0 + a;
+	GUMUT_CONV(rgb.x, tx);
+	GUMUT_CONV(rgb.y, ty);
+	GUMUT_CONV(rgb.z, tz);
+	return rgb;
+}
+float4 Bt709Gamma(float4 rgb)
+{ return Gamma(rgb, 0.45, 0.09929682680944, 4.5, 0.018053968510807); }
+float4 Smpte240mGamma(float4 rgb)
+{ return Gamma(rgb, 0.45, 0.1115, 4.0, 0.0228); }
+float4 SrgbGamma(float4 rgb)
+{ return Gamma(rgb, 1.0 / 2.4, 0.055, 12.92, 0.0031308); }
+
+/*
+ * P: Y', Q: Linear
+ * Q = ((P + a)/(1 + a))^Gamma  |  c <  P
+ * Q = P/b                      | -c <= P <=  c
+ * Q = (-(P + a)/(1 + a))^Gamma |       P <  -c
+ */
+#define XVYCC_GUMUT_CONV_REV(value) \
+if (value < -c) { \
+	value = pow(-(value + a) / e, g); \
+} else if (value > c) { \
+	value = pow((value + a) / e, g); \
+} else { \
+	value = value / b; \
+}
+float4 XvyccGammaRev(float4 rgb, float g, float a, float b, float c) 
+{
+	float e = 1.0 + a;
+	XVYCC_GUMUT_CONV_REV(rgb.x);
+	XVYCC_GUMUT_CONV_REV(rgb.y);
+	XVYCC_GUMUT_CONV_REV(rgb.z);
+	return rgb;
+}
+float4 XvyccRev(float4 rgb)
+{ return XvyccGammaRev(rgb, 1.0 / 0.45, 0.09929682680944, 4.5, 0.018053968510807); }
+
+/*
+ * Q: Linear, R: Y'
+ * R = (1 + a)Q^Gamma - a  |  c <  Q
+ * R = bQ                  | -c <= Q <=  c
+ * R = -(1 + a)Q^Gamma - a |       Q <  -c
+ */
+#define XVYCC_GUMUT_CONV(value) \
+if (value < -c) { \
+	value = -pow(value, g) * e - a; \
+} else if (value > c) { \
+	value = pow(value, g) * e - a; \
+} else { \
+	value = value * b; \
+}
+float4 XvyccGamma(float4 rgb, float g, float a, float b, float c)
+{
+	float e = 1.0 + a;
+	XVYCC_GUMUT_CONV(rgb.x);
+	XVYCC_GUMUT_CONV(rgb.y);
+	XVYCC_GUMUT_CONV(rgb.z);
+	return rgb;
+}
+float4 Xvycc(float4 rgb)
+{ return XvyccGamma(rgb, 0.45, 0.09929682680944, 4.5, 0.018053968510807); }
+
+float4 PSDrawLinear(VertInOut vert_in) : TARGET
+{
+	float4 pqr = image.Sample(def_sampler, vert_in.uv);
+	float4 in_linear_rgb = ColorMatrix(pqr);
+	float4 out_linear_rgb = ColorPrim(in_linear_rgb);
+	float4 out_rgb = Bt709Gamma(out_linear_rgb);
+	return saturate(out_rgb);
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDefault(vert_in);
+		pixel_shader  = PSDrawBare(vert_in);
+	}
+}
+
+technique DrawMatrix
+{
+	pass
+	{
+		vertex_shader = VSDefault(vert_in);
+		pixel_shader  = PSDrawMatrix(vert_in);
+	}
+}
+
+technique DrawLinear
+{
+	pass
+	{
+		vertex_shader = VSDefault(vert_in);
+		pixel_shader  = PSDrawLinear(vert_in);
+	}
+}
+
+#define TECHNIQUE(draw_name, technique_name, in_ps, out_ps) \
+float4 draw_name(VertInOut vert_in) : TARGET \
+{ \
+	float4 pqr = image.Sample(def_sampler, vert_in.uv); \
+	float4 full_rgb = ColorMatrix(pqr); \
+	float4 in_linear_rgb = in_ps(full_rgb); \
+	float4 out_linear_rgb = ColorPrim(in_linear_rgb); \
+	float4 out_rgb = out_ps(out_linear_rgb); \
+	return saturate(out_rgb); \
+} \
+\
+technique technique_name \
+{ \
+	pass \
+	{ \
+		vertex_shader = VSDefault(vert_in); \
+		pixel_shader  = draw_name(vert_in); \
+	} \
+}
+
+TECHNIQUE(PSDrawBt709,     DrawBt709,     Bt709GammaRev,     Bt709Gamma)
+TECHNIQUE(PSDrawNtsc,      DrawNtsc,      NtscGammaRev,      Bt709Gamma)
+TECHNIQUE(PSDrawPal,       DrawPal,       PalGammaRev,       Bt709Gamma)
+TECHNIQUE(PSDrawSmpte240m, DrawSmpte240m, Smpte240mGammaRev, Bt709Gamma)
+TECHNIQUE(PSDrawXvycc,     DrawXvycc,     XvyccRev,          Bt709Gamma)
+TECHNIQUE(PSDrawSrgb,      DrawSrgb,      SrgbGammaRev,      Bt709Gamma)
+TECHNIQUE(PSDrawAdobergb,  DrawAdobergb,  AdobergbGammaRev,  Bt709Gamma)

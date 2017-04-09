@@ -272,6 +272,11 @@ static int obs_init_graphics(struct obs_video_info *ovi)
 			NULL);
 	bfree(filename);
 
+	filename = find_libobs_data_file("color_management.effect");
+	video->color_management_effect = gs_effect_create_from_file(filename,
+			NULL);
+	bfree(filename);
+
 	filename = find_libobs_data_file("format_conversion.effect");
 	video->conversion_effect = gs_effect_create_from_file(filename,
 			NULL);
@@ -311,6 +316,8 @@ static int obs_init_graphics(struct obs_video_info *ovi)
 	if (!video->opaque_effect)
 		success = false;
 	if (!video->solid_effect)
+		success = false;
+	if (!video->color_management_effect)
 		success = false;
 	if (!video->conversion_effect)
 		success = false;

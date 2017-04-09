@@ -234,6 +234,7 @@ struct obs_core_video {
 	gs_effect_t                     *default_rect_effect;
 	gs_effect_t                     *opaque_effect;
 	gs_effect_t                     *solid_effect;
+	gs_effect_t                     *color_management_effect;
 	gs_effect_t                     *conversion_effect;
 	gs_effect_t                     *bicubic_effect;
 	gs_effect_t                     *lanczos_effect;
@@ -595,7 +596,16 @@ struct obs_source {
 	enum video_format               async_format;
 	enum video_format               async_cache_format;
 	enum gs_color_format            async_texture_format;
-	float                           async_color_matrix[16];
+	enum video_format               async_format2;
+	enum video_transfer_type        async_transfer;
+	enum video_colorprim_type       async_colorprim;
+	enum video_colormatrix_type     async_colormatrix;
+	enum video_colorprim_type       async_output_colorprim;
+	const char                      *async_transfer_technique;
+	bool                            async_use_colorprim;
+	float                           async_colorprim_data[16];
+	bool                            async_use_colormatrix;
+	float                           async_colormatrix_data[16];
 	bool                            async_full_range;
 	float                           async_color_range_min[3];
 	float                           async_color_range_max[3];
