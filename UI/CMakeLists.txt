@@ -66,7 +66,8 @@ if(WIN32)
 		win-update/update-window.cpp
 		win-update/win-update.cpp
 		win-update/win-update-helpers.cpp
-		obs.rc)
+		obs.rc
+		app.manifest)
 	set(obs_PLATFORM_HEADERS
 		win-update/update-window.hpp
 		win-update/win-update.hpp

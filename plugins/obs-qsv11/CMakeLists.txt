@@ -3,6 +3,8 @@ project(obs-qsv11)
 include_directories(libmfx/include/msdk/include)
 include_directories(libmfx/include)
 
+remove_definitions(-DNOMINMAX)
+
 set(obs-qsv11_libmfx_SOURCES
 	libmfx/src/main.cpp
 	libmfx/src/mfx_critical_section.cpp

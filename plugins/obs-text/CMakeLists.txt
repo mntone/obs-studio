@@ -5,6 +5,8 @@ endif()
 project(obs-text)
 
 if(WIN32)
+	remove_definitions(-DNOMINMAX)
+
 	set(obs-text_PLATFORM_SOURCES
 		gdiplus/obs-text.cpp)
 	set(obs-text_PLATFORM_DEPS
