@@ -136,6 +136,13 @@ void DeckLinkDeviceInstance::FinalizeStream()
 	}
 
 	mode = nullptr;
+
+	if (isAuto) {
+		obs_source_t *source = decklink->GetSource();
+		obs_source_set_deinterlace_mode(source, prevDeinterlaceMode);
+		obs_source_set_deinterlace_field_order(source,
+				prevDeinterlaceFieldOrder);
+	}
 }
 
 //#define LOG_SETUP_VIDEO_FORMAT 1
@@ -146,6 +153,32 @@ void DeckLinkDeviceInstance::SetupVideoFormat(DeckLinkDeviceMode *mode_)
 		return;
 
 	currentFrame.format = ConvertPixelFormat(pixelFormat);
+
+	if (isAuto) {
+		obs_source_t *source = decklink->GetSource();
+		BMDFieldDominance dominance = mode_->GetFieldDominance();
+
+		switch (dominance) {
+		case bmdLowerFieldFirst:
+			obs_source_set_deinterlace_mode(source,
+					OBS_DEINTERLACE_MODE_BLEND);
+			obs_source_set_deinterlace_field_order(source,
+					OBS_DEINTERLACE_FIELD_ORDER_BOTTOM);
+			break;
+
+		case bmdUpperFieldFirst:
+			obs_source_set_deinterlace_mode(source,
+					OBS_DEINTERLACE_MODE_BLEND);
+			obs_source_set_deinterlace_field_order(source,
+					OBS_DEINTERLACE_FIELD_ORDER_TOP);
+			break;
+
+		default:
+			obs_source_set_deinterlace_mode(source,
+					OBS_DEINTERLACE_MODE_DISABLE);
+			break;
+		}
+	}
 
 	colorSpace = decklink->GetColorSpace();
 	if (colorSpace == VIDEO_CS_DEFAULT) {
@@ -189,8 +222,12 @@ bool DeckLinkDeviceInstance::StartCapture(DeckLinkDeviceMode *mode_)
 
 	BMDVideoInputFlags flags;
 
-	bool isauto = mode_->GetName() == "Auto";
-	if (isauto) {
+	isAuto = mode_->GetName() == "Auto";
+	if (isAuto) {
+		obs_source_t *source = decklink->GetSource();
+		prevDeinterlaceMode = obs_source_get_deinterlace_mode(source);
+		prevDeinterlaceFieldOrder = obs_source_get_deinterlace_field_order(source);
+
 		displayMode = bmdModeNTSC;
 		pixelFormat = bmdFormat8BitYUV;
 		flags = bmdVideoInputEnableFormatDetection;

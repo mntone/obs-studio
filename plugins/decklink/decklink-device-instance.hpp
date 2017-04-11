@@ -23,6 +23,10 @@ protected:
 	uint64_t                lastVideoTS = 0;
 	AudioRepacker           *audioRepacker = nullptr;
 	speaker_layout          channelFormat = SPEAKERS_STEREO;
+	bool                    isAuto;
+
+	obs_deinterlace_mode        prevDeinterlaceMode;
+	obs_deinterlace_field_order prevDeinterlaceFieldOrder;
 
 	void FinalizeStream();
 	void SetupVideoFormat(DeckLinkDeviceMode *mode_);
