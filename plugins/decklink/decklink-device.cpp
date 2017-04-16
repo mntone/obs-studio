@@ -63,6 +63,8 @@ bool DeckLinkDevice::Init()
 			modeIdMap[modeId] = mode;
 			displayMode->Release();
 			++modeId;
+
+			mode->Init(input);
 		}
 
 		modeIterator->Release();

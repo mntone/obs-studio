@@ -242,7 +242,17 @@ static obs_properties_t *decklink_get_properties(void *data)
 	obs_property_set_modified_callback(list, color_format_changed);
 
 	obs_property_list_add_int(list, "8-bit YUV", bmdFormat8BitYUV);
+	obs_property_list_add_int(list, "10-bit YUV", bmdFormat10BitYUV);
 	obs_property_list_add_int(list, "8-bit BGRA", bmdFormat8BitBGRA);
+#if 0
+	obs_property_list_add_int(list, "10-bit RGB (r210)", bmdFormat10BitRGB);
+	obs_property_list_add_int(list, "10-bit RGB (R10b)", bmdFormat10BitRGBX);
+#endif
+	obs_property_list_add_int(list, "10-bit RGB", bmdFormat10BitRGBXLE);
+	obs_property_list_add_int(list, "12-bit RGB", bmdFormat12BitRGB);
+#if 1
+	obs_property_list_add_int(list, "12-bit RGB (R12L)", bmdFormat12BitRGBLE);
+#endif
 
 	list = obs_properties_add_list(props, COLOR_SPACE, TEXT_COLOR_SPACE,
 			OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);

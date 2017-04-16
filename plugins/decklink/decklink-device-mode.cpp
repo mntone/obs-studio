@@ -24,6 +24,33 @@ DeckLinkDeviceMode::~DeckLinkDeviceMode(void)
 		mode->Release();
 }
 
+void DeckLinkDeviceMode::Init(IDeckLinkInput *input)
+{
+	static BMDPixelFormat const checkFormats[] =
+	{
+		bmdFormat8BitYUV,
+		bmdFormat10BitYUV,
+		bmdFormat8BitBGRA,
+		bmdFormat10BitRGBXLE
+	};
+	static int32_t const formatCount =
+			sizeof(checkFormats) / sizeof(checkFormats[0]);
+
+	if (mode == nullptr)
+		return;
+
+	BMDDisplayMode displayMode = GetDisplayMode();
+	for (int32_t i = 0; i < formatCount; ++i) {
+		BMDDisplayModeSupport support;
+		if (input->DoesSupportVideoMode(displayMode, checkFormats[i],
+				bmdVideoInputFlagDefault, &support,
+				nullptr) == S_OK) {
+			if (support != bmdDisplayModeNotSupported)
+				formats.push_back(checkFormats[i]);
+		}
+	}
+}
+
 BMDDisplayMode DeckLinkDeviceMode::GetDisplayMode(void) const
 {
 	if (mode != nullptr)
