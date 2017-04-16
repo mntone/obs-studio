@@ -1288,6 +1288,8 @@ enum convert_type {
 	CONVERT_R210,
 	CONVERT_R10B,
 	CONVERT_R10L,
+	CONVERT_R12B,
+	CONVERT_R12L,
 };
 
 static inline enum convert_type get_convert_type(enum video_format format)
@@ -1310,6 +1312,11 @@ static inline enum convert_type get_convert_type(enum video_format format)
 		return CONVERT_R10B;
 	case VIDEO_FORMAT_R10L:
 		return CONVERT_R10L;
+
+	case VIDEO_FORMAT_R12B:
+		return CONVERT_R12B;
+	case VIDEO_FORMAT_R12L:
+		return CONVERT_R12L;
 
 	case VIDEO_FORMAT_Y800:
 	case VIDEO_FORMAT_I444:
@@ -1368,6 +1375,15 @@ static inline bool set_rgb10_sizes(struct obs_source *source,
 	return true;
 }
 
+static inline bool set_rgb12_sizes(struct obs_source *source,
+		const struct obs_source_frame *frame)
+{
+	source->async_convert_height = frame->height;
+	source->async_convert_width  = frame->width;
+	source->async_texture_format = GS_RGBA16;
+	return true;
+}
+
 
 static inline bool init_gpu_conversion(struct obs_source *source,
 		const struct obs_source_frame *frame)
@@ -1387,6 +1403,10 @@ static inline bool init_gpu_conversion(struct obs_source *source,
 		case CONVERT_R10B:
 		case CONVERT_R10L:
 			return set_rgb10_sizes(source, frame);
+
+		case CONVERT_R12B:
+		case CONVERT_R12L:
+			return set_rgb12_sizes(source, frame);
 			break;
 
 		case CONVERT_NONE:
@@ -1424,7 +1444,8 @@ bool set_async_texture_size(struct obs_source *source,
 
 	if (cur != CONVERT_NONE && init_gpu_conversion(source, frame)) {
 		if (cur == CONVERT_R210 || cur == CONVERT_R10B ||
-		    cur == CONVERT_R10L) {
+		    cur == CONVERT_R10L || cur == CONVERT_R12B ||
+		    cur == CONVERT_R12L) {
 			source->async_gpu_conversion = false;
 		} else {
 			source->async_gpu_conversion = true;
@@ -1479,6 +1500,8 @@ static void upload_raw_frame(gs_texture_t *tex,
 		case CONVERT_R210:
 		case CONVERT_R10B:
 		case CONVERT_R10L:
+		case CONVERT_R12B:
+		case CONVERT_R12L:
 		case CONVERT_NONE:
 			assert(false && "No conversion requested");
 			break;
@@ -1513,6 +1536,8 @@ static const char *select_conversion_technique(enum video_format format)
 		case VIDEO_FORMAT_R210:
 		case VIDEO_FORMAT_R10B:
 		case VIDEO_FORMAT_R10L:
+		case VIDEO_FORMAT_R12B:
+		case VIDEO_FORMAT_R12L:
 			assert(false && "No conversion requested");
 			break;
 	}
@@ -1638,6 +1663,14 @@ bool update_async_texture(struct obs_source *source,
 
 	else if (type == CONVERT_R10L)
 		decompress_r10l(frame->data[0], frame->linesize[0],
+				0, frame->height, ptr, linesize);
+
+	else if (type == CONVERT_R12B)
+		decompress_r12b(frame->data[0], frame->linesize[0],
+				0, frame->height, ptr, linesize);
+
+	else if (type == CONVERT_R12L)
+		decompress_r12l(frame->data[0], frame->linesize[0],
 				0, frame->height, ptr, linesize);
 
 	gs_texture_unmap(tex);
@@ -2262,6 +2295,8 @@ static void copy_frame_data(struct obs_source_frame *dst,
 	case VIDEO_FORMAT_R210:
 	case VIDEO_FORMAT_R10B:
 	case VIDEO_FORMAT_R10L:
+	case VIDEO_FORMAT_R12B:
+	case VIDEO_FORMAT_R12L:
 		copy_frame_data_plane(dst, src, 0, dst->height);
 		break;
 

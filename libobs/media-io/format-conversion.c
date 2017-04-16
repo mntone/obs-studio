@@ -442,3 +442,191 @@ void decompress_r10l(
 		}
 	}
 }
+
+void decompress_r12b(
+		const uint8_t *input, const uint32_t in_linesize,
+		uint32_t start_y, uint32_t end_y,
+		uint8_t *output, uint32_t out_linesize)
+{
+	uint32_t width = min_uint32(in_linesize / 36, out_linesize / 64);
+	uint32_t y;
+
+	for (y = start_y; y < end_y; y++) {
+		const uint32_t *input0;
+		register uint64_t *output0;
+		uint32_t x;
+
+		input0 = (const uint32_t*)(input + y * in_linesize);
+		output0 = (uint64_t*)(output + y * out_linesize);
+
+		for (x = 0; x < width; x++) {
+			uint64_t out = *(input0++);
+
+			*(output0) = 0xFFFF000000000000 |
+					((out & 0xFF000000) >> 20) |
+					((out & 0x000F0000) >>  4) |
+					((out & 0x00F00000) >>  4) |
+					((out & 0x0000FF00) << 16) |
+					((out & 0x000000FF) << 36);
+
+			out = *(input0++);
+
+			*(output0++) |= ((out & 0x0F000000) << 20);
+			*(output0) = 0xFFFF000000000000 |
+					((out & 0xF0000000) >> 24) |
+					((out & 0x00FF0000) >>  8) |
+					((out & 0x0000FF00) << 12) |
+					((out & 0x0000000F) << 28) |
+					((out & 0x000000F0) << 32);
+
+			out = *(input0++);
+
+			*(output0++) |= ((out & 0xFF000000) << 16);
+			*(output0) = 0xFFFF000000000000 |
+					((out & 0x00FF0000) >> 12) |
+					((out & 0x00000F00) <<  4) |
+					((out & 0x0000F000) <<  8) |
+					((out & 0x000000FF) << 24);
+
+			out = *(input0++);
+
+			*(output0++) |= ((out & 0xFF000000) << 12) |
+					((out & 0x000F0000) << 28);
+			*(output0) = 0xFFFF000000000000 |
+					((out & 0x00F00000) >> 16) |
+					((out & 0x0000FF00)      ) |
+					((out & 0x000000FF) << 20);
+
+			out = *(input0++);
+
+			*(output0++) |= ((out & 0x0F000000) <<  4) |
+					((out & 0xF0000000) <<  8) |
+					((out & 0x00FF0000) << 24);
+			*(output0) = 0xFFFF000000000000 |
+					((out & 0x0000FF00) >>  4) |
+					((out & 0x0000000F) << 12) |
+					((out & 0x000000F0) >> 16);
+
+			out = *(input0++);
+
+			*(output0++) |= ((out & 0xFF000000)      ) |
+					((out & 0x00FF0000) << 20) |
+					((out & 0x00000F00) << 36);
+			*(output0) = 0xFFFF000000000000 |
+					((out & 0x0000F000) >>  8) |
+					((out & 0x000000FF) <<  8);
+
+			out = *(input0++);
+
+			*(output0++) |= ((out & 0xFF000000) >>  4) |
+					((out & 0x000F0000) << 12) |
+					((out & 0x00F00000) << 16) |
+					((out & 0x0000FF00) << 32);
+			*(output0) = 0xFFFF000000000000 |
+					((out & 0x000000FF) <<  4);
+
+			out = *(input0++);
+
+			*(output0++) |= ((out & 0x0F000000) >> 12) |
+					((out & 0xF0000000) >>  8) |
+					((out & 0x00FF0000) <<  8) |
+					((out & 0x0000FF00) << 28) |
+					((out & 0x0000000F) << 44);
+			*(output0) = 0xFFFF000000000000 |
+					((out & 0x000000F0)      );
+
+			out = *(input0++);
+
+			*(output0++) |= ((out & 0xFF000000) >> 16) |
+					((out & 0x00FF0000) <<  4) |
+					((out & 0x00000F00) << 20) |
+					((out & 0x0000F000) << 24) |
+					((out & 0x000000FF) << 40);
+		}
+	}
+}
+
+void decompress_r12l(
+		const uint8_t *input, const uint32_t in_linesize,
+		uint32_t start_y, uint32_t end_y,
+		uint8_t *output, uint32_t out_linesize)
+{
+	uint32_t width = min_uint32(in_linesize / 36, out_linesize / 64);
+	uint32_t y;
+
+	for (y = start_y; y < end_y; y++) {
+		const uint32_t *input0;
+		register uint64_t *output0;
+		uint32_t x;
+
+		input0 = (const uint32_t*)(input + y * in_linesize);
+		output0 = (uint64_t*)(output + y * out_linesize);
+
+		for (x = 0; x < width; x++) {
+			uint64_t out = *(input0++);
+
+			*(output0) = 0xFFFF000000000000 |
+					((out & 0x00000FFF) <<  4) |
+					((out & 0x00FFF000) <<  8) |
+					((out & 0xFF000000) << 12);
+
+			out = *(input0++);
+
+			*(output0++) |= ((out & 0x0000000F) << 44);
+			*(output0) = 0xFFFF000000000000 |
+					((out & 0x0000FFF0)      ) |
+					((out & 0x0FFF0000) <<  4) |
+					((out & 0xF0000000) <<  8);
+
+			out = *(input0++);
+
+			*(output0++) |= ((out & 0x000000FF) << 40);
+			*(output0) = 0xFFFF000000000000 |
+					((out & 0x000FFF00) >>  4) |
+					((out & 0xFFF00000)      );
+
+			out = *(input0++);
+
+			*(output0++) |= ((out & 0x00000FFF) << 36);
+			*(output0) = 0xFFFF000000000000 |
+					((out & 0x00FFF000) >>  8) |
+					((out & 0xFF000000) >>  4);
+
+			out = *(input0++);
+
+			*(output0++) |= ((out & 0x0000000F) << 28) |
+					((out & 0x0000FFF0) << 32);
+			*(output0) = 0xFFFF000000000000 |
+					((out & 0x0FFF0000) >> 12) |
+					((out & 0xF0000000) >>  8);
+
+			out = *(input0++);
+
+			*(output0++) |= ((out & 0x000000FF) << 24) |
+					((out & 0x000FFF00) << 28);
+			*(output0) = 0xFFFF000000000000 |
+					((out & 0xFFF00000) >> 16);
+
+			out = *(input0++);
+
+			*(output0++) |= ((out & 0x00000FFF) << 20) |
+					((out & 0x00FFF000) << 24);
+			*(output0) = 0xFFFF000000000000 |
+					((out & 0xFF000000) >> 20);
+
+			out = *(input0++);
+
+			*(output0++) |= ((out & 0x0000000F) << 12) |
+					((out & 0x0000FFF0) << 16) |
+					((out & 0x0FFF0000) << 20);
+			*(output0) = 0xFFFF000000000000 |
+					((out & 0xF0000000) >> 24);
+
+			out = *(input0++);
+
+			*(output0++) |= ((out & 0x000000FF) <<  8) |
+					((out & 0x000FFF00) << 12) |
+					((out & 0xFFF00000) << 16);
+		}
+	}
+}

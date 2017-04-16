@@ -55,6 +55,10 @@ enum video_format {
 	VIDEO_FORMAT_R210, /* A2BGR10 */
 	VIDEO_FORMAT_R10B, /* RGB10X2 */
 	VIDEO_FORMAT_R10L, /* RGB10X2 (LE) */
+
+	/* packed uncompressed 12-bit formats */
+	VIDEO_FORMAT_R12B, /* RGB12 */
+	VIDEO_FORMAT_R12L, /* RGB12 (LE) */
 };
 
 enum video_colorspace {
@@ -107,6 +111,8 @@ static inline bool format_is_yuv(enum video_format format)
 	case VIDEO_FORMAT_R210:
 	case VIDEO_FORMAT_R10B:
 	case VIDEO_FORMAT_R10L:
+	case VIDEO_FORMAT_R12B:
+	case VIDEO_FORMAT_R12L:
 		return false;
 	}
 
@@ -129,6 +135,8 @@ static inline const char *get_video_format_name(enum video_format format)
 	case VIDEO_FORMAT_R210: return "r210";
 	case VIDEO_FORMAT_R10B: return "R10b";
 	case VIDEO_FORMAT_R10L: return "R10l";
+	case VIDEO_FORMAT_R12B: return "R12B";
+	case VIDEO_FORMAT_R12L: return "R12L";
 	case VIDEO_FORMAT_NONE:;
 	}
 

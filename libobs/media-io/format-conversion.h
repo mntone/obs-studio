@@ -73,6 +73,16 @@ EXPORT void decompress_r10l(
 		uint32_t start_y, uint32_t end_y,
 		uint8_t *output, uint32_t out_linesize);
 
+EXPORT void decompress_r12b(
+		const uint8_t *input, const uint32_t in_linesize,
+		uint32_t start_y, uint32_t end_y,
+		uint8_t *output, uint32_t out_linesize);
+
+EXPORT void decompress_r12l(
+		const uint8_t *input, const uint32_t in_linesize,
+		uint32_t start_y, uint32_t end_y,
+		uint8_t *output, uint32_t out_linesize);
+
 #ifdef __cplusplus
 }
 #endif
