@@ -102,6 +102,12 @@ void video_frame_init(struct video_frame *frame, enum video_format format,
 		frame->linesize[2] = width;
 		break;
 
+	case VIDEO_FORMAT_V210:
+		size = ((width+47) / 48) * 128 * height;
+		frame->data[0] = bmalloc(size);
+		frame->linesize[0] = size / height;
+		break;
+
 	case VIDEO_FORMAT_R210:
 	case VIDEO_FORMAT_R10B:
 	case VIDEO_FORMAT_R10L:
@@ -146,6 +152,7 @@ void video_frame_copy(struct video_frame *dst, const struct video_frame *src,
 	case VIDEO_FORMAT_RGBA:
 	case VIDEO_FORMAT_BGRA:
 	case VIDEO_FORMAT_BGRX:
+	case VIDEO_FORMAT_V210:
 	case VIDEO_FORMAT_R210:
 	case VIDEO_FORMAT_R10B:
 	case VIDEO_FORMAT_R10L:

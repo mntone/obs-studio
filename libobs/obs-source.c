@@ -1285,6 +1285,7 @@ enum convert_type {
 	CONVERT_420,
 	CONVERT_422_U,
 	CONVERT_422_Y,
+	CONVERT_V210,
 	CONVERT_R210,
 	CONVERT_R10B,
 	CONVERT_R10L,
@@ -1305,6 +1306,9 @@ static inline enum convert_type get_convert_type(enum video_format format)
 		return CONVERT_422_Y;
 	case VIDEO_FORMAT_UYVY:
 		return CONVERT_422_U;
+
+	case VIDEO_FORMAT_V210:
+		return CONVERT_V210;
 
 	case VIDEO_FORMAT_R210:
 		return CONVERT_R210;
@@ -1366,6 +1370,15 @@ static inline bool set_nv12_sizes(struct obs_source *source,
 	return true;
 }
 
+static inline bool set_v210_sizes(struct obs_source *source,
+		const struct obs_source_frame *frame)
+{
+	source->async_convert_height = frame->height;
+	source->async_convert_width  = frame->width * 2 / 3;
+	source->async_texture_format = GS_R10G10B10A2;
+	return true;
+}
+
 static inline bool set_rgb10_sizes(struct obs_source *source,
 		const struct obs_source_frame *frame)
 {
@@ -1398,6 +1411,9 @@ static inline bool init_gpu_conversion(struct obs_source *source,
 
 		case CONVERT_NV12:
 			return set_nv12_sizes(source, frame);
+
+		case CONVERT_V210:
+			return set_v210_sizes(source, frame);
 
 		case CONVERT_R210:
 		case CONVERT_R10B:
@@ -1447,6 +1463,10 @@ bool set_async_texture_size(struct obs_source *source,
 		    cur == CONVERT_R10L || cur == CONVERT_R12B ||
 		    cur == CONVERT_R12L) {
 			source->async_gpu_conversion = false;
+		} else if (cur == CONVERT_V210) {
+			source->async_gpu_conversion = true;
+			source->async_texrender =
+				gs_texrender_create(GS_R10G10B10A2, GS_ZS_NONE);
 		} else {
 			source->async_gpu_conversion = true;
 			source->async_texrender =
@@ -1497,6 +1517,11 @@ static void upload_raw_frame(gs_texture_t *tex,
 					frame->width, false);
 			break;
 
+		case CONVERT_V210:
+			gs_texture_set_image(tex, frame->data[0],
+					frame->linesize[0], false);
+			break;
+
 		case CONVERT_R210:
 		case CONVERT_R10B:
 		case CONVERT_R10L:
@@ -1525,6 +1550,9 @@ static const char *select_conversion_technique(enum video_format format)
 
 		case VIDEO_FORMAT_NV12:
 			return "NV12_Reverse";
+
+		case VIDEO_FORMAT_V210:
+			return "V210_Reverse";
 			break;
 
 		case VIDEO_FORMAT_Y800:
@@ -1583,6 +1611,8 @@ static bool update_async_texrender(struct obs_source *source,
 	set_eparam(conv, "height_d2", cy * 0.5f);
 	set_eparam(conv, "width_d2_i",  1.0f / (cx * 0.5f));
 	set_eparam(conv, "height_d2_i", 1.0f / (cy * 0.5f));
+	set_eparam(conv, "width_d6", cx / 6.0f);
+	set_eparam(conv, "width_d6_i", 6.0f / cx);
 	set_eparam(conv, "input_width",  convert_width);
 	set_eparam(conv, "input_height", convert_height);
 	set_eparam(conv, "input_width_i",  1.0f / convert_width);
@@ -1652,6 +1682,10 @@ bool update_async_texture(struct obs_source *source,
 	else if (type == CONVERT_422_U)
 		decompress_422(frame->data[0], frame->linesize[0],
 				0, frame->height, ptr, linesize, false);
+	
+	else if (type == CONVERT_V210)
+		decompress_v210(frame->data[0], frame->linesize[0],
+				0, frame->height, ptr, linesize);
 
 	else if (type == CONVERT_R210)
 		decompress_r210(frame->data[0], frame->linesize[0],
@@ -2292,6 +2326,7 @@ static void copy_frame_data(struct obs_source_frame *dst,
 	case VIDEO_FORMAT_RGBA:
 	case VIDEO_FORMAT_BGRA:
 	case VIDEO_FORMAT_BGRX:
+	case VIDEO_FORMAT_V210:
 	case VIDEO_FORMAT_R210:
 	case VIDEO_FORMAT_R10B:
 	case VIDEO_FORMAT_R10L:

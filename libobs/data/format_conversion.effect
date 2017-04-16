@@ -30,6 +30,8 @@ uniform float     width_d2;
 uniform float     height_d2;
 uniform float     width_d2_i;
 uniform float     height_d2_i;
+uniform float     width_d6;
+uniform float     width_d6_i;
 uniform float     input_width;
 uniform float     input_height;
 uniform float     input_width_i;
@@ -60,6 +62,7 @@ VertInOut VSDefault(VertInOut vert_in)
 
 /* used to prevent internal GPU precision issues width fmod in particular */
 #define PRECISION_OFFSET 0.2
+#define PRECISION_OFFSET_V210 0.05
 
 float4 PSNV12(VertInOut vert_in) : TARGET
 {
@@ -307,6 +310,29 @@ float4 PSNV12_Reverse(VertInOut vert_in) : TARGET
 	);
 }
 
+float4 PSV210_Reverse(VertInOut vert_in) : TARGET
+{
+	float y = vert_in.uv.y;
+	float sel = floor(fmod(width * vert_in.uv.x + PRECISION_OFFSET_V210, 6.0));
+	float offset = floor(sel / 2.0);
+	float x0 = floor(width_d6 * vert_in.uv.x + PRECISION_OFFSET_V210) * width_d6_i +
+			offset * (1.0 / (width / 1.5)) + (0.5 / (width / 1.5));
+	float x1 = x0 + (1.0 / (width / 1.5));
+
+	float4 texel0 = image.Sample(def_sampler, float2(x0, y));
+	float4 texel1 = image.Sample(def_sampler, float2(x1, y));
+	if (sel > 3.5) {
+		return float4(sel > 4.5 ? texel1[2] : texel1[0],
+				texel0[2], texel1[1], 1.0);
+	} else if (sel > 1.5) {
+		return float4(sel > 2.5 ? texel1[1] : texel0[2],
+				texel0[1], texel1[0], 1.0);
+	} else {
+		return float4(sel > 0.5 ? texel1[0] : texel0[1],
+				texel0[0], texel0[2], 1.0);
+	}
+}
+
 technique Planar420
 {
 	pass
@@ -376,5 +402,14 @@ technique NV12_Reverse
 	{
 		vertex_shader = VSDefault(vert_in);
 		pixel_shader  = PSNV12_Reverse(vert_in);
+	}
+}
+
+technique V210_Reverse
+{
+	pass
+	{
+		vertex_shader = VSDefault(vert_in);
+		pixel_shader  = PSV210_Reverse(vert_in);
 	}
 }

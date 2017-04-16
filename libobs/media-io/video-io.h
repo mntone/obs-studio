@@ -51,6 +51,9 @@ enum video_format {
 	/* planar 4:4:4 */
 	VIDEO_FORMAT_I444,
 
+	/* packed 10-bit 422 formats */
+	VIDEO_FORMAT_V210,
+
 	/* packed uncompressed 10-bit formats */
 	VIDEO_FORMAT_R210, /* A2BGR10 */
 	VIDEO_FORMAT_R10B, /* RGB10X2 */
@@ -102,6 +105,7 @@ static inline bool format_is_yuv(enum video_format format)
 	case VIDEO_FORMAT_YUY2:
 	case VIDEO_FORMAT_UYVY:
 	case VIDEO_FORMAT_I444:
+	case VIDEO_FORMAT_V210:
 		return true;
 	case VIDEO_FORMAT_NONE:
 	case VIDEO_FORMAT_RGBA:
@@ -132,6 +136,7 @@ static inline const char *get_video_format_name(enum video_format format)
 	case VIDEO_FORMAT_BGRX: return "BGRX";
 	case VIDEO_FORMAT_I444: return "I444";
 	case VIDEO_FORMAT_Y800: return "Y800";
+	case VIDEO_FORMAT_V210: return "v210";
 	case VIDEO_FORMAT_R210: return "r210";
 	case VIDEO_FORMAT_R10B: return "R10b";
 	case VIDEO_FORMAT_R10L: return "R10l";

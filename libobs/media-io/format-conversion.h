@@ -58,6 +58,11 @@ EXPORT void decompress_422(
 		uint8_t *output, uint32_t out_linesize,
 		bool leading_lum);
 
+EXPORT void decompress_v210(
+		const uint8_t *input, const uint32_t in_linesize,
+		uint32_t start_y, uint32_t end_y,
+		uint8_t *output, uint32_t out_linesize);
+
 EXPORT void decompress_r210(
 		const uint8_t *input, const uint32_t in_linesize,
 		uint32_t start_y, uint32_t end_y,

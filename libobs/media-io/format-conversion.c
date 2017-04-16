@@ -328,6 +328,57 @@ void decompress_422(
 	}
 }
 
+void decompress_v210(
+		const uint8_t *input, uint32_t in_linesize,
+		uint32_t start_y, uint32_t end_y,
+		uint8_t *output, uint32_t out_linesize)
+{
+	uint32_t width_d = min_uint32(in_linesize / 4, out_linesize / 6);
+	uint32_t y;
+
+	register const uint32_t *input0;
+	register const uint32_t *input0_end;
+	register uint32_t       *output0;
+
+	for (y = start_y; y < end_y; y++) {
+		input0     = (const uint32_t*)(input + y*in_linesize);
+		input0_end = input0 + width_d;
+		output0    = (uint32_t*)(output + y*out_linesize);
+
+		while (input0 < input0_end) {
+			register uint32_t tmp0, tmp1;
+
+			tmp0 = *(input0++);
+			tmp1 = *(input0++);
+
+			*(output0++) =  (tmp0 & 0x000003FF) << 10 |
+					(tmp0 & 0x000FFC00) >> 10 |
+					(tmp0 & 0x3FF00000);
+			*(output0++) =  (tmp0 & 0x000003FF) << 10 |
+					(tmp0 & 0x3FF00000) |
+					(tmp1 & 0x000003FF);
+
+			tmp0 = *(input0++);
+
+			*(output0++) =  (tmp1 & 0x000FFC00) |
+					(tmp1 & 0x3FF00000) >> 20 | 
+					(tmp0 & 0x000003FF) << 20;
+			*(output0++) =  (tmp1 & 0x000FFC00) |
+					(tmp0 & 0x000FFC00) >> 10 |
+					(tmp0 & 0x000003FF) << 20;
+
+			tmp1 = *(input0++);
+
+			*(output0++) =  (tmp0 & 0x3FF00000) >> 10 |
+					(tmp1 & 0x000003FF) |
+					(tmp1 & 0x000FFC00) << 10;
+			*(output0++) =  (tmp0 & 0x3FF00000) >> 10 |
+					(tmp1 & 0x3FF00000) >> 20 |
+					(tmp1 & 0x000FFC00) << 10;
+		}
+	}
+}
+
 void decompress_r210(
 		const uint8_t *input, const uint32_t in_linesize,
 		uint32_t start_y, uint32_t end_y,
