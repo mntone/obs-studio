@@ -116,6 +116,7 @@ void OBSPropertiesView::RefreshProperties()
 
 	QFormLayout *layout = new QFormLayout;
 	layout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+	layout->setVerticalSpacing(3);
 	widget->setLayout(layout);
 
 	QSizePolicy mainPolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);

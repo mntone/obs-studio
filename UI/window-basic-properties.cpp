@@ -52,11 +52,10 @@ OBSBasicProperties::OBSBasicProperties(QWidget *parent, OBSSource source_)
 	buttonBox->setStandardButtons(QDialogButtonBox::Ok |
 			QDialogButtonBox::Cancel);
 	buttonBox->setObjectName(QStringLiteral("buttonBox"));
+	buttonBox->setContentsMargins(13, 13, 13, 13);
 
-	if (cx > 400 && cy > 400)
-		resize(cx, cy);
-	else
-		resize(720, 580);
+	window()->setMinimumSize(640, 600);
+	resize(max(cx, 640), max(cy, 600));
 
 	QMetaObject::connectSlotsByName(this);
 
@@ -70,11 +69,7 @@ OBSBasicProperties::OBSBasicProperties(QWidget *parent, OBSSource source_)
 	view = new OBSPropertiesView(settings, source,
 			(PropertiesReloadCallback)obs_source_properties,
 			(PropertiesUpdateCallback)obs_source_update);
-	view->setMinimumHeight(150);
-
-	preview->setMinimumSize(20, 150);
-	preview->setSizePolicy(QSizePolicy(QSizePolicy::Expanding,
-				QSizePolicy::Expanding));
+	view->setContentsMargins(13, 13, 13, 13);
 
 	// Create a QSplitter to keep a unified workflow here.
 	windowSplitter = new QSplitter(Qt::Orientation::Vertical, this);
@@ -82,13 +77,14 @@ OBSBasicProperties::OBSBasicProperties(QWidget *parent, OBSSource source_)
 	windowSplitter->addWidget(view);
 	windowSplitter->setChildrenCollapsible(false);
 	//windowSplitter->setSizes(QList<int>({ 16777216, 150 }));
-	windowSplitter->setStretchFactor(0, 3);
-	windowSplitter->setStretchFactor(1, 1);
+	windowSplitter->setStretchFactor(0, 1);
+	windowSplitter->setStretchFactor(1, 0);
 
 	setLayout(new QVBoxLayout(this));
 	layout()->addWidget(windowSplitter);
 	layout()->addWidget(buttonBox);
 	layout()->setAlignment(buttonBox, Qt::AlignRight | Qt::AlignBottom);
+	layout()->setMargin(0);
 
 	view->show();
 	installEventFilter(CreateShortcutFilter());
