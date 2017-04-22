@@ -83,6 +83,11 @@ do {                                                                          \
 	*(uint16_t*)(v_plane+chroma_pos) = (uint16_t)(packed_vals>>16);       \
 } while (false)
 
+#define _MM_OR_SI128_OP3(x, y, z)    _mm_or_si128(_mm_or_si128(x, y), z)
+#define _MM_OR_SI128_OP4(x, y, z, w) _mm_or_si128(_MM_OR_SI128_OP3(x, y, z), w)
+#define _MM_AND_SLLI_EPI32(x, m, i)  _mm_slli_epi32(_mm_and_si128(x, m), i)
+#define _MM_AND_SRLI_EPI32(x, m, i)  _mm_srli_epi32(_mm_and_si128(x, m), i)
+
 
 static FORCE_INLINE uint32_t min_uint32(uint32_t a, uint32_t b)
 {
@@ -319,6 +324,121 @@ void decompress_422(
 				output32 += 2;
 				input32++;
 			}
+		}
+	}
+}
+
+void decompress_r210(
+		const uint8_t *input, const uint32_t in_linesize,
+		uint32_t start_y, uint32_t end_y,
+		uint8_t *output, uint32_t out_linesize)
+{
+	uint32_t width_d4 = min_uint32(in_linesize, out_linesize) / 16;
+	uint32_t y;
+
+	const __m128i base    = _mm_set1_epi32(0xC0000000);
+	const __m128i mask_r0 = _mm_set1_epi32(0x0000003F);
+	const __m128i mask_r1 = _mm_set1_epi32(0x0000F000);
+	const __m128i mask_g0 = _mm_set1_epi32(0x00000F00);
+	const __m128i mask_g1 = _mm_set1_epi32(0x00FC0000);
+	const __m128i mask_b0 = _mm_set1_epi32(0x00030000);
+	const __m128i mask_b1 = _mm_set1_epi32(0xFF000000);
+
+	for (y = start_y; y < end_y; y++) {
+		const __m128i *input0;
+		register __m128i *output0;
+		uint32_t x;
+
+		input0 = (const __m128i*)(input + y * in_linesize);
+		output0 = (__m128i*)(output + y * out_linesize);
+
+		for (x = 0; x < width_d4; x++) {
+			const __m128i tmp = _mm_load_si128(input0++);
+			const __m128i r0 = _MM_AND_SLLI_EPI32(tmp, mask_r0,  4);
+			const __m128i r1 = _MM_AND_SRLI_EPI32(tmp, mask_r1, 12);
+			const __m128i g0 = _MM_AND_SLLI_EPI32(tmp, mask_g0,  8);
+			const __m128i g1 = _MM_AND_SRLI_EPI32(tmp, mask_g1,  8);
+			const __m128i b0 = _MM_AND_SLLI_EPI32(tmp, mask_b0, 12);
+			const __m128i b1 = _MM_AND_SRLI_EPI32(tmp, mask_b1,  4);
+
+			_mm_stream_si128(output0++, _MM_OR_SI128_OP4(base,
+					_mm_or_si128(r0, r1),
+					_mm_or_si128(g0, g1),
+					_mm_or_si128(b0, b1)));
+		}
+	}
+}
+
+void decompress_r10b(
+		const uint8_t *input, const uint32_t in_linesize,
+		uint32_t start_y, uint32_t end_y,
+		uint8_t *output, uint32_t out_linesize)
+{
+	uint32_t width_d4 = min_uint32(in_linesize, out_linesize) / 16;
+	uint32_t y;
+
+	const __m128i base    = _mm_set1_epi32(0xC0000000);
+	const __m128i mask_r0 = _mm_set1_epi32(0x000000FF);
+	const __m128i mask_r1 = _mm_set1_epi32(0x0000C000);
+	const __m128i mask_g0 = _mm_set1_epi32(0x00003F00);
+	const __m128i mask_g1 = _mm_set1_epi32(0x00F00000);
+	const __m128i mask_b0 = _mm_set1_epi32(0x000F0000);
+	const __m128i mask_b1 = _mm_set1_epi32(0xFC000000);
+
+	for (y = start_y; y < end_y; y++) {
+		const __m128i *input0;
+		register __m128i *output0;
+		uint32_t x;
+
+		input0 = (const __m128i*)(input + y * in_linesize);
+		output0 = (__m128i*)(output + y * out_linesize);
+
+		for (x = 0; x < width_d4; x++) {
+			const __m128i tmp = _mm_load_si128(input0++);
+			const __m128i r0 = _MM_AND_SLLI_EPI32(tmp, mask_r0,  2);
+			const __m128i r1 = _MM_AND_SRLI_EPI32(tmp, mask_r1, 14);
+			const __m128i g0 = _MM_AND_SLLI_EPI32(tmp, mask_g0,  6);
+			const __m128i g1 = _MM_AND_SRLI_EPI32(tmp, mask_g1, 10);
+			const __m128i b0 = _MM_AND_SLLI_EPI32(tmp, mask_b0, 10);
+			const __m128i b1 = _MM_AND_SRLI_EPI32(tmp, mask_b1,  6);
+
+			_mm_stream_si128(output0++, _MM_OR_SI128_OP4(base,
+					_mm_or_si128(r0, r1),
+					_mm_or_si128(g0, g1),
+					_mm_or_si128(b0, b1)));
+		}
+	}
+}
+
+void decompress_r10l(
+		const uint8_t *input, const uint32_t in_linesize,
+		uint32_t start_y, uint32_t end_y,
+		uint8_t *output, uint32_t out_linesize)
+{
+	uint32_t width_d4 = min_uint32(in_linesize, out_linesize) / 16;
+	uint32_t y;
+
+	const __m128i base   = _mm_set1_epi32(0xC0000000);
+	const __m128i mask_r = _mm_set1_epi32(0xFFC00000);
+	const __m128i mask_g = _mm_set1_epi32(0x003FF000);
+	const __m128i mask_b = _mm_set1_epi32(0x00000FFC);
+
+	for (y = start_y; y < end_y; y++) {
+		const __m128i *input0;
+		register __m128i *output0;
+		uint32_t x;
+
+		input0 = (const __m128i*)(input + y * in_linesize);
+		output0 = (__m128i*)(output + y * out_linesize);
+
+		for (x = 0; x < width_d4; x++) {
+			const __m128i tmp = _mm_load_si128(input0++);
+			const __m128i r = _MM_AND_SRLI_EPI32(tmp, mask_r, 22);
+			const __m128i g = _MM_AND_SRLI_EPI32(tmp, mask_g,  2);
+			const __m128i b = _MM_AND_SLLI_EPI32(tmp, mask_b, 18);
+
+			_mm_stream_si128(output0++,
+					_MM_OR_SI128_OP4(base, r, g, b));
 		}
 	}
 }
