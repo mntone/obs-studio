@@ -31,7 +31,8 @@ void DeckLinkDeviceMode::Init(IDeckLinkInput *input)
 		bmdFormat8BitYUV,
 		bmdFormat10BitYUV,
 		bmdFormat8BitBGRA,
-		bmdFormat10BitRGBXLE
+		bmdFormat10BitRGBXLE,
+		bmdFormat12BitRGBLE
 	};
 	static int32_t const formatCount =
 			sizeof(checkFormats) / sizeof(checkFormats[0]);
@@ -49,6 +50,12 @@ void DeckLinkDeviceMode::Init(IDeckLinkInput *input)
 				formats.push_back(checkFormats[i]);
 		}
 	}
+}
+
+bool DeckLinkDeviceMode::IsSupportFormat(BMDPixelFormat format) const
+{
+	return std::find(formats.begin(), formats.end(), format) !=
+			formats.end();
 }
 
 BMDDisplayMode DeckLinkDeviceMode::GetDisplayMode(void) const

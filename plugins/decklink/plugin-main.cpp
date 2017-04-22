@@ -135,9 +135,12 @@ static bool decklink_device_changed(obs_properties_t *props,
 	}
 
 	obs_property_t *modeList = obs_properties_get(props, MODE_ID);
+	obs_property_t *pixelFormatList = obs_properties_get(props, PIXEL_FORMAT);
 	obs_property_t *channelList = obs_properties_get(props, CHANNEL_FORMAT);
 
 	obs_property_list_clear(modeList);
+
+	obs_property_list_clear(pixelFormatList);
 
 	obs_property_list_clear(channelList);
 	obs_property_list_add_int(channelList, TEXT_CHANNEL_FORMAT_NONE,
@@ -194,7 +197,34 @@ static bool color_format_changed(obs_properties_t *props,
 static bool mode_id_changed(obs_properties_t *props,
 		obs_property_t *list, obs_data_t *settings)
 {
+	const char *hash = obs_data_get_string(settings, DEVICE_HASH);
 	long long id = obs_data_get_int(settings, MODE_ID);
+
+	list = obs_properties_get(props, PIXEL_FORMAT);
+
+	ComPtr<DeckLinkDevice> device;
+	device.Set(deviceEnum->FindByHash(hash));
+
+	DeckLinkDeviceMode *mode = device->FindMode(id);
+
+	obs_property_list_clear(list);
+	if (mode->IsSupportFormat(bmdFormat8BitYUV))
+		obs_property_list_add_int(list, "8-bit YUV", bmdFormat8BitYUV);
+	if (mode->IsSupportFormat(bmdFormat10BitYUV))
+		obs_property_list_add_int(list, "10-bit YUV", bmdFormat10BitYUV);
+	if (mode->IsSupportFormat(bmdFormat8BitBGRA))
+		obs_property_list_add_int(list, "8-bit BGRA", bmdFormat8BitBGRA);
+#if 1
+	obs_property_list_add_int(list, "10-bit RGB (r210)", bmdFormat10BitRGB);
+	obs_property_list_add_int(list, "10-bit RGB (R10b)", bmdFormat10BitRGBX);
+#endif
+	if (mode->IsSupportFormat(bmdFormat10BitRGBXLE))
+		obs_property_list_add_int(list, "10-bit RGB", bmdFormat10BitRGBXLE);
+#if 1
+	obs_property_list_add_int(list, "12-bit RGB (R12B)", bmdFormat12BitRGB);
+#endif
+	if (mode->IsSupportFormat(bmdFormat12BitRGBLE))
+		obs_property_list_add_int(list, "12-bit RGB", bmdFormat12BitRGBLE);
 
 	list = obs_properties_get(props, PIXEL_FORMAT);
 	obs_property_set_visible(list, id != MODE_ID_AUTO);
@@ -240,19 +270,6 @@ static obs_properties_t *decklink_get_properties(void *data)
 			TEXT_PIXEL_FORMAT, OBS_COMBO_TYPE_LIST,
 			OBS_COMBO_FORMAT_INT);
 	obs_property_set_modified_callback(list, color_format_changed);
-
-	obs_property_list_add_int(list, "8-bit YUV", bmdFormat8BitYUV);
-	obs_property_list_add_int(list, "10-bit YUV", bmdFormat10BitYUV);
-	obs_property_list_add_int(list, "8-bit BGRA", bmdFormat8BitBGRA);
-#if 0
-	obs_property_list_add_int(list, "10-bit RGB (r210)", bmdFormat10BitRGB);
-	obs_property_list_add_int(list, "10-bit RGB (R10b)", bmdFormat10BitRGBX);
-#endif
-	obs_property_list_add_int(list, "10-bit RGB", bmdFormat10BitRGBXLE);
-	obs_property_list_add_int(list, "12-bit RGB", bmdFormat12BitRGB);
-#if 1
-	obs_property_list_add_int(list, "12-bit RGB (R12L)", bmdFormat12BitRGBLE);
-#endif
 
 	list = obs_properties_add_list(props, COLOR_SPACE, TEXT_COLOR_SPACE,
 			OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);

@@ -21,6 +21,8 @@ public:
 
 	void Init(IDeckLinkInput *input);
 
+	bool IsSupportFormat(BMDPixelFormat format) const;
+
 	BMDDisplayMode GetDisplayMode(void) const;
 	BMDDisplayModeFlags GetDisplayModeFlags(void) const;
 	BMDFieldDominance GetFieldDominance(void) const;
