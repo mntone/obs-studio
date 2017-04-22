@@ -124,6 +124,28 @@ static inline const char *get_video_format_name(enum video_format format)
 	return "None";
 }
 
+static inline size_t get_video_bit_per_channel(enum video_format format)
+{
+	switch (format) {
+	case VIDEO_FORMAT_RGBA:
+	case VIDEO_FORMAT_BGRA:
+	case VIDEO_FORMAT_BGRX:
+	case VIDEO_FORMAT_NONE:
+		return 8;
+
+	case VIDEO_FORMAT_R210:
+	case VIDEO_FORMAT_R10B:
+	case VIDEO_FORMAT_R10L:
+		return 10;
+
+	case VIDEO_FORMAT_R12B:
+	case VIDEO_FORMAT_R12L:
+		return 10;
+	}
+
+	return 0;
+}
+
 enum video_scale_type {
 	VIDEO_SCALE_DEFAULT,
 	VIDEO_SCALE_POINT,
@@ -143,6 +165,10 @@ struct video_scale_info {
 EXPORT enum video_format video_format_from_fourcc(uint32_t fourcc);
 
 EXPORT bool video_format_get_parameters(enum video_colorspace color_space,
+		enum video_range_type range, float matrix[16],
+		float min_range[3], float max_range[3]);
+
+EXPORT bool video_format_get_rgb_parameters(int bit_format,
 		enum video_range_type range, float matrix[16],
 		float min_range[3], float max_range[3]);
 

@@ -82,7 +82,86 @@ static struct {
 	},
 };
 
+static struct {
+	int const bit_format;
+	int const range_min[3];
+	int const range_max[3];
+
+	float float_range_min[3];
+	float float_range_max[3];
+	float matrix[2][16];
+
+} rgb_format_info[] = {
+	{
+		8,
+		{16, 16, 16}, {235, 235, 235},
+#ifndef COMPUTE_MATRICES
+		{ 16.0f/255.0f,  16.0f/255.0f,  16.0f/255.0f},
+		{235.0f/255.0f, 235.0f/255.0f, 235.0f/255.0f},
+		{
+			{
+					1.164384f,  0.000000f,  0.000000f, -0.073059f,
+					0.000000f,  1.164384f,  0.000000f, -0.073059f,
+					0.000000f,  0.000000f,  1.164384f, -0.073059f,
+					0.000000f,  0.000000f,  0.000000f,  1.000000f
+			},
+			{
+					1.000000f,  0.000000f,  0.000000f,  0.000000f,
+					0.000000f,  1.000000f,  0.000000f,  0.000000f,
+					0.000000f,  0.000000f,  1.000000f,  0.000000f,
+					0.000000f,  0.000000f,  0.000000f,  1.000000f
+			},
+		}
+#endif
+	},
+	{
+		10,
+		{64, 64, 64}, {940, 940, 940},
+#ifndef COMPUTE_MATRICES
+		{ 64.0f/1023.0f,  64.0f/1023.0f,  64.0f/1023.0f},
+		{940.0f/1023.0f, 940.0f/1023.0f, 940.0f/1023.0f},
+		{
+			{
+					1.167808f,  0.000000f,  0.000000f, -0.073059f,
+					0.000000f,  1.167808f,  0.000000f, -0.073059f,
+					0.000000f,  0.000000f,  1.167808f, -0.073059f,
+					0.000000f,  0.000000f,  0.000000f,  1.000000f
+			},
+			{
+					1.000000f,  0.000000f,  0.000000f,  0.000000f,
+					0.000000f,  1.000000f,  0.000000f,  0.000000f,
+					0.000000f,  0.000000f,  1.000000f,  0.000000f,
+					0.000000f,  0.000000f,  0.000000f,  1.000000f
+			},
+		}
+#endif
+	},
+	{
+		12,
+		{ 256, 256, 256 },{ 3760, 3760, 3760 },
+#ifndef COMPUTE_MATRICES
+		{ 256.0f/4095.0f,  256.0f/4095.0f,  256.0f/4095.0f},
+		{3760.0f/4095.0f, 3760.0f/4095.0f, 3760.0f/4095.0f},
+		{
+			{
+				1.168664f,  0.000000f,  0.000000f, -0.073059f,
+				0.000000f,  1.168664f,  0.000000f, -0.073059f,
+				0.000000f,  0.000000f,  1.168664f, -0.073059f,
+				0.000000f,  0.000000f,  0.000000f,  1.000000f
+			},
+			{
+				1.000000f,  0.000000f,  0.000000f,  0.000000f,
+				0.000000f,  1.000000f,  0.000000f,  0.000000f,
+				0.000000f,  0.000000f,  1.000000f,  0.000000f,
+				0.000000f,  0.000000f,  0.000000f,  1.000000f
+			},
+		}
+#endif
+	}
+};
+
 #define NUM_FORMATS (sizeof(format_info)/sizeof(format_info[0]))
+#define NUM_RGB_FORMATS (sizeof(rgb_format_info)/sizeof(rgb_format_info[0]))
 
 #ifdef COMPUTE_MATRICES
 static void log_matrix(float const matrix[16])
@@ -145,6 +224,47 @@ static void initialize_matrix(float const Kb, float const Kr,
 	log_matrix(matrix);
 }
 
+static void initialize_rgb_matrix(double max, int const range_min[3],
+		int const range_max[3], float matrix[16])
+{
+	struct matrix3 color_matrix;
+
+	int rvals = range_max[0] - range_min[0];
+	int gvals = range_max[1] - range_min[1];
+	int bvals = range_max[2] - range_min[2];
+
+	vec3_set(&color_matrix.x, max/rvals,        0.,        0.);
+	vec3_set(&color_matrix.y,        0., max/gvals,        0.);
+	vec3_set(&color_matrix.z,        0.,        0., max/bvals);
+
+	struct vec3 offsets, multiplied;
+	vec3_set(&offsets,
+			-range_min[0]/max,
+			-range_min[1]/max,
+			-range_min[2]/max);
+	vec3_rotate(&multiplied, &offsets, &color_matrix);
+
+	matrix[ 0] = color_matrix.x.x;
+	matrix[ 1] = color_matrix.x.y;
+	matrix[ 2] = color_matrix.x.z;
+	matrix[ 3] = multiplied.x;
+
+	matrix[ 4] = color_matrix.y.x;
+	matrix[ 5] = color_matrix.y.y;
+	matrix[ 6] = color_matrix.y.z;
+	matrix[ 7] = multiplied.y;
+
+	matrix[ 8] = color_matrix.z.x;
+	matrix[ 9] = color_matrix.z.y;
+	matrix[10] = color_matrix.z.z;
+	matrix[11] = multiplied.z;
+
+	matrix[12] = matrix[13] = matrix[14] = 0.;
+	matrix[15] = 1.;
+
+	log_matrix(matrix);
+}
+
 static void initialize_matrices()
 {
 	static int range_min[] = {  0,   0,   0};
@@ -167,6 +287,27 @@ static void initialize_matrices()
 				format_info[i].range_min[j]/255.;
 			format_info[i].float_range_max[j] =
 				format_info[i].range_max[j]/255.;
+		}
+	}
+
+	for (size_t i = 0; i < NUM_RGB_FORMATS; i++) {
+		int bit_format = rgb_format_info[i].bit_format;
+		double max = pow(2, bit_format) - 1.;
+
+		initialize_rgb_matrix(max, range_min, range_max,
+				rgb_format_info[i].matrix[1]);
+
+		initialize_rgb_matrix(
+				max,
+				rgb_format_info[i].range_min,
+				rgb_format_info[i].range_max,
+				rgb_format_info[i].matrix[0]);
+
+		for (int j = 0; j < 3; j++) {
+			rgb_format_info[i].float_range_min[j] =
+				rgb_format_info[i].range_min[j]/max;
+			rgb_format_info[i].float_range_max[j] =
+				rgb_format_info[i].range_max[j]/max;
 		}
 	}
 }
@@ -212,6 +353,46 @@ bool video_format_get_parameters(enum video_colorspace color_space,
 
 		if (range_max)
 			memcpy(range_max, format_info[i].float_range_max,
+					sizeof(float) * 3);
+
+		return true;
+	}
+	return false;
+}
+
+bool video_format_get_rgb_parameters(int bit_format,
+		enum video_range_type range, float matrix[16],
+		float range_min[3], float range_max[3])
+{
+#ifdef COMPUTE_MATRICES
+	if (!matrices_initialized) {
+		initialize_matrices();
+		matrices_initialized = true;
+	}
+#endif
+
+	for (size_t i = 0; i < NUM_FORMATS; i++) {
+		if (rgb_format_info[i].bit_format != bit_format)
+			continue;
+
+		int full_range = range == VIDEO_RANGE_FULL ? 1 : 0;
+		memcpy(matrix, rgb_format_info[i].matrix[full_range],
+					 sizeof(float) * 16);
+
+		if (range == VIDEO_RANGE_FULL) {
+			if (range_min)
+				memcpy(range_min, full_min, sizeof(float) * 3);
+			if (range_max)
+				memcpy(range_max, full_max, sizeof(float) * 3);
+			return true;
+		}
+
+		if (range_min)
+			memcpy(range_min, rgb_format_info[i].float_range_min,
+					sizeof(float) * 3);
+
+		if (range_max)
+			memcpy(range_max, rgb_format_info[i].float_range_max,
 					sizeof(float) * 3);
 
 		return true;

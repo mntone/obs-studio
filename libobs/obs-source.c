@@ -1632,8 +1632,8 @@ static void obs_source_draw_async_texture(struct obs_source *source)
 {
 	gs_effect_t    *effect        = gs_get_effect();
 	bool           yuv           = format_is_yuv(source->async_format);
-	bool           limited_range = yuv && !source->async_full_range;
-	const char     *type         = yuv ? "DrawMatrix" : "Draw";
+	bool           limited_range = !source->async_full_range;
+	const char     *type         = yuv || limited_range ? "DrawMatrix" : "Draw";
 	bool           def_draw      = (!effect);
 	gs_technique_t *tech          = NULL;
 
@@ -1645,7 +1645,7 @@ static void obs_source_draw_async_texture(struct obs_source *source)
 	}
 
 	obs_source_draw_texture(source, effect,
-			yuv ? source->async_color_matrix : NULL,
+			yuv || limited_range ? source->async_color_matrix : NULL,
 			limited_range ? source->async_color_range_min : NULL,
 			limited_range ? source->async_color_range_max : NULL);
 
