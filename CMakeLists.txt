@@ -110,6 +110,10 @@ if(NOT INSTALLER_RUN)
 		add_subdirectory(libobs-d3d11)
 	endif()
 
+	if(APPLE)
+		add_subdirectory(libobs-metal)
+	endif()
+
 	add_subdirectory(libobs-opengl)
 	add_subdirectory(libobs)
 	add_subdirectory(UI)
