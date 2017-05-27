@@ -13,7 +13,6 @@
 
 #import <MetalKit/MetalKit.h>
 
-
 struct shader_var;
 struct shader_sampler;
 struct gs_vertex_shader;
@@ -209,8 +208,7 @@ struct gs_vertex_buffer : gs_obj {
 			size_t elementSize);
 
 	void MakeBufferList(gs_vertex_shader *shader,
-			vector<id<MTLBuffer>> &buffers,
-			vector<uint32_t> &strides);
+			vector<id<MTLBuffer>> &buffers);
 
 	void InitBuffer(const size_t elementSize,
 			const size_t numVerts, void *array,
@@ -247,9 +245,11 @@ struct gs_index_buffer : gs_obj {
 	id<MTLBuffer> indexBuffer;
 	bool          dynamic;
 	gs_index_type type;
-	size_t        indexSize;
 	size_t        num;
 	DataPtr       indices;
+	
+	size_t        indexSize;
+	MTLIndexType  indexType;
 
 	void InitBuffer();
 
@@ -362,7 +362,7 @@ struct gs_zstencil_buffer : gs_obj {
 
 struct gs_stage_surface : gs_obj {
 	id<MTLTexture>  texture;
-	MTLTextureDescriptor *td = nullptr;
+	MTLTextureDescriptor *td = nil;
 
 	uint32_t        width, height;
 	gs_color_format format;
@@ -381,7 +381,7 @@ struct gs_stage_surface : gs_obj {
 
 struct gs_sampler_state : gs_obj {
 	id<MTLSamplerState>  state;
-	MTLSamplerDescriptor *sd = nullptr;
+	MTLSamplerDescriptor *sd = nil;
 	
 	gs_sampler_info      info;
 
@@ -415,10 +415,10 @@ struct gs_shader_param {
 };
 
 struct ShaderError {
-	NSError *errors;
+	NSError *error;
 
-	inline ShaderError(NSError *errors)
-		: errors (errors)
+	inline ShaderError(NSError *error)
+		: error (error)
 	{
 	}
 };
@@ -436,7 +436,7 @@ struct gs_shader : gs_obj {
 	void UploadParams();
 
 	void BuildConstantBuffer();
-	void Compile(const char *shaderStr, id<MTLLibrary> &shader);
+	void Compile(const char *shaderStr, id<MTLLibrary> &library);
 
 	inline gs_shader(gs_device_t *device, gs_type obj_type,
 			gs_shader_type type)
@@ -474,7 +474,7 @@ struct gs_vertex_shader : gs_shader {
 	bool     hasTangents;
 	uint32_t nTexUnits;
 
-	inline void Rebuild(id <MTLDevice> dev);
+	inline void Rebuild(id<MTLDevice> dev);
 
 	inline void Release()
 	{
@@ -503,7 +503,7 @@ struct gs_pixel_shader : gs_shader {
 	ComPtr<ID3D11PixelShader> shader;
 	vector<unique_ptr<ShaderSampler>> samplers;
 
-	inline void Rebuild(ID3D11Device *dev);
+	inline void Rebuild(id<MTLDevice> dev);
 
 	inline void Release()
 	{
@@ -528,12 +528,12 @@ struct gs_swap_chain : gs_obj {
 	uint32_t           numBuffers;
 	NSView             *view = nil;
 	gs_init_data       initData;
-	id<MTKView>        metalView;
+	MTKView            *metalView;
 
 	void Resize(uint32_t cx, uint32_t cy);
 	void Init();
 
-	inline void Rebuild(id <MTLDevice> dev);
+	inline void Rebuild(id<MTLDevice> dev);
 
 	inline void Release()
 	{
@@ -576,18 +576,18 @@ struct BlendState {
 };
 
 struct SavedBlendState : BlendState {
-	ComPtr<ID3D11BlendState> state;
-	D3D11_BLEND_DESC         bd;
+	MTLRenderPipelineColorAttachmentDescriptor *cad = nil;
 
-	inline void Rebuild(ID3D11Device *dev);
+	inline void Rebuild(id<MTLDevice> dev);
 
 	inline void Release()
 	{
-		state.Release();
+		[cad release];
 	}
 
-	inline SavedBlendState(const BlendState &val, D3D11_BLEND_DESC &desc)
-		: BlendState(val), bd(desc)
+	inline SavedBlendState(const BlendState &val,
+			MTLRenderPipelineColorAttachmentDescriptor *cad)
+		: BlendState(val), cad(cad)
 	{
 	}
 };
@@ -633,20 +633,21 @@ struct ZStencilState {
 };
 
 struct SavedZStencilState : ZStencilState {
-	ComPtr<ID3D11DepthStencilState> state;
-	D3D11_DEPTH_STENCIL_DESC        dsd;
+	id<MTLDepthStencilState>  state;
+	MTLDepthStencilDescriptor *dsd = nil;
 
-	inline void Rebuild(ID3D11Device *dev);
+	inline void Rebuild(id<MTLDevice> dev);
 
 	inline void Release()
 	{
-		state.Release();
+		CFRelease(state);
+		[dsd release];
 	}
 
 	inline SavedZStencilState(const ZStencilState &val,
-			D3D11_DEPTH_STENCIL_DESC desc)
+			MTLDepthStencilDescriptor *dsd)
 		: ZStencilState (val),
-		  dsd           (desc)
+		  dsd           (dsd)
 	{
 	}
 };
@@ -691,7 +692,11 @@ struct mat4float {
 };
 
 struct gs_device {
-	id <MTLDevice>              device;
+	id<MTLDevice>               device;
+	id<MTLCommandQueue>         commandQueue;
+	id<MTLCommandBuffer>        commandBuffer;
+	MTLRenderPipelineDescriptor *pipelineDesc;
+	MTLRenderPassDescriptor     *passDesc;
     
 	uint32_t                    devIdx = 0;
 
@@ -706,9 +711,6 @@ struct gs_device {
 	gs_pixel_shader             *curPixelShader = nullptr;
 	gs_swap_chain               *curSwapChain = nullptr;
 
-	gs_vertex_buffer            *lastVertexBuffer = nullptr;
-	gs_vertex_shader            *lastVertexShader = nullptr;
-
 	bool                        zstencilStateChanged = true;
 	bool                        rasterStateChanged = true;
 	bool                        blendStateChanged = true;
@@ -721,12 +723,6 @@ struct gs_device {
 	ID3D11DepthStencilState     *curDepthStencilState = nullptr;
 	ID3D11RasterizerState       *curRasterState = nullptr;
 	ID3D11BlendState            *curBlendState = nullptr;
-	D3D11_PRIMITIVE_TOPOLOGY    curToplogy;
-
-	pD3DCompile                 d3dCompile = nullptr;
-#ifdef DISASSEMBLE_SHADERS
-	pD3DDisassemble             d3dDisassemble = nullptr;
-#endif
 
 	gs_rect                     viewport;
 
@@ -740,14 +736,14 @@ struct gs_device {
     
 	void InitDevice(uint32_t adapterIdx);
 
-	ID3D11DepthStencilState *AddZStencilState();
+	id<MTLDepthStencilState> AddZStencilState();
 	ID3D11RasterizerState   *AddRasterState();
 	ID3D11BlendState        *AddBlendState();
 	void UpdateZStencilState();
 	void UpdateRasterState();
 	void UpdateBlendState();
 
-	void LoadVertexBufferData();
+	void LoadVertexBufferData(id<MTLRenderCommandEncoder> commandEncoder);
 
 	inline void CopyTex(ID3D11Texture2D *dst,
 			uint32_t dst_x, uint32_t dst_y,

@@ -19,8 +19,14 @@ gs_index_buffer::gs_index_buffer(gs_device_t *device, enum gs_index_type type,
 	  indices (indices)
 {
 	switch (type) {
-	case GS_UNSIGNED_SHORT: indexSize = 2; break;
-	case GS_UNSIGNED_LONG:  indexSize = 4; break;
+	case GS_UNSIGNED_SHORT:
+		indexSize = 2;
+		indexType = MTLIndexTypeUInt16;
+		break;
+	case GS_UNSIGNED_LONG:
+		indexSize = 4;
+		indexType = MTLIndexTypeUInt32;
+		break;
 	}
 
 	InitBuffer();

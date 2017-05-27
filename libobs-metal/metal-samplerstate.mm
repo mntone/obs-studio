@@ -105,7 +105,7 @@ gs_sampler_state::gs_sampler_state(gs_device_t *device,
 {
 	vec4 v4;
 
-	sd = [[MTLSamplerDescriptor alloc] init];
+	sd = [MTLSamplerDescriptor new];
 	sd.rAddressMode    = ConvertGSAddressMode(info->address_u);
 	sd.sAddressMode    = ConvertGSAddressMode(info->address_v);
 	sd.tAddressMode    = ConvertGSAddressMode(info->address_w);

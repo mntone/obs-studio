@@ -31,7 +31,7 @@ gs_vertex_shader::gs_vertex_shader(gs_device_t *device, const char *file,
 	  nTexUnits   (0)
 {
 	ShaderProcessor    processor(device);
-	id<MTLLibrary>     shader;
+	id<MTLLibrary>     library;
 	string             outputString;
 	HRESULT            hr;
 
@@ -42,7 +42,7 @@ gs_vertex_shader::gs_vertex_shader(gs_device_t *device, const char *file,
 	GetBuffersExpected(layoutData);
 	BuildConstantBuffer();
 
-	Compile(outputString.c_str(), shader);
+	Compile(outputString.c_str(), library);
 
 	data.resize(shaderBlob->GetBufferSize());
 	memcpy(&data[0], shaderBlob->GetBufferPointer(), data.size());
@@ -67,7 +67,7 @@ gs_pixel_shader::gs_pixel_shader(gs_device_t *device, const char *file,
 	: gs_shader(device, gs_type::gs_pixel_shader, GS_SHADER_PIXEL)
 {
 	ShaderProcessor    processor(device);
-	id<MTLLibrary>     shader;
+	id<MTLLibrary>     library;
 	string             outputString;
 	HRESULT            hr;
 
@@ -77,7 +77,7 @@ gs_pixel_shader::gs_pixel_shader(gs_device_t *device, const char *file,
 	processor.BuildSamplers(samplers);
 	BuildConstantBuffer();
 
-	Compile(outputString.c_str(), shader);
+	Compile(outputString.c_str(), library);
 
 	data.resize(shaderBlob->GetBufferSize());
 	memcpy(&data[0], shaderBlob->GetBufferPointer(), data.size());
@@ -163,7 +163,7 @@ void gs_shader::BuildConstantBuffer()
 		gs_shader_set_default(&params[i]);
 }
 
-void gs_shader::Compile(const char *shaderString, id<MTLLibrary> &shader)
+void gs_shader::Compile(const char *shaderString, id<MTLLibrary> &library)
 {
 	NSString          *nsShaderString;
 	NSError           *errors = nil;
@@ -177,9 +177,9 @@ void gs_shader::Compile(const char *shaderString, id<MTLLibrary> &shader)
 	options = [[MTLCompileOptions alloc] init];
 	options.languageVersion = MTLLanguageVersion1_1;
 	
-	shader = [device->device newLibraryWithSource:nsShaderString
+	library = [device->device newLibraryWithSource:nsShaderString
 			options:options error:&errors];
-	if (shader == nil) {
+	if (library == nil) {
 		if (errorsBlob != nil)
 			throw ShaderError(errors);
 		else

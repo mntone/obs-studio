@@ -1,14 +1,13 @@
 #include <util/base.h>
 #include <graphics/vec3.h>
+
 #include "metal-subsystem.hpp"
 
-static inline void PushBuffer(vector<id <MTLBuffer>> &buffers,
-		vector<uint32_t> &strides, id<MTLBuffer> buffer,
-		size_t elementSize, const char *name)
+static inline void PushBuffer(vector<id<MTLBuffer>> &buffers,
+		id<MTLBuffer> buffer, const char *name)
 {
 	if (buffer) {
 		buffers.push_back(buffer);
-		strides.push_back((uint32_t)elementSize);
 	} else {
 		blog(LOG_ERROR, "This vertex shader requires a %s buffer",
 				name);
@@ -22,23 +21,19 @@ void gs_vertex_buffer::FlushBuffer(id <MTLBuffer> buffer, void *array,
 }
 
 void gs_vertex_buffer::MakeBufferList(gs_vertex_shader *shader,
-		vector<id<MTLBuffer>> &buffers, vector<uint32_t> &strides)
+		vector<id<MTLBuffer>> &buffers)
 {
-	PushBuffer(buffers, strides, vertexBuffer, sizeof(vec3), "point");
+	PushBuffer(buffers, vertexBuffer, "point");
 
 	if (shader->hasNormals)
-		PushBuffer(buffers, strides, normalBuffer, sizeof(vec3),
-				"normal");
+		PushBuffer(buffers, normalBuffer, "normal");
 	if (shader->hasColors)
-		PushBuffer(buffers, strides, colorBuffer, sizeof(uint32_t),
-				"color");
+		PushBuffer(buffers, colorBuffer, "color");
 	if (shader->hasTangents)
-		PushBuffer(buffers, strides, tangentBuffer, sizeof(vec3),
-				"tangent");
+		PushBuffer(buffers, tangentBuffer, "tangent");
 	if (shader->nTexUnits <= uvBuffers.size()) {
 		for (size_t i = 0; i < shader->nTexUnits; i++) {
 			buffers.push_back(uvBuffers[i]);
-			strides.push_back((uint32_t)uvSizes[i]);
 		}
 	} else {
 		blog(LOG_ERROR, "This vertex shader requires at least %u "
