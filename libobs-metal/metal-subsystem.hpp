@@ -261,6 +261,8 @@ struct DataPtr {
 
 	inline DataPtr(void *data) : data(data) {}
 	inline ~DataPtr() {bfree(data);}
+	
+	DataPtr(const DataPtr &other) = delete;
 };
 
 struct gs_index_buffer : gs_obj {
@@ -284,24 +286,17 @@ struct gs_index_buffer : gs_obj {
 };
 
 struct gs_texture : gs_obj {
-	gs_texture_type type;
-	uint32_t        levels;
-	gs_color_format format;
+	const gs_texture_type type;
+	const uint32_t        levels;
+	const gs_color_format format;
 
 	inline void Rebuild(id<MTLDevice> dev);
-
+	
 	inline gs_texture(gs_texture_type type, uint32_t levels,
-			gs_color_format format)
+			  gs_color_format format)
 		: type   (type),
 		  levels (levels),
 		  format (format)
-	{
-	}
-
-	inline gs_texture(gs_device *device, gs_type obj_type,
-			gs_texture_type type)
-		: gs_obj (device, obj_type),
-		  type   (type)
 	{
 	}
 
@@ -317,17 +312,16 @@ struct gs_texture : gs_obj {
 };
 
 struct gs_texture_2d : gs_texture {
-	id<MTLTexture> texture;
-
-	const uint32_t width = 0, height = 0;
-	MTLPixelFormat mtlPixelFormat = MTLPixelFormatInvalid;
-	const bool     isRenderTarget = false;
-	const bool     isDynamic = false;
-	const bool     isShared = false;
-	const bool     genMipmaps = false;
+	const uint32_t        width = 0, height = 0;
+	const bool            isRenderTarget = false;
+	const bool            isDynamic = false;
+	const bool            isShared = false;
+	const bool            genMipmaps = false;
+	
+	id<MTLTexture>       texture;
+	MTLTextureDescriptor *td = nil;
 	
 	vector<vector<uint8_t>> data;
-	MTLTextureDescriptor *td = nil;
 
 	void InitTexture(const uint8_t **data);
 	void BackupTexture(const uint8_t **data);
@@ -356,27 +350,25 @@ struct gs_texture_2d : gs_texture {
 };
 
 struct gs_zstencil_buffer : gs_obj {
-	id<MTLTexture>                           texture;
-	MTLTextureDescriptor                     *td  = nil;
-	MTLRenderPassStencilAttachmentDescriptor *sad = nil;
-
-	uint32_t           width, height;
-	gs_zstencil_format format;
-	MTLPixelFormat     mtlPixelFormat;
-
+	const uint32_t           width = 0, height = 0;
+	const gs_zstencil_format format = GS_ZS_NONE;
+	
+	id<MTLTexture>           texture;
+	MTLTextureDescriptor     *td = nil;
+	
+	inline void InitTexture();
 	inline void Rebuild(id<MTLDevice> dev);
 
 	inline void Release()
 	{
 		CFRelease(texture);
 		[td release];
-		[sad release];
 	}
 
 	inline gs_zstencil_buffer()
 		: width          (0),
 		  height         (0),
-		  mtlPixelFormat (MTLPixelFormatInvalid)
+		  format         (GS_ZS_NONE)
 	{
 	}
 
@@ -385,13 +377,13 @@ struct gs_zstencil_buffer : gs_obj {
 };
 
 struct gs_stage_surface : gs_obj {
-	id<MTLTexture>  texture;
-	MTLTextureDescriptor *td = nil;
-
-	uint32_t        width, height;
-	gs_color_format format;
-	MTLPixelFormat  mtlPixelFormat;
-
+	const uint32_t        width = 0, height = 0;
+	const gs_color_format format = GS_UNKNOWN;
+	
+	id<MTLTexture>        texture;
+	MTLTextureDescriptor  *td = nil;
+	
+	inline void InitTexture();
 	inline void Rebuild(id<MTLDevice> dev);
 
 	inline void Release() {[texture release];}
@@ -481,7 +473,7 @@ struct ShaderSampler {
 };
 
 struct gs_vertex_shader : gs_shader {
-	MTLVertexDescriptor        *vd = nil;
+	MTLVertexDescriptor *vd = nil;
 
 	gs_shader_param *world, *viewProj;
 
@@ -590,54 +582,6 @@ struct BlendState {
 	}
 };
 
-struct StencilSide {
-	gs_depth_test test;
-	gs_stencil_op_type fail;
-	gs_stencil_op_type zfail;
-	gs_stencil_op_type zpass;
-
-	inline StencilSide()
-		: test  (GS_ALWAYS),
-		  fail  (GS_KEEP),
-		  zfail (GS_KEEP),
-		  zpass (GS_KEEP)
-	{
-	}
-};
-
-struct ZStencilState {
-	bool          depthEnabled;
-	bool          depthWriteEnabled;
-	gs_depth_test depthFunc;
-
-	bool          stencilEnabled;
-	bool          stencilWriteEnabled;
-	StencilSide   stencilFront;
-	StencilSide   stencilBack;
-	
-	MTLDepthStencilDescriptor *dsd;
-
-	inline ZStencilState()
-		: depthEnabled        (true),
-		  depthWriteEnabled   (true),
-		  depthFunc           (GS_LESS),
-		  stencilEnabled      (false),
-		  stencilWriteEnabled (true)
-	{
-		dsd = [MTLDepthStencilDescriptor new];
-	}
-
-	inline ZStencilState(const ZStencilState &state)
-	{
-		memcpy(this, &state, sizeof(ZStencilState));
-	}
-	
-	~ZStencilState()
-	{
-		[dsd release];
-	}
-};
-
 struct RasterState {
 	gs_rect        viewport;
 	gs_cull_mode   cullMode;
@@ -660,6 +604,54 @@ struct RasterState {
 	inline RasterState(const RasterState &state)
 	{
 		memcpy(this, &state, sizeof(RasterState));
+	}
+};
+
+struct StencilSide {
+	gs_depth_test test;
+	gs_stencil_op_type fail;
+	gs_stencil_op_type zfail;
+	gs_stencil_op_type zpass;
+	
+	inline StencilSide()
+	: test  (GS_ALWAYS),
+	fail  (GS_KEEP),
+	zfail (GS_KEEP),
+	zpass (GS_KEEP)
+	{
+	}
+};
+
+struct ZStencilState {
+	bool          depthEnabled;
+	bool          depthWriteEnabled;
+	gs_depth_test depthFunc;
+	
+	bool          stencilEnabled;
+	bool          stencilWriteEnabled;
+	StencilSide   stencilFront;
+	StencilSide   stencilBack;
+	
+	MTLDepthStencilDescriptor *dsd;
+	
+	inline ZStencilState()
+	: depthEnabled        (true),
+	depthWriteEnabled   (true),
+	depthFunc           (GS_LESS),
+	stencilEnabled      (false),
+	stencilWriteEnabled (true)
+	{
+		dsd = [MTLDepthStencilDescriptor new];
+	}
+	
+	inline ZStencilState(const ZStencilState &state)
+	{
+		memcpy(this, &state, sizeof(ZStencilState));
+	}
+	
+	~ZStencilState()
+	{
+		[dsd release];
 	}
 };
 

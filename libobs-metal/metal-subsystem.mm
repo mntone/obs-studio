@@ -251,21 +251,21 @@ void device_resize(gs_device_t *device, uint32_t cx, uint32_t cy)
 
 	try {
 		id<MTLTexture> renderTarget = nil;
-		MTLRenderPassStencilAttachmentDescriptor *depthDesc = nil;
+		id<MTLTexture> depthTarget = nil;
 		
 		int i = device->curRenderSide;
 
 		device->passDesc.colorAttachments[0].texture = nil;
-		device->passDesc.stencilAttachment = nil;
+		device->passDesc.stencilAttachment.texture   = nil;
 		device->curSwapChain->Resize(cx, cy);
 
 		if (device->curRenderTarget)
 			renderTarget = device->curRenderTarget->texture;
 		if (device->curZStencilBuffer)
-			depthDesc    = device->curZStencilBuffer->sad;
+			depthTarget  = device->curZStencilBuffer->texture;
 		
 		device->passDesc.colorAttachments[0].texture = renderTarget;
-		device->passDesc.stencilAttachment = depthDesc;
+		device->passDesc.stencilAttachment.texture   = depthTarget;
 
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_resize (Metal): %s", error);
@@ -688,7 +688,7 @@ void device_set_render_target(gs_device_t *device, gs_texture_t *tex,
 	device->curZStencilBuffer = zstencil;
 	
 	device->passDesc.colorAttachments[0].texture = tex2d->texture;
-	device->passDesc.stencilAttachment = zstencil->sad;
+	device->passDesc.stencilAttachment.texture = zstencil->texture;
 }
 
 void device_set_cube_render_target(gs_device_t *device, gs_texture_t *tex,
@@ -825,7 +825,7 @@ void device_stage_texture(gs_device_t *device, gs_stagesurf_t *dst,
 			throw "Source texture must be a 2D texture";
 		if (!dst)
 			throw "Destination surface is NULL";
-		if (dst->format != src->format)
+		if (dst->mtlPixelFormat != src->mtlPixelFormat)
 			throw "Source and destination formats do not match";
 		if (dst->width  != src2d->width ||
 		    dst->height != src2d->height)
@@ -946,6 +946,7 @@ void device_present(gs_device_t *device)
 		id<CAMetalDrawable> drawable =
 				device->curSwapChain->metalView.currentDrawable;
 		[device->commandBuffer presentDrawable:drawable];
+		[device->commandBuffer commit];
 	} else {
 		blog(LOG_WARNING, "device_present (Metal): No active swap");
 	}
@@ -953,7 +954,8 @@ void device_present(gs_device_t *device)
 
 void device_flush(gs_device_t *device)
 {
-	[device->commandBuffer commit];
+	/* does nothing in Metal */
+	UNUSED_PARAMETER(device);
 }
 
 void device_set_cull_mode(gs_device_t *device, enum gs_cull_mode mode)

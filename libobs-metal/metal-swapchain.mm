@@ -26,7 +26,7 @@ gs_swap_chain::gs_swap_chain(gs_device *device, const gs_init_data *data)
 {
 	CGRect frameRect;
 	
-	frameRect = CGRect(0, 0, initData.cx, initData.cy);
+	frameRect = CGRectMake(0, 0, initData.cx, initData.cy);
 	
 	metalView = [[MTKView alloc] initWithFrame:frameRect
 		device:device->device];
