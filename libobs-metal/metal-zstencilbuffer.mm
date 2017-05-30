@@ -12,12 +12,12 @@ gs_zstencil_buffer::gs_zstencil_buffer(gs_device_t *device,
 	td = [MTLTextureDescriptor
 		texture2DDescriptorWithPixelFormat:mtlPixelFormat
 		width:width height:height mipmapped:NO];
-	td.storageMode = MTLStorageModePrivate;
+	td.storageMode = MTLStorageModeShared;
 	
 	texture = [device->device newTextureWithDescriptor:td];
 	if (texture == nil)
 		throw "Failed to create 2D texture";
 	
-	desc = [[MTLRenderPassStencilAttachmentDescriptor alloc] init];
-	desc.texture = texture;
+	sad = [MTLRenderPassStencilAttachmentDescriptor new];
+	sad.texture = texture;
 }

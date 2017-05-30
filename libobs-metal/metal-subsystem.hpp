@@ -46,7 +46,7 @@ static inline MTLPixelFormat ConvertGSTextureFormat(gs_color_format format)
 	return MTLPixelFormatInvalid;
 }
 
-static inline gs_color_format ConvertDXGITextureFormat(MTLPixelFormat format)
+static inline gs_color_format ConvertMTLTextureFormat(MTLPixelFormat format)
 {
 	switch ((unsigned long)format) {
 	case MTLPixelFormatA8Unorm:       return GS_A8;
@@ -156,6 +156,28 @@ static inline MTLPrimitiveType ConvertGSTopology(gs_draw_mode mode)
 	return MTLPrimitiveTypePoint;
 }
 
+static inline MTLViewport ConvertGSRectToMTLViewport(gs_rect rect)
+{
+	MTLViewport ret;
+	ret.originX = rect.x;
+	ret.originY = rect.y;
+	ret.width   = rect.cx;
+	ret.height  = rect.cy;
+	ret.znear   = 0.0;
+	ret.zfar    = 1.0;
+	return ret;
+}
+
+static inline MTLScissorRect ConvertGSRectToMTLScissorRect(gs_rect rect)
+{
+	MTLScissorRect ret;
+	ret.x      = rect.x;
+	ret.y      = rect.y;
+	ret.width  = rect.cx;
+	ret.height = rect.cy;
+	return ret;
+}
+
 /* exception-safe RAII wrapper for vertex buffer data (NOTE: not copy-safe) */
 struct VBDataPtr {
 	gs_vb_data *data;
@@ -218,12 +240,12 @@ struct gs_vertex_buffer : gs_obj {
 
 	inline void Release()
 	{
-		CFRelease(vertexBuffer);
-		CFRelease(normalBuffer);
-		CFRelease(colorBuffer);
-		CFRelease(tangentBuffer);
+		[vertexBuffer release];
+		[normalBuffer release];
+		[colorBuffer release];
+		[tangentBuffer release];
 		for (auto buffer : uvBuffers)
-			CFRelease(buffer);
+			[buffer release];
 		uvBuffers.clear();
 	}
 
@@ -255,7 +277,7 @@ struct gs_index_buffer : gs_obj {
 
 	inline void Rebuild(id<MTLDevice> dev);
 
-	inline void Release() {CFRelease(indexBuffer);}
+	inline void Release() {[indexBuffer release];}
 
 	gs_index_buffer(gs_device_t *device, enum gs_index_type type,
 			void *indices, size_t num, uint32_t flags);
@@ -297,12 +319,12 @@ struct gs_texture : gs_obj {
 struct gs_texture_2d : gs_texture {
 	id<MTLTexture> texture;
 
-	uint32_t       width = 0, height = 0;
+	const uint32_t width = 0, height = 0;
 	MTLPixelFormat mtlPixelFormat = MTLPixelFormatInvalid;
-	bool           isRenderTarget = false;
-	bool           isDynamic = false;
-	bool           isShared = false;
-	bool           genMipmaps = false;
+	const bool     isRenderTarget = false;
+	const bool     isDynamic = false;
+	const bool     isShared = false;
+	const bool     genMipmaps = false;
 	
 	vector<vector<uint8_t>> data;
 	MTLTextureDescriptor *td = nil;
@@ -313,14 +335,16 @@ struct gs_texture_2d : gs_texture {
 	void RebuildSharedTextureFallback();
 	inline void Rebuild(id<MTLDevice> dev);
 
-	inline void Release()
-	{
-		CFRelease(texture);
-	}
+	inline void Release() {[texture release];}
 
 	inline gs_texture_2d()
 		: gs_texture (GS_TEXTURE_2D, 0, GS_UNKNOWN)
 	{
+	}
+	
+	inline uint32_t bytesPerRow() const
+	{
+		return texture.buffer.length / height;
 	}
 
 	gs_texture_2d(gs_device_t *device, uint32_t width, uint32_t height,
@@ -328,13 +352,13 @@ struct gs_texture_2d : gs_texture {
 			const uint8_t **data, uint32_t flags,
 			gs_texture_type type, bool shared);
 
-	gs_texture_2d(gs_device_t *device, uint32_t handle);
+	gs_texture_2d(gs_device_t *device, id<MTLTexture> texture);
 };
 
 struct gs_zstencil_buffer : gs_obj {
 	id<MTLTexture>                           texture;
-	MTLTextureDescriptor                     *td   = nullptr;
-	MTLRenderPassStencilAttachmentDescriptor *desc = nullptr;
+	MTLTextureDescriptor                     *td  = nil;
+	MTLRenderPassStencilAttachmentDescriptor *sad = nil;
 
 	uint32_t           width, height;
 	gs_zstencil_format format;
@@ -346,7 +370,7 @@ struct gs_zstencil_buffer : gs_obj {
 	{
 		CFRelease(texture);
 		[td release];
-		[desc release];
+		[sad release];
 	}
 
 	inline gs_zstencil_buffer()
@@ -356,8 +380,8 @@ struct gs_zstencil_buffer : gs_obj {
 	{
 	}
 
-	gs_zstencil_buffer(gs_device_t *device, uint32_t width, uint32_t height,
-			gs_zstencil_format format);
+	gs_zstencil_buffer(gs_device_t *device, uint32_t width,
+			uint32_t height, gs_zstencil_format format);
 };
 
 struct gs_stage_surface : gs_obj {
@@ -370,10 +394,7 @@ struct gs_stage_surface : gs_obj {
 
 	inline void Rebuild(id<MTLDevice> dev);
 
-	inline void Release()
-	{
-		CFRelease(texture);
-	}
+	inline void Release() {[texture release];}
 
 	gs_stage_surface(gs_device_t *device, uint32_t width, uint32_t height,
 			gs_color_format colorFormat);
@@ -425,18 +446,16 @@ struct ShaderError {
 
 struct gs_shader : gs_obj {
 	gs_shader_type          type;
+	id<MTLFunction>         function;
 	vector<gs_shader_param> params;
 	id<MTLBuffer>           constants;
 	size_t                  constantSize;
 
-	vector<uint8_t>         data;
-
-	inline void UpdateParam(vector<uint8_t> &constData,
-			gs_shader_param &param, bool &upload);
+	inline void UpdateParam(uint8_t *data, gs_shader_param &param);
 	void UploadParams();
 
 	void BuildConstantBuffer();
-	void Compile(const char *shaderStr, id<MTLLibrary> &library);
+	void Compile(const char *shaderStr, id<MTLFunction> &function);
 
 	inline gs_shader(gs_device_t *device, gs_type obj_type,
 			gs_shader_type type)
@@ -462,12 +481,9 @@ struct ShaderSampler {
 };
 
 struct gs_vertex_shader : gs_shader {
-	ComPtr<ID3D11VertexShader> shader;
-	ComPtr<ID3D11InputLayout>  layout;
+	MTLVertexDescriptor        *vd = nil;
 
 	gs_shader_param *world, *viewProj;
-
-	vector<D3D11_INPUT_ELEMENT_DESC> layoutData;
 
 	bool     hasNormals;
 	bool     hasColors;
@@ -478,9 +494,9 @@ struct gs_vertex_shader : gs_shader {
 
 	inline void Release()
 	{
-		shader.Release();
-		layout.Release();
-		constants.Release();
+		[function release];
+		CFRelease(vd);
+		[constants release];
 	}
 
 	inline uint32_t NumBuffersExpected() const
@@ -500,22 +516,21 @@ struct gs_vertex_shader : gs_shader {
 };
 
 struct gs_pixel_shader : gs_shader {
-	ComPtr<ID3D11PixelShader> shader;
 	vector<unique_ptr<ShaderSampler>> samplers;
 
 	inline void Rebuild(id<MTLDevice> dev);
 
 	inline void Release()
 	{
-		shader.Release();
-		constants.Release();
+		[function release];
+		[constants release];
 	}
 
-	inline void GetSamplerStates(ID3D11SamplerState **states)
+	inline void GetSamplerStates(MTLSamplerDescriptor **states)
 	{
 		size_t i;
 		for (i = 0; i < samplers.size(); i++)
-			states[i] = samplers[i]->sampler.state;
+			states[i] = samplers[i]->sampler.sd;
 		for (; i < GS_MAX_TEXTURES; i++)
 			states[i] = NULL;
 	}
@@ -575,23 +590,6 @@ struct BlendState {
 	}
 };
 
-struct SavedBlendState : BlendState {
-	MTLRenderPipelineColorAttachmentDescriptor *cad = nil;
-
-	inline void Rebuild(id<MTLDevice> dev);
-
-	inline void Release()
-	{
-		[cad release];
-	}
-
-	inline SavedBlendState(const BlendState &val,
-			MTLRenderPipelineColorAttachmentDescriptor *cad)
-		: BlendState(val), cad(cad)
-	{
-	}
-};
-
 struct StencilSide {
 	gs_depth_test test;
 	gs_stencil_op_type fail;
@@ -616,6 +614,8 @@ struct ZStencilState {
 	bool          stencilWriteEnabled;
 	StencilSide   stencilFront;
 	StencilSide   stencilBack;
+	
+	MTLDepthStencilDescriptor *dsd;
 
 	inline ZStencilState()
 		: depthEnabled        (true),
@@ -624,66 +624,42 @@ struct ZStencilState {
 		  stencilEnabled      (false),
 		  stencilWriteEnabled (true)
 	{
+		dsd = [MTLDepthStencilDescriptor new];
 	}
 
 	inline ZStencilState(const ZStencilState &state)
 	{
 		memcpy(this, &state, sizeof(ZStencilState));
 	}
-};
-
-struct SavedZStencilState : ZStencilState {
-	id<MTLDepthStencilState>  state;
-	MTLDepthStencilDescriptor *dsd = nil;
-
-	inline void Rebuild(id<MTLDevice> dev);
-
-	inline void Release()
+	
+	~ZStencilState()
 	{
-		CFRelease(state);
 		[dsd release];
-	}
-
-	inline SavedZStencilState(const ZStencilState &val,
-			MTLDepthStencilDescriptor *dsd)
-		: ZStencilState (val),
-		  dsd           (dsd)
-	{
 	}
 };
 
 struct RasterState {
-	gs_cull_mode cullMode;
-	bool         scissorEnabled;
+	gs_rect        viewport;
+	gs_cull_mode   cullMode;
+	bool           scissorEnabled;
+	gs_rect        scissorRect;
+	
+	MTLViewport    mtlViewport;
+	MTLCullMode    mtlCullMode;
+	MTLScissorRect mtlScissorRect;
 
 	inline RasterState()
-		: cullMode       (GS_BACK),
-		  scissorEnabled (false)
+		: viewport       (),
+		  cullMode       (GS_BACK),
+		  scissorEnabled (false),
+		  scissorRect    (),
+		  mtlCullMode    (MTLCullModeBack)
 	{
 	}
 
 	inline RasterState(const RasterState &state)
 	{
 		memcpy(this, &state, sizeof(RasterState));
-	}
-};
-
-struct SavedRasterState : RasterState {
-	ComPtr<ID3D11RasterizerState> state;
-	D3D11_RASTERIZER_DESC         rd;
-
-	inline void Rebuild(ID3D11Device *dev);
-
-	inline void Release()
-	{
-		state.Release();
-	}
-
-	inline SavedRasterState(const RasterState &val,
-			D3D11_RASTERIZER_DESC &desc)
-	       : RasterState (val),
-	         rd          (desc)
-	{
 	}
 };
 
@@ -697,7 +673,6 @@ struct gs_device {
 	id<MTLCommandBuffer>        commandBuffer;
 	MTLRenderPipelineDescriptor *pipelineDesc;
 	MTLRenderPassDescriptor     *passDesc;
-    
 	uint32_t                    devIdx = 0;
 
 	gs_texture_2d               *curRenderTarget = nullptr;
@@ -710,21 +685,13 @@ struct gs_device {
 	gs_vertex_shader            *curVertexShader = nullptr;
 	gs_pixel_shader             *curPixelShader = nullptr;
 	gs_swap_chain               *curSwapChain = nullptr;
+	
+	gs_vertex_buffer            *lastVertexBuffer = nullptr;
+	gs_vertex_shader            *lastVertexShader = nullptr;
 
-	bool                        zstencilStateChanged = true;
-	bool                        rasterStateChanged = true;
-	bool                        blendStateChanged = true;
-	ZStencilState               zstencilState;
-	RasterState                 rasterState;
 	BlendState                  blendState;
-	vector<SavedZStencilState>  zstencilStates;
-	vector<SavedRasterState>    rasterStates;
-	vector<SavedBlendState>     blendStates;
-	ID3D11DepthStencilState     *curDepthStencilState = nullptr;
-	ID3D11RasterizerState       *curRasterState = nullptr;
-	ID3D11BlendState            *curBlendState = nullptr;
-
-	gs_rect                     viewport;
+	RasterState                 rasterState;
+	ZStencilState               zstencilState;
 
 	vector<mat4float>           projStack;
 
@@ -732,20 +699,18 @@ struct gs_device {
 	matrix4                     curViewMatrix;
 	matrix4                     curViewProjMatrix;
 
-	gs_obj                      *first_obj
+	gs_obj                      *first_obj;
     
 	void InitDevice(uint32_t adapterIdx);
-
-	id<MTLDepthStencilState> AddZStencilState();
-	ID3D11RasterizerState   *AddRasterState();
-	ID3D11BlendState        *AddBlendState();
-	void UpdateZStencilState();
-	void UpdateRasterState();
-	void UpdateBlendState();
-
+	
 	void LoadVertexBufferData(id<MTLRenderCommandEncoder> commandEncoder);
+	void UpdateRasterState(id<MTLRenderCommandEncoder> commandEncoder);
+	void UpdateZStencilState(id<MTLRenderCommandEncoder> commandEncoder);
+	void Draw(id<MTLRenderCommandEncoder> commandEncoder,
+			gs_draw_mode draw_mode,
+			uint32_t start_vert, uint32_t num_verts);
 
-	inline void CopyTex(ID3D11Texture2D *dst,
+	inline void CopyTex(id<MTLTexture> dst,
 			uint32_t dst_x, uint32_t dst_y,
 			gs_texture_t *src, uint32_t src_x, uint32_t src_y,
 			uint32_t src_w, uint32_t src_h);

@@ -4,129 +4,74 @@
 #include <sstream>
 using namespace std;
 
-static const char *semanticInputNames[] =
-	{"POSITION", "NORMAL", "COLOR", "TANGENT", "TEXCOORD"};
-static const char *semanticOutputNames[] =
-	{"position", "normal", "color", "tangent", "texcoord"};
-
-static const char *ConvertSemanticName(const char *name)
-{
-	const size_t num = sizeof(semanticInputNames) / sizeof(const char*);
-	for (size_t i = 0; i < num; i++) {
-		if (strcmp(name, semanticInputNames[i]) == 0)
-			return semanticOutputNames[i];
-	}
-
-	throw "Unknown Semantic Name";
-}
-
-static void GetSemanticInfo(shader_var *var, const char *&name,
-		uint32_t &index)
-{
-	const char *mapping = var->mapping;
-	const char *indexStr = mapping;
-
-	while (*indexStr && !isdigit(*indexStr))
-		indexStr++;
-	index = (*indexStr) ? strtol(indexStr, NULL, 10) : 0;
-
-	string nameStr;
-	nameStr.assign(mapping, indexStr-mapping);
-	name = ConvertSemanticName(nameStr.c_str());
-}
-
 static void AddInputLayoutVar(shader_var *var,
-		vector<D3D11_INPUT_ELEMENT_DESC> &layout)
+		MTLVertexAttributeDescriptor *vad, size_t &currentOffset)
 {
-	D3D11_INPUT_ELEMENT_DESC ied;
-	const char *semanticName;
-	uint32_t semanticIndex;
-
-	GetSemanticInfo(var, semanticName, semanticIndex);
-
-	memset(&ied, 0, sizeof(ied));
-	ied.SemanticName   = semanticName;
-	ied.SemanticIndex  = semanticIndex;
-	ied.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
-
+	vad.bufferIndex = 0;
+	vad.offset = currentOffset;
+	
 	if (strcmp(var->mapping, "COLOR") == 0) {
-		ied.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		vad.format = MTLVertexFormatUChar4Normalized;
+		currentOffset += 4;
 
-	} else if (strcmp(var->mapping, "POSITION")  == 0 ||
-	           strcmp(var->mapping, "NORMAL")    == 0 ||
-	           strcmp(var->mapping, "TANGENT")   == 0) {
-		ied.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	} else if (strcmp(var->mapping, "POSITION") == 0 ||
+	           strcmp(var->mapping, "NORMAL")   == 0 ||
+	           strcmp(var->mapping, "TANGENT")  == 0) {
+		vad.format = MTLVertexFormatFloat4;
+		currentOffset += 16;
 
 	} else if (astrcmp_n(var->mapping, "TEXCOORD", 8) == 0) {
 		/* type is always a 'float' type */
 		switch (var->type[5]) {
-		case 0:   ied.Format = DXGI_FORMAT_R32_FLOAT; break;
-		case '2': ied.Format = DXGI_FORMAT_R32G32_FLOAT; break;
+		case 0:
+			vad.format = MTLVertexFormatFloat;
+			currentOffset += 4;
+			break;
+		
+		case '2':
+			vad.format = MTLVertexFormatFloat2;
+			currentOffset += 8;
+			break;
+				
 		case '3':
-		case '4': ied.Format = DXGI_FORMAT_R32G32B32A32_FLOAT; break;
+		case '4':
+			vad.format = MTLVertexFormatFloat4;
+			currentOffset += 16;
+			break;
 		}
 	}
-
-	layout.push_back(ied);
-}
-
-static inline bool SetSlot(vector<D3D11_INPUT_ELEMENT_DESC> &layout,
-		const char *name, uint32_t index, uint32_t &slotIdx)
-{
-	for (size_t i = 0; i < layout.size(); i++) {
-		D3D11_INPUT_ELEMENT_DESC &input = layout[i];
-		if (input.SemanticIndex == index &&
-		    strcmpi(input.SemanticName, name) == 0) {
-			layout[i].InputSlot = slotIdx++;
-			return true;
-		}
-	}
-
-	return false;
 }
 
 static void BuildInputLayoutFromVars(shader_parser *parser, darray *vars,
-		vector<D3D11_INPUT_ELEMENT_DESC> &layout)
+		MTLVertexDescriptor *vd, size_t &index, size_t &offset)
 {
 	shader_var *array = (shader_var*)vars->array;
 
 	for (size_t i = 0; i < vars->num; i++) {
-		shader_var *var = array+i;
+		shader_var *var = array + i;
 
 		if (var->mapping) {
-			AddInputLayoutVar(var, layout);
+			AddInputLayoutVar(var, vd.attributes[index++], offset);
 		} else {
 			shader_struct *st = shader_parser_getstruct(parser,
 					var->type);
 			if (st)
 				BuildInputLayoutFromVars(parser, &st->vars.da,
-						layout);
+						vd, index, offset);
 		}
 	}
-
-	/*
-	 * Sets the input slot value for each semantic, however we do it in
-	 * a specific order so that it will always match the vertex buffer's
-	 * sub-buffer order (points-> normals-> colors-> tangents-> uvcoords)
-	 */
-	uint32_t slot = 0;
-	SetSlot(layout, "SV_Position", 0, slot);
-	SetSlot(layout, "NORMAL", 0, slot);
-	SetSlot(layout, "COLOR", 0, slot);
-	SetSlot(layout, "TANGENT", 0, slot);
-
-	uint32_t index = 0;
-	while (SetSlot(layout, "TEXCOORD", index++, slot));
 }
 
-void ShaderProcessor::BuildInputLayout(
-		vector<D3D11_INPUT_ELEMENT_DESC> &layout)
+void ShaderProcessor::BuildInputLayout(MTLVertexDescriptor *vd)
 {
 	shader_func *func = shader_parser_getfunc(&parser, "main");
 	if (!func)
 		throw "Failed to find 'main' shader function";
 
-	BuildInputLayoutFromVars(&parser, &func->params.da, layout);
+	size_t index = 0, offset = 0;
+	BuildInputLayoutFromVars(&parser, &func->params.da, vd, index, offset);
+	
+	vd.layouts[0].stride = offset;
 }
 
 gs_shader_param::gs_shader_param(shader_var &var, uint32_t &texCounter)

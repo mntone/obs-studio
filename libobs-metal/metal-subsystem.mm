@@ -37,10 +37,11 @@ void gs_device::InitDevice(uint32_t deviceIdx)
 	blog(LOG_INFO, "Loading up Metal on adapter %s (%" PRIu32 ")",
 			[device name].UTF8String, deviceIdx);
 
-	if ([device supportsFeatureSet:OSX_GPUFamily1_v2]) {
+	if ([device supportsFeatureSet:MTLFeatureSet_OSX_GPUFamily1_v2]) {
 		featureSetFamily  = 1;
 		featureSetVersion = 2;
-	} else if ([device supportsFeatureSet:OSX_GPUFamily1_v1]) {
+	} else if ([device
+			supportsFeatureSet:MTLFeatureSet_OSX_GPUFamily1_v1]) {
 		featureSetFamily  = 1;
 		featureSetVersion = 1;
 	}
@@ -49,170 +50,32 @@ void gs_device::InitDevice(uint32_t deviceIdx)
 			featureSetFamily, featureSetVersion);
 }
 
-static inline void ConvertStencilSide(MTLStencilDescriptor *desc,
-		const StencilSide &side)
+void gs_device::UpdateRasterState(id<MTLRenderCommandEncoder> commandEncoder)
 {
-	desc.stencilCompareFunction    = ConvertGSDepthTest(side.test);
-	desc.stencilFailureOperation   = ConvertGSStencilOp(side.fail);
-	desc.depthFailureOperation     = ConvertGSStencilOp(side.zfail);
-	desc.depthStencilPassOperation = ConvertGSStencilOp(side.zpass);
-}
-
-id<MTLDepthStencilState> gs_device::AddZStencilState()
-{
-	MTLDepthStencilDescriptor *dsd;
-	id<MTLDepthStencilState> state;
-
-	dsd                      = [MTLDepthStencilDescriptor new];
-	dsd.depthWriteEnabled    = zstencilState.depthWriteEnabled ? YES : NO;
-	dsd.depthCompareFunction = ConvertGSDepthTest(zstencilState.depthFunc);
-	
-	ConvertStencilSide(dsd.frontFaceStencil, zstencilState.stencilFront);
-	dsd.frontFaceStencil.readMask  = zstencilState.stencilEnabled ?
-			0xFFFFFFFF : 0;
-	dsd.frontFaceStencil.writeMask = zstencilState.stencilWriteEnabled ?
-			0xFFFFFFFF : 0;
-	
-	ConvertStencilSide(dsd.backFaceStencil, zstencilState.stencilFront);
-	dsd.backFaceStencil.readMask   = zstencilState.stencilEnabled ?
-			0xFFFFFFFF : 0;
-	dsd.backFaceStencil.writeMask  = zstencilState.stencilWriteEnabled ?
-			0xFFFFFFFF : 0;
-
-	SavedZStencilState savedState(zstencilState, dsd);
-	state = [device newDepthStencilStateWithDescriptor:dsd];
-	if (state == nil)
-		throw "Failed to create depth stencil state";
-
-	savedState.state = state;
-	zstencilStates.push_back(savedState);
-
-	return state;
-}
-
-ID3D11RasterizerState *gs_device::AddRasterState()
-{
-	HRESULT hr;
-	D3D11_RASTERIZER_DESC rd;
-	ID3D11RasterizerState *state;
-
-	memset(&rd, 0, sizeof(rd));
+	[commandEncoder setViewport:rasterState.mtlViewport];
 	/* use CCW to convert to a right-handed coordinate system */
-	rd.FrontCounterClockwise = true;
-	rd.FillMode              = D3D11_FILL_SOLID;
-	rd.CullMode              = ConvertGSCullMode(rasterState.cullMode);
-	rd.DepthClipEnable       = true;
-	rd.ScissorEnable         = rasterState.scissorEnabled;
-
-	SavedRasterState savedState(rasterState, rd);
-	hr = device->CreateRasterizerState(&rd, savedState.state.Assign());
-	if (FAILED(hr))
-		throw HRError("Failed to create rasterizer state", hr);
-
-	state = savedState.state;
-	rasterStates.push_back(savedState);
-
-	return state;
+	[commandEncoder setFrontFacingWinding:MTLWindingCounterClockwise];
+	[commandEncoder setCullMode:rasterState.mtlCullMode];
+#if 0
+	/* This is default value. Not to set. */
+	[commandEncoder setDepthClipMode:MTLDepthClipModeClip];
+#endif
+	if (rasterState.scissorEnabled)
+		[commandEncoder setScissorRect:rasterState.mtlScissorRect];
+#if 0
+	/* This is default value. Not to set. */
+	[commandEncodet setTriangleFillMode:MTLTriangleFillModeFill];
+#endif
 }
 
-MTLRenderPipelineColorAttachmentDescriptor *gs_device::AddBlendState()
+void gs_device::UpdateZStencilState(id<MTLRenderCommandEncoder> commandEncoder)
 {
-	MTLRenderPipelineColorAttachmentDescriptor *cad = nil;
-	
-	cad = [MTLRenderPipelineColorAttachmentDescriptor new];
-	cad.blendingEnabled = blendState.blendEnabled ? YES : NO;
-	cad.sourceRGBBlendFactor =
-			ConvertGSBlendType(blendState.srcFactorC);
-	cad.destinationRGBBlendFactor =
-			ConvertGSBlendType(blendState.destFactorC);
-	cad.sourceAlphaBlendFactor =
-			ConvertGSBlendType(blendState.srcFactorA);
-	cad.destinationAlphaBlendFactor =
-			ConvertGSBlendType(blendState.destFactorA);
-
-	SavedBlendState savedState(blendState, cad);
-
-	blendStates.push_back(savedState);
-
-	return cad;
-}
-
-void gs_device::UpdateZStencilState()
-{
-	id<MTLDepthStencilState> state = nil;
-
-	if (!zstencilStateChanged)
-		return;
-
-	for (size_t i = 0; i < zstencilStates.size(); i++) {
-		SavedZStencilState &s = zstencilStates[i];
-		if (memcmp(&s, &zstencilState, sizeof(zstencilState)) == 0) {
-			state = s.state;
-			break;
-		}
+	if (zstencilState.depthEnabled) {
+		id<MTLDepthStencilState> state = [device
+				newDepthStencilStateWithDescriptor:
+				zstencilState.dsd];
+		[commandEncoder setDepthStencilState:state];
 	}
-
-	if (!state)
-		state = AddZStencilState();
-
-	if (state != curDepthStencilState) {
-		context->OMSetDepthStencilState(state, 0);
-		curDepthStencilState = state;
-	}
-
-	zstencilStateChanged = false;
-}
-
-void gs_device::UpdateRasterState()
-{
-	ID3D11RasterizerState *state = NULL;
-
-	if (!rasterStateChanged)
-		return;
-
-	for (size_t i = 0; i < rasterStates.size(); i++) {
-		SavedRasterState &s = rasterStates[i];
-		if (memcmp(&s, &rasterState, sizeof(rasterState)) == 0) {
-			state = s.state;
-			break;
-		}
-	}
-
-	if (!state)
-		state = AddRasterState();
-
-	if (state != curRasterState) {
-		context->RSSetState(state);
-		curRasterState = state;
-	}
-
-	rasterStateChanged = false;
-}
-
-void gs_device::UpdateBlendState()
-{
-	MTLRenderPipelineColorAttachmentDescriptor *cad = nil;
-
-	if (!blendStateChanged)
-		return;
-
-	for (size_t i = 0; i < blendStates.size(); i++) {
-		auto &s = blendStates[i];
-		if (memcmp(&s, &blendState, sizeof(blendState)) == 0) {
-			cad = s.cad;
-			break;
-		}
-	}
-
-	if (!cad)
-		cad = AddBlendState();
-
-	if (cad != curBlendState) {
-		pipelineDesc.colorAttachments[0] = cad;
-		curBlendState = cad;
-	}
-
-	blendStateChanged = false;
 }
 
 void gs_device::UpdateViewProjMatrix()
@@ -233,26 +96,46 @@ void gs_device::UpdateViewProjMatrix()
 				&curViewProjMatrix);
 }
 
+void gs_device::Draw(id<MTLRenderCommandEncoder> commandEncoder,
+		gs_draw_mode draw_mode, uint32_t start_vert, uint32_t num_verts)
+{
+	MTLPrimitiveType primitive = ConvertGSTopology(draw_mode);
+	if (curIndexBuffer) {
+		if (num_verts == 0)
+			num_verts = (uint32_t)curIndexBuffer->num;
+		[commandEncoder drawIndexedPrimitives:primitive
+				indexCount:num_verts
+				indexType:curIndexBuffer->indexType
+				indexBuffer:curIndexBuffer->indexBuffer
+				indexBufferOffset:0];
+	} else {
+		if (num_verts == 0)
+			num_verts = (uint32_t)curVertexBuffer->numVerts;
+		[commandEncoder drawPrimitives:primitive
+				vertexStart:start_vert vertexCount:num_verts];
+	}
+}
+
 gs_device::gs_device(uint32_t adapterIdx)
 {
 	matrix4_identity(&curProjMatrix);
 	matrix4_identity(&curViewMatrix);
 	matrix4_identity(&curViewProjMatrix);
 
-	memset(&viewport, 0, sizeof(viewport));
-
 	for (size_t i = 0; i < GS_MAX_TEXTURES; i++) {
-		curTextures[i] = NULL;
-		curSamplers[i] = NULL;
+		curTextures[i] = nullptr;
+		curSamplers[i] = nullptr;
 	}
 
 	InitDevice(adapterIdx);
-	device_set_render_target(this, NULL, NULL);
+	
+	passDesc = [MTLRenderPassDescriptor new];
+	
+	device_set_render_target(this, nullptr, nullptr);
 }
 
 gs_device::~gs_device()
 {
-	context->ClearState();
 }
 
 const char *device_get_name(void)
@@ -275,7 +158,7 @@ static inline void EnumMetalAdapters(
 		void *param)
 {
 	NSArray *devices;
-	UINT i = 0;
+	uint32_t i = 0;
 
 	devices = MTLCopyAllDevices();
     
@@ -289,15 +172,8 @@ bool device_enum_adapters(
 		bool (*callback)(void *param, const char *name, uint32_t id),
 		void *param)
 {
-	try {
-		EnumMetalAdapters(callback, param);
-		return true;
-
-	} catch (HRError error) {
-		blog(LOG_WARNING, "Failed enumerating devices: %s (%08lX)",
-				error.str, error.hr);
-		return false;
-	}
+	EnumMetalAdapters(callback, param);
+	return true;
 }
 
 static inline void LogMetalAdapters()
@@ -356,8 +232,7 @@ void device_leave_context(gs_device_t *device)
 gs_swapchain_t *device_swapchain_create(gs_device_t *device,
 		const struct gs_init_data *data)
 {
-	gs_swap_chain *swap = NULL;
-
+	gs_swap_chain *swap = nullptr;
 	try {
 		swap = new gs_swap_chain(device, data);
 	} catch (const char *error) {
@@ -375,18 +250,22 @@ void device_resize(gs_device_t *device, uint32_t cx, uint32_t cy)
 	}
 
 	try {
-		ID3D11RenderTargetView *renderView = NULL;
-		ID3D11DepthStencilView *depthView  = NULL;
+		id<MTLTexture> renderTarget = nil;
+		MTLRenderPassStencilAttachmentDescriptor *depthDesc = nil;
+		
 		int i = device->curRenderSide;
 
-		device->context->OMSetRenderTargets(1, &renderView, depthView);
+		device->passDesc.colorAttachments[0].texture = nil;
+		device->passDesc.stencilAttachment = nil;
 		device->curSwapChain->Resize(cx, cy);
 
 		if (device->curRenderTarget)
-			renderView = device->curRenderTarget->renderTarget[i];
+			renderTarget = device->curRenderTarget->texture;
 		if (device->curZStencilBuffer)
-			depthView  = device->curZStencilBuffer->view;
-		device->context->OMSetRenderTargets(1, &renderView, depthView);
+			depthDesc    = device->curZStencilBuffer->sad;
+		
+		device->passDesc.colorAttachments[0].texture = renderTarget;
+		device->passDesc.stencilAttachment = depthDesc;
 
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_resize (Metal): %s", error);
@@ -432,7 +311,7 @@ gs_texture_t *device_texture_create(gs_device_t *device, uint32_t width,
 		uint32_t height, enum gs_color_format color_format,
 		uint32_t levels, const uint8_t **data, uint32_t flags)
 {
-	gs_texture *texture = NULL;
+	gs_texture *texture = nullptr;
 	try {
 		texture = new gs_texture_2d(device, width, height, color_format,
 				levels, data, flags, GS_TEXTURE_2D, false);
@@ -447,7 +326,7 @@ gs_texture_t *device_cubetexture_create(gs_device_t *device, uint32_t size,
 		enum gs_color_format color_format, uint32_t levels,
 		const uint8_t **data, uint32_t flags)
 {
-	gs_texture *texture = NULL;
+	gs_texture *texture = nullptr;
 	try {
 		texture = new gs_texture_2d(device, size, size, color_format,
 				levels, data, flags, GS_TEXTURE_CUBE, false);
@@ -478,7 +357,7 @@ gs_texture_t *device_voltexture_create(gs_device_t *device, uint32_t width,
 gs_zstencil_t *device_zstencil_create(gs_device_t *device, uint32_t width,
 		uint32_t height, enum gs_zstencil_format format)
 {
-	gs_zstencil_buffer *zstencil = NULL;
+	gs_zstencil_buffer *zstencil = nullptr;
 	try {
 		zstencil = new gs_zstencil_buffer(device, width, height,
 				format);
@@ -492,7 +371,7 @@ gs_zstencil_t *device_zstencil_create(gs_device_t *device, uint32_t width,
 gs_stagesurf_t *device_stagesurface_create(gs_device_t *device, uint32_t width,
 		uint32_t height, enum gs_color_format color_format)
 {
-	gs_stage_surface *surf = NULL;
+	gs_stage_surface *surf = nullptr;
 	try {
 		surf = new gs_stage_surface(device, width, height,
 				color_format);
@@ -507,9 +386,10 @@ gs_stagesurf_t *device_stagesurface_create(gs_device_t *device, uint32_t width,
 gs_samplerstate_t *device_samplerstate_create(gs_device_t *device,
 		const struct gs_sampler_info *info)
 {
-	gs_sampler_state *ss = NULL;
+	gs_sampler_state *ss = nullptr;
 	try {
 		ss = new gs_sampler_state(device, info);
+		
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_samplerstate_create (Metal): %s",
 				error);
@@ -521,7 +401,7 @@ gs_shader_t *device_vertexshader_create(gs_device_t *device,
 		const char *shader_string, const char *file,
 		char **error_string)
 {
-	gs_vertex_shader *shader = NULL;
+	gs_vertex_shader *shader = nullptr;
 	try {
 		shader = new gs_vertex_shader(device, file, shader_string);
 
@@ -543,7 +423,7 @@ gs_shader_t *device_pixelshader_create(gs_device_t *device,
 		const char *shader_string, const char *file,
 		char **error_string)
 {
-	gs_pixel_shader *shader = NULL;
+	gs_pixel_shader *shader = nullptr;
 	try {
 		shader = new gs_pixel_shader(device, file, shader_string);
 
@@ -613,6 +493,9 @@ void gs_device::LoadVertexBufferData(id<MTLRenderCommandEncoder> commandEncoder)
 	
 	[commandEncoder setVertexBuffers:buffers.data()
 			offsets:offsets.data() withRange:range];
+	
+	lastVertexBuffer = curVertexBuffer;
+	lastVertexShader = curVertexShader;
 }
 
 void device_load_vertexbuffer(gs_device_t *device, gs_vertbuffer_t *vertbuffer)
@@ -650,45 +533,37 @@ void device_load_indexbuffer(gs_device_t *device, gs_indexbuffer_t *indexbuffer)
 
 void device_load_texture(gs_device_t *device, gs_texture_t *tex, int unit)
 {
-	ID3D11ShaderResourceView *view = NULL;
-
+	id<MTLTexture> texture = nil;
+	
 	if (device->curTextures[unit] == tex)
 		return;
-
-	if (tex)
-		view = tex->shaderRes;
+	
+	gs_texture_2d *tex2d = static_cast<gs_texture_2d*>(tex);
+	if (tex2d != nil)
+		texture = tex2d->texture;
 
 	device->curTextures[unit] = tex;
-	device->context->PSSetShaderResources(unit, 1, &view);
+	device->passDesc.colorAttachments[unit].texture = texture;
 }
 
 void device_load_samplerstate(gs_device_t *device,
 		gs_samplerstate_t *samplerstate, int unit)
 {
-	ID3D11SamplerState *state = NULL;
-
 	if (device->curSamplers[unit] == samplerstate)
 		return;
 
-	if (samplerstate)
-		state = samplerstate->state;
-
 	device->curSamplers[unit] = samplerstate;
-	device->context->PSSetSamplers(unit, 1, &state);
 }
 
 void device_load_vertexshader(gs_device_t *device, gs_shader_t *vertshader)
 {
-	ID3D11VertexShader *shader    = NULL;
-	ID3D11InputLayout  *layout    = NULL;
-	ID3D11Buffer       *constants = NULL;
+	id<MTLFunction>     function  = nil;
+	MTLVertexDescriptor *vd       = nil;
 
 	if (device->curVertexShader == vertshader)
 		return;
 
 	gs_vertex_shader *vs = static_cast<gs_vertex_shader*>(vertshader);
-	gs_vertex_buffer *curVB = device->curVertexBuffer;
-
 	if (vertshader) {
 		if (vertshader->type != GS_SHADER_VERTEX) {
 			blog(LOG_ERROR, "device_load_vertexshader (Metal): "
@@ -697,36 +572,31 @@ void device_load_vertexshader(gs_device_t *device, gs_shader_t *vertshader)
 			return;
 		}
 
-		shader    = vs->shader;
-		layout    = vs->layout;
-		constants = vs->constants;
+		function  = vs->function;
+		vd        = vs->vd;
 	}
 
 	device->curVertexShader = vs;
-	device->context->VSSetShader(shader, NULL, 0);
-	device->context->IASetInputLayout(layout);
-	device->context->VSSetConstantBuffers(0, 1, &constants);
+	device->pipelineDesc.vertexFunction = function;
+	device->pipelineDesc.vertexDescriptor = vd;
 }
 
 static inline void clear_textures(gs_device_t *device)
 {
-	ID3D11ShaderResourceView *views[GS_MAX_TEXTURES];
-	memset(views,               0, sizeof(views));
 	memset(device->curTextures, 0, sizeof(device->curTextures));
-	device->context->PSSetShaderResources(0, GS_MAX_TEXTURES, views);
+	for (size_t i = 0; i < GS_MAX_TEXTURES; i++)
+		device->passDesc.colorAttachments[i].texture = nil;
 }
 
 void device_load_pixelshader(gs_device_t *device, gs_shader_t *pixelshader)
 {
-	ID3D11PixelShader  *shader    = NULL;
-	ID3D11Buffer       *constants = NULL;
-	ID3D11SamplerState *states[GS_MAX_TEXTURES];
+	id<MTLFunction>      function  = nil;
+	MTLSamplerDescriptor *states[GS_MAX_TEXTURES];
 
 	if (device->curPixelShader == pixelshader)
 		return;
 
 	gs_pixel_shader *ps = static_cast<gs_pixel_shader*>(pixelshader);
-
 	if (pixelshader) {
 		if (pixelshader->type != GS_SHADER_PIXEL) {
 			blog(LOG_ERROR, "device_load_pixelshader (Metal): "
@@ -735,8 +605,7 @@ void device_load_pixelshader(gs_device_t *device, gs_shader_t *pixelshader)
 			return;
 		}
 
-		shader    = ps->shader;
-		constants = ps->constants;
+		function  = ps->function;
 		ps->GetSamplerStates(states);
 	} else {
 		memset(states, 0, sizeof(states));
@@ -745,10 +614,8 @@ void device_load_pixelshader(gs_device_t *device, gs_shader_t *pixelshader)
 	clear_textures(device);
 
 	device->curPixelShader = ps;
-	device->context->PSSetShader(shader, NULL, 0);
-	device->context->PSSetConstantBuffers(0, 1, &constants);
-	device->context->PSSetSamplers(0, GS_MAX_TEXTURES, states);
-
+	device->pipelineDesc.fragmentFunction = function;
+	
 	for (int i = 0; i < GS_MAX_TEXTURES; i++)
 		if (device->curSamplers[i] &&
 				device->curSamplers[i]->state != states[i])
@@ -776,7 +643,7 @@ gs_shader_t *device_get_pixel_shader(const gs_device_t *device)
 gs_texture_t *device_get_render_target(const gs_device_t *device)
 {
 	if (device->curRenderTarget == &device->curSwapChain->target)
-		return NULL;
+		return nullptr;
 
 	return device->curRenderTarget;
 }
@@ -784,7 +651,7 @@ gs_texture_t *device_get_render_target(const gs_device_t *device)
 gs_zstencil_t *device_get_zstencil_target(const gs_device_t *device)
 {
 	if (device->curZStencilBuffer == &device->curSwapChain->zs)
-		return NULL;
+		return nullptr;
 
 	return device->curZStencilBuffer;
 }
@@ -794,7 +661,7 @@ void device_set_render_target(gs_device_t *device, gs_texture_t *tex,
 {
 	if (device->curSwapChain) {
 		if (!tex)
-			tex = &device->curSwapChain->target;
+			tex = &device->curSwapChain->metalView.currentDrawable.;
 		if (!zstencil)
 			zstencil = &device->curSwapChain->zs;
 	}
@@ -810,19 +677,18 @@ void device_set_render_target(gs_device_t *device, gs_texture_t *tex,
 	}
 
 	gs_texture_2d *tex2d = static_cast<gs_texture_2d*>(tex);
-	if (tex2d && !tex2d->renderTarget[0]) {
+	if (tex2d && tex2d->texture == nil) {
 		blog(LOG_ERROR, "device_set_render_target (Metal): "
-		                "texture is not a render target");
+		                "texture is null");
 		return;
 	}
-
-	ID3D11RenderTargetView *rt = tex2d ? tex2d->renderTarget[0] : nullptr;
 
 	device->curRenderTarget   = tex2d;
 	device->curRenderSide     = 0;
 	device->curZStencilBuffer = zstencil;
-	device->context->OMSetRenderTargets(1, &rt,
-			zstencil ? zstencil->view : nullptr);
+	
+	device->passDesc.colorAttachments[0].texture = tex2d->texture;
+	device->passDesc.stencilAttachment = zstencil->sad;
 }
 
 void device_set_cube_render_target(gs_device_t *device, gs_texture_t *tex,
@@ -844,27 +710,27 @@ void device_set_cube_render_target(gs_device_t *device, gs_texture_t *tex,
 		return;
 
 	if (tex->type != GS_TEXTURE_CUBE) {
-		blog(LOG_ERROR, "device_set_cube_render_target (D3D11): "
+		blog(LOG_ERROR, "device_set_cube_render_target (Metal): "
 		                "texture is not a cube texture");
 		return;
 	}
 
 	gs_texture_2d *tex2d = static_cast<gs_texture_2d*>(tex);
-	if (!tex2d->renderTarget[side]) {
-		blog(LOG_ERROR, "device_set_cube_render_target (D3D11): "
-				"texture is not a render target");
+	if (tex2d && tex2d->texture == nil) {
+		blog(LOG_ERROR, "device_set_cube_render_target (Metal): "
+				"texture is null");
 		return;
 	}
-
-	ID3D11RenderTargetView *rt = tex2d->renderTarget[0];
-
+	
 	device->curRenderTarget   = tex2d;
 	device->curRenderSide     = side;
 	device->curZStencilBuffer = zstencil;
-	device->context->OMSetRenderTargets(1, &rt, zstencil->view);
+	
+	device->passDesc.colorAttachments[0].texture = tex2d->texture;
+	device->passDesc.stencilAttachment = zstencil->sad;
 }
 
-inline void gs_device::CopyTex(ID3D11Texture2D *dst,
+inline void gs_device::CopyTex(id<MTLTexture> dst,
 		uint32_t dst_x, uint32_t dst_y,
 		gs_texture_t *src, uint32_t src_x, uint32_t src_y,
 		uint32_t src_w, uint32_t src_h)
@@ -873,31 +739,27 @@ inline void gs_device::CopyTex(ID3D11Texture2D *dst,
 		throw "Source texture must be a 2D texture";
 
 	gs_texture_2d *tex2d = static_cast<gs_texture_2d*>(src);
-
 	if (dst_x == 0 && dst_y == 0 &&
 	    src_x == 0 && src_y == 0 &&
 	    src_w == 0 && src_h == 0) {
-		context->CopyResource(dst, tex2d->texture);
+		memcpy(dst.buffer.contents,
+				tex2d->texture.buffer.contents,
+				tex2d->texture.buffer.length);
 	} else {
-		D3D11_BOX sbox;
-
-		sbox.left = src_x;
-		if (src_w > 0)
-			sbox.right = src_x + src_w;
-		else
-			sbox.right = tex2d->width - 1;
-
-		sbox.top = src_y;
-		if (src_h > 0)
-			sbox.bottom = src_y + src_h;
-		else
-			sbox.bottom = tex2d->height - 1;
-
-		sbox.front = 0;
-		sbox.back = 1;
-
-		context->CopySubresourceRegion(dst, 0, dst_x, dst_y, 0,
-				tex2d->texture, 0, &sbox);
+		const uint32_t bytesPerRow   = tex2d->bytesPerRow();
+		const uint32_t bytesPerPixel = bytesPerRow / tex2d->width;
+		
+		uint8_t *data;
+		MTLRegion dregion;
+		
+		data = (uint8_t *)tex2d->texture.buffer.contents +
+				bytesPerRow * src_y + bytesPerPixel * src_x;
+		dregion = MTLRegionMake2D(dst_x, dst_y,
+				src_w > 0 ? src_w : tex2d->width - 1,
+				src_h > 0 ? src_h : tex2d->height - 1);
+		
+		[dst replaceRegion:dregion mipmapLevel:0
+				withBytes:data bytesPerRow:bytesPerRow];
 	}
 }
 
@@ -920,13 +782,8 @@ void device_copy_texture_region(gs_device_t *device,
 		if (dst->format != src->format)
 			throw "Source and destination formats do not match";
 
-		/* apparently casting to the same type that the variable
-		 * already exists as is supposed to prevent some warning
-		 * when used with the conditional operator? */
-		uint32_t copyWidth = (uint32_t)src_w ?
-			(uint32_t)src_w : (src2d->width - src_x);
-		uint32_t copyHeight = (uint32_t)src_h ?
-			(uint32_t)src_h : (src2d->height - src_y);
+		uint32_t copyWidth  = src_w ? src_w : (src2d->width - src_x);
+		uint32_t copyHeight = src_h ? src_h : (src2d->height - src_y);
 
 		uint32_t dstWidth  = dst2d->width  - dst_x;
 		uint32_t dstHeight = dst2d->height - dst_y;
@@ -946,7 +803,7 @@ void device_copy_texture_region(gs_device_t *device,
 				src, src_x, src_y, copyWidth, copyHeight);
 
 	} catch(const char *error) {
-		blog(LOG_ERROR, "device_copy_texture (D3D11): %s", error);
+		blog(LOG_ERROR, "device_copy_texture (Metal): %s", error);
 	}
 }
 
@@ -978,21 +835,31 @@ void device_stage_texture(gs_device_t *device, gs_stagesurf_t *dst,
 		device->CopyTex(dst->texture, 0, 0, src, 0, 0, 0, 0);
 
 	} catch (const char *error) {
-		blog(LOG_ERROR, "device_copy_texture (D3D11): %s", error);
+		blog(LOG_ERROR, "device_stage_texture (Metal): %s", error);
 	}
 }
 
 void device_begin_scene(gs_device_t *device)
 {
+	device->passDesc.colorAttachments[0].loadAction = MTLLoadActionLoad;
+	
 	device->commandBuffer = [device->commandQueue commandBuffer];
 }
 
 void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 		uint32_t start_vert, uint32_t num_verts)
 {
-	id<MTLRenderCommandEncoder> commandEncoder;
-	id<MTLRenderPipelineState>  pipelineState;
 	NSError *error = nil;
+	
+	id<MTLRenderPipelineState> pipelineState = [device->device
+			newRenderPipelineStateWithDescriptor:
+			device->pipelineDesc error:&error];
+	if (pipelineState == nil)
+		throw error.localizedDescription.UTF8String;
+	
+	id<MTLRenderCommandEncoder> commandEncoder = [device->commandBuffer
+			  renderCommandEncoderWithDescriptor:passDesc];
+	[commandEncoder setRenderPipelineState:pipelineState];
 	
 	try {
 		if (!device->curVertexShader)
@@ -1011,52 +878,18 @@ void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 		if (effect)
 			gs_effect_update_params(effect);
 		
-		device->UpdateBlendState();
-		
-	} catch (const char *error) {
-		blog(LOG_ERROR, "device_draw (Metal): %s", error);
-		return;
-	}
-	
-	pipelineState = [device->device newRenderPipelineStateWithDescriptor:
-			device->pipelineDesc error:&error];
-	if (pipelineState == nil)
-		throw error.localizedDescription.UTF8String;
-		
-	commandEncoder = [device->commandBuffer
-			renderCommandEncoderWithDescriptor:passDesc];
-	[commandEncoder setRenderPipelineState:pipelineState];
-	
-	try {
 		device->LoadVertexBufferData(commandEncoder);
-		device->UpdateRasterState();
-		device->UpdateZStencilState();
+		device->UpdateRasterState(commandEncoder);
+		device->UpdateZStencilState(commandEncoder);
 		device->UpdateViewProjMatrix();
 		device->curVertexShader->UploadParams();
 		device->curPixelShader->UploadParams();
+		device->Draw(commandEncoder, draw_mode, start_vert, num_verts);
 
 	} catch (const char *error) {
-		[commandEncoder endEncoding];
-		
 		blog(LOG_ERROR, "device_draw (Metal): %s", error);
-		return;
 	}
 	
-	MTLPrimitiveType primitive = ConvertGSTopology(draw_mode);
-	if (device->curIndexBuffer) {
-		if (num_verts == 0)
-			num_verts = (uint32_t)device->curIndexBuffer->num;
-		[commandEncoder drawIndexedPrimitives:primitive
-				indexCount:num_verts
-				indexType:device->curIndexBuffer->indexType
-				indexBuffer:device->curIndexBuffer->indexBuffer
-				indexBufferOffset:0]
-	} else {
-		if (num_verts == 0)
-			num_verts = (uint32_t)device->curVertexBuffer->numVerts;
-		[commandEncoder drawPrimitives:primitive
-				vertexStart:start_vert vertexCount:num_verts]
-	}
 	[commandEncoder endEncoding];
 }
 
@@ -1092,9 +925,6 @@ void device_load_swapchain(gs_device_t *device, gs_swapchain_t *swapchain)
 void device_clear(gs_device_t *device, uint32_t clear_flags,
 		const struct vec4 *color, float depth, uint8_t stencil)
 {
-	if (device->passDesc == nil)
-		device->passDesc = [MTLRenderPassDescriptor new];
-	
 	if ((clear_flags & GS_CLEAR_COLOR) != 0) {
 		MTLRenderPassColorAttachmentDescriptor *colorAttachment =
 				device->passDesc.colorAttachments[0];
@@ -1128,11 +958,11 @@ void device_flush(gs_device_t *device)
 
 void device_set_cull_mode(gs_device_t *device, enum gs_cull_mode mode)
 {
-	if (mode == device->rasterState.cullMode)
+	if (device->rasterState.cullMode == mode)
 		return;
 
 	device->rasterState.cullMode = mode;
-	device->rasterStateChanged = true;
+	device->rasterState.mtlCullMode = ConvertGSCullMode(mode);
 }
 
 enum gs_cull_mode device_get_cull_mode(const gs_device_t *device)
@@ -1142,11 +972,13 @@ enum gs_cull_mode device_get_cull_mode(const gs_device_t *device)
 
 void device_enable_blending(gs_device_t *device, bool enable)
 {
-	if (enable == device->blendState.blendEnabled)
+	if (device->blendState.blendEnabled == enable)
 		return;
 
 	device->blendState.blendEnabled = enable;
-	device->blendStateChanged = true;
+	
+	device->pipelineDesc.colorAttachments[0].blendingEnabled =
+			enable ? YES : NO;
 }
 
 void device_enable_depth_test(gs_device_t *device, bool enable)
@@ -1155,74 +987,102 @@ void device_enable_depth_test(gs_device_t *device, bool enable)
 		return;
 
 	device->zstencilState.depthEnabled = enable;
-	device->zstencilStateChanged = true;
 }
 
 void device_enable_stencil_test(gs_device_t *device, bool enable)
 {
-	if (enable == device->zstencilState.stencilEnabled)
+	ZStencilState &state = device->zstencilState;
+	
+	if (state.stencilEnabled == enable)
 		return;
 
-	device->zstencilState.stencilEnabled = enable;
-	device->zstencilStateChanged = true;
+	state.stencilEnabled = enable;
+	
+	state.dsd.frontFaceStencil.readMask = enable ? 1 : 0;
+	state.dsd.backFaceStencil.readMask  = enable ? 1 : 0;
 }
 
 void device_enable_stencil_write(gs_device_t *device, bool enable)
 {
-	if (enable == device->zstencilState.stencilWriteEnabled)
+	ZStencilState &state = device->zstencilState;
+	
+	if (state.stencilWriteEnabled == enable)
 		return;
 
-	device->zstencilState.stencilWriteEnabled = enable;
-	device->zstencilStateChanged = true;
+	state.stencilWriteEnabled = enable;
+	
+	state.dsd.frontFaceStencil.writeMask = enable ? 1 : 0;
+	state.dsd.backFaceStencil.writeMask  = enable ? 1 : 0;
 }
 
 void device_enable_color(gs_device_t *device, bool red, bool green,
 		bool blue, bool alpha)
 {
-	if (device->blendState.redEnabled   == red   &&
-	    device->blendState.greenEnabled == green &&
-	    device->blendState.blueEnabled  == blue  &&
-	    device->blendState.alphaEnabled == alpha)
+	BlendState &state = device->blendState;
+	
+	if (state.redEnabled   == red   &&
+	    state.greenEnabled == green &&
+	    state.blueEnabled  == blue  &&
+	    state.alphaEnabled == alpha)
 		return;
 
-	device->blendState.redEnabled   = red;
-	device->blendState.greenEnabled = green;
-	device->blendState.blueEnabled  = blue;
-	device->blendState.alphaEnabled = alpha;
-	device->blendStateChanged       = true;
+	state.redEnabled   = red;
+	state.greenEnabled = green;
+	state.blueEnabled  = blue;
+	state.alphaEnabled = alpha;
+	
+	MTLRenderPipelineColorAttachmentDescriptor *cad =
+			pipelineDesc.colorAttachments[0];
+	cad.writeMask = MTLColorWriteMaskNone;
+	if (red)   cad.writeMask |= MTLColorWriteMaskRed;
+	if (green) cad.writeMask |= MTLColorWriteMaskGreen;
+	if (blue)  cad.writeMask |= MTLColorWriteMaskBlue;
+	if (alpha) cad.writeMask |= MTLColorWriteMaskAlpha;
 }
 
 void device_blend_function(gs_device_t *device, enum gs_blend_type src,
 		enum gs_blend_type dest)
 {
-	if (device->blendState.srcFactorC  == src &&
-	    device->blendState.destFactorC == dest &&
-	    device->blendState.srcFactorA  == src &&
-	    device->blendState.destFactorA == dest)
+	BlendState &state = device->blendState;
+	
+	if (state.srcFactorC == src && state.destFactorC == dest &&
+	    state.srcFactorA == src && state.destFactorA == dest)
 		return;
 
-	device->blendState.srcFactorC = src;
-	device->blendState.destFactorC= dest;
-	device->blendState.srcFactorA = src;
-	device->blendState.destFactorA= dest;
-	device->blendStateChanged     = true;
+	state.srcFactorC  = src;
+	state.destFactorC = dest;
+	state.srcFactorA  = src;
+	state.destFactorA = dest;
+	
+	MTLRenderPipelineColorAttachmentDescriptor *cad =
+			pipelineDesc.colorAttachments[0];
+	cad.sourceRGBBlendFactor        = ConvertGSBlendType(src);
+	cad.destinationRGBBlendFactor   = ConvertGSBlendType(dest);
+	cad.sourceAlphaBlendFactor      = ConvertGSBlendType(src);
+	cad.destinationAlphaBlendFactor = ConvertGSBlendType(dest);
 }
 
 void device_blend_function_separate(gs_device_t *device,
 		enum gs_blend_type src_c, enum gs_blend_type dest_c,
 		enum gs_blend_type src_a, enum gs_blend_type dest_a)
 {
-	if (device->blendState.srcFactorC  == src_c &&
-	    device->blendState.destFactorC == dest_c &&
-	    device->blendState.srcFactorA  == src_a &&
-	    device->blendState.destFactorA == dest_a)
+	BlendState &state = device->blendState;
+	
+	if (state.srcFactorC == src_c && state.destFactorC == dest_c &&
+	    state.srcFactorA == src_a && state.destFactorA == dest_a)
 		return;
 
-	device->blendState.srcFactorC  = src_c;
-	device->blendState.destFactorC = dest_c;
-	device->blendState.srcFactorA  = src_a;
-	device->blendState.destFactorA = dest_a;
-	device->blendStateChanged      = true;
+	state.srcFactorC  = src_c;
+	state.destFactorC = dest_c;
+	state.srcFactorA  = src_a;
+	state.destFactorA = dest_a;
+	
+	MTLRenderPipelineColorAttachmentDescriptor *cad =
+			pipelineDesc.colorAttachments[0];
+	cad.sourceRGBBlendFactor        = ConvertGSBlendType(src_c);
+	cad.destinationRGBBlendFactor   = ConvertGSBlendType(dest_c);
+	cad.sourceAlphaBlendFactor      = ConvertGSBlendType(src_a);
+	cad.destinationAlphaBlendFactor = ConvertGSBlendType(dest_a);
 }
 
 void device_depth_function(gs_device_t *device, enum gs_depth_test test)
@@ -1231,17 +1091,21 @@ void device_depth_function(gs_device_t *device, enum gs_depth_test test)
 		return;
 
 	device->zstencilState.depthFunc = test;
-	device->zstencilStateChanged    = true;
+	
+	device->zstencilState.dsd.depthCompareFunction =
+			ConvertGSDepthTest(test);
 }
 
 static inline void update_stencilside_test(gs_device_t *device,
-		StencilSide &side, gs_depth_test test)
+		StencilSide &side, MTLStencilDescriptor *desc,
+		gs_depth_test test)
 {
 	if (side.test == test)
 		return;
 
 	side.test = test;
-	device->zstencilStateChanged = true;
+	
+	desc.stencilCompareFunction = ConvertGSDepthTest(test);
 }
 
 void device_stencil_function(gs_device_t *device, enum gs_stencil_side side,
@@ -1251,13 +1115,18 @@ void device_stencil_function(gs_device_t *device, enum gs_stencil_side side,
 
 	if (sideVal & GS_STENCIL_FRONT)
 		update_stencilside_test(device,
-				device->zstencilState.stencilFront, test);
+				device->zstencilState.stencilFront,
+				device->zstencilState.dsd.frontFaceStencil,
+				test);
 	if (sideVal & GS_STENCIL_BACK)
 		update_stencilside_test(device,
-				device->zstencilState.stencilBack, test);
+				device->zstencilState.stencilBack,
+				device->zstencilState.dsd.backFaceStencil,
+				test);
 }
 
-static inline void update_stencilside_op(gs_device_t *device, StencilSide &side,
+static inline void update_stencilside_op(gs_device_t *device,
+		StencilSide &side, MTLStencilDescriptor *desc,
 		enum gs_stencil_op_type fail, enum gs_stencil_op_type zfail,
 		enum gs_stencil_op_type zpass)
 {
@@ -1267,7 +1136,10 @@ static inline void update_stencilside_op(gs_device_t *device, StencilSide &side,
 	side.fail  = fail;
 	side.zfail = zfail;
 	side.zpass = zpass;
-	device->zstencilStateChanged = true;
+	
+	desc.stencilFailureOperation   = ConvertGSStencilOp(fail);
+	desc.depthFailureOperation     = ConvertGSStencilOp(zfail);
+	desc.depthStencilPassOperation = ConvertGSStencilOp(zpass);
 }
 
 void device_stencil_op(gs_device_t *device, enum gs_stencil_side side,
@@ -1279,29 +1151,32 @@ void device_stencil_op(gs_device_t *device, enum gs_stencil_side side,
 	if (sideVal & GS_STENCIL_FRONT)
 		update_stencilside_op(device,
 				device->zstencilState.stencilFront,
+				device->zstencilState.dsd.frontFaceStencil,
 				fail, zfail, zpass);
 	if (sideVal & GS_STENCIL_BACK)
 		update_stencilside_op(device,
 				device->zstencilState.stencilBack,
+				device->zstencilState.dsd.backFaceStencil,
 				fail, zfail, zpass);
 }
 
 void device_set_viewport(gs_device_t *device, int x, int y, int width,
 		int height)
 {
-	D3D11_VIEWPORT vp;
-	memset(&vp, 0, sizeof(vp));
-	vp.MaxDepth = 1.0f;
-	vp.TopLeftX = (float)x;
-	vp.TopLeftY = (float)y;
-	vp.Width    = (float)width;
-	vp.Height   = (float)height;
-	device->context->RSSetViewports(1, &vp);
-
-	device->viewport.x  = x;
-	device->viewport.y  = y;
-	device->viewport.cx = width;
-	device->viewport.cy = height;
+	RasterState &state = device->rasterState;
+	
+	if (state.viewport.x == x &&
+	    state.viewport.y == y &&
+	    state.viewport.cx == width &&
+	    state.viewport.cy == height)
+		return;
+	
+	state.viewport.x  = x;
+	state.viewport.y  = y;
+	state.viewport.cx = width;
+	state.viewport.cy = height;
+	
+	state.mtlViewport = ConvertGSRectToMTLViewport(*rect);
 }
 
 void device_get_viewport(const gs_device_t *device, struct gs_rect *rect)
@@ -1311,19 +1186,14 @@ void device_get_viewport(const gs_device_t *device, struct gs_rect *rect)
 
 void device_set_scissor_rect(gs_device_t *device, const struct gs_rect *rect)
 {
-	D3D11_RECT d3drect;
-
-	device->rasterState.scissorEnabled = (rect != NULL);
-
-	if (rect != NULL) {
-		d3drect.left   = rect->x;
-		d3drect.top    = rect->y;
-		d3drect.right  = rect->x + rect->cx;
-		d3drect.bottom = rect->y + rect->cy;
-		device->context->RSSetScissorRects(1, &d3drect);
+	if (rect != nullptr) {
+		device->rasterState.scissorEnabled = true;
+		device->rasterState.scissorRect    = *rect;
+		device->rasterState.mtlScissorRect =
+				ConvertGSRectToMTLScissorRect(*rect);
+	} else {
+		device->rasterState.scissorEnabled = false;
 	}
-
-	device->rasterStateChanged = true;
 }
 
 void device_ortho(gs_device_t *device, float left, float right, float top,
@@ -1331,23 +1201,23 @@ void device_ortho(gs_device_t *device, float left, float right, float top,
 {
 	matrix4 *dst = &device->curProjMatrix;
 
-	float rml = right-left;
-	float bmt = bottom-top;
-	float fmn = zFar-zNear;
+	float rml = right - left;
+	float bmt = bottom - top;
+	float fmn = zFar - zNear;
 
 	vec4_zero(&dst->x);
 	vec4_zero(&dst->y);
 	vec4_zero(&dst->z);
 	vec4_zero(&dst->t);
 
-	dst->x.x =         2.0f /  rml;
-	dst->t.x = (left+right) / -rml;
+	dst->x.x =           2.0f /  rml;
+	dst->t.x = (left + right) / -rml;
 
-	dst->y.y =         2.0f / -bmt;
-	dst->t.y = (bottom+top) /  bmt;
+	dst->y.y =           2.0f / -bmt;
+	dst->t.y = (bottom + top) /  bmt;
 
-	dst->z.z =         1.0f /  fmn;
-	dst->t.z =        zNear / -fmn;
+	dst->z.z =           1.0f /  fmn;
+	dst->t.z =          zNear / -fmn;
 
 	dst->t.w = 1.0f;
 }
@@ -1357,24 +1227,24 @@ void device_frustum(gs_device_t *device, float left, float right, float top,
 {
 	matrix4 *dst = &device->curProjMatrix;
 
-	float rml    = right-left;
-	float bmt    = bottom-top;
-	float fmn    = zFar-zNear;
-	float nearx2 = 2.0f*zNear;
+	float rml    = right - left;
+	float bmt    = bottom - top;
+	float fmn    = zFar - zNear;
+	float nearx2 = 2.0f * zNear;
 
 	vec4_zero(&dst->x);
 	vec4_zero(&dst->y);
 	vec4_zero(&dst->z);
 	vec4_zero(&dst->t);
 
-	dst->x.x =       nearx2 /  rml;
-	dst->z.x = (left+right) / -rml;
+	dst->x.x =         nearx2 /  rml;
+	dst->z.x = (left + right) / -rml;
 
-	dst->y.y =       nearx2 / -bmt;
-	dst->z.y = (bottom+top) /  bmt;
+	dst->y.y =         nearx2 / -bmt;
+	dst->z.y = (bottom + top) /  bmt;
 
-	dst->z.z =         zFar /  fmn;
-	dst->t.z = (zNear*zFar) / -fmn;
+	dst->z.z =           zFar /  fmn;
+	dst->t.z = (zNear * zFar) / -fmn;
 
 	dst->z.w = 1.0f;
 }
@@ -1390,12 +1260,9 @@ void device_projection_pop(gs_device_t *device)
 {
 	if (!device->projStack.size())
 		return;
-
-	mat4float *mat = device->projStack.data();
-	size_t end = device->projStack.size()-1;
-
-	/* XXX - does anyone know a better way of doing this? */
-	memcpy(&device->curProjMatrix, mat+end, sizeof(matrix4));
+	
+	mat4float &mat = *device->projStack.end();
+	memcpy(&device->curProjMatrix, &mat, sizeof(matrix4));
 	device->projStack.pop_back();
 }
 
@@ -1442,7 +1309,7 @@ bool gs_texture_map(gs_texture_t *tex, uint8_t **ptr, uint32_t *linesize)
 		return false;
 
 	gs_texture_2d *tex2d = static_cast<gs_texture_2d*>(tex);
-	*ptr      = (uint8_t*)[tex2d->texture contents];
+	*ptr      = (uint8_t *)tex2d->texture.contents;
 	*linesize = [tex2d->texture bufferBytesPerRow];
 	return true;
 }
@@ -1546,7 +1413,7 @@ enum gs_color_format gs_stagesurface_get_color_format(
 bool gs_stagesurface_map(gs_stagesurf_t *stagesurf, uint8_t **data,
 		uint32_t *linesize)
 {
-	*ptr      = (uint8_t*)[stagesurf->texture contents];
+	*ptr      = (uint8_t *)stagesurf->texture.contents;
 	*linesize = [stagesurf->texture bufferBytesPerRow];
 	return true;
 }

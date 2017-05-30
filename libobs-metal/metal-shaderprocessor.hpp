@@ -8,10 +8,10 @@ struct ShaderParser : shader_parser {
 };
 
 struct ShaderProcessor {
-	gs_device_t *device;
+	gs_device_t  *device;
 	ShaderParser parser;
 
-	void BuildInputLayout(vector<D3D11_INPUT_ELEMENT_DESC> &inputs);
+	void BuildInputLayout(MTLVertexDescriptor *vd);
 	void BuildParams(vector<gs_shader_param> &params);
 	void BuildSamplers(vector<unique_ptr<ShaderSampler>> &samplers);
 	void BuildString(string &outputString);

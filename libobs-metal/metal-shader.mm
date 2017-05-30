@@ -6,10 +6,9 @@
 #include "metal-subsystem.hpp"
 #include "metal-shaderprocessor.hpp"
 
-void gs_vertex_shader::GetBuffersExpected(
-		const vector<D3D11_INPUT_ELEMENT_DESC> &inputs)
+void gs_vertex_shader::GetBuffersExpected(MTLVertexDescriptor *inputs)
 {
-	for (size_t i = 0; i < inputs.size(); i++) {
+	for (size_t i = 0; i < vd.attributes.size(); i++) {
 		const D3D11_INPUT_ELEMENT_DESC &input = inputs[i];
 		if (strcmp(input.SemanticName, "NORMAL") == 0)
 			hasNormals = true;
@@ -31,32 +30,18 @@ gs_vertex_shader::gs_vertex_shader(gs_device_t *device, const char *file,
 	  nTexUnits   (0)
 {
 	ShaderProcessor    processor(device);
-	id<MTLLibrary>     library;
 	string             outputString;
-	HRESULT            hr;
+	
+	vd = [MTLVertexDescriptor new];
 
 	processor.Process(shaderString, file);
 	processor.BuildString(outputString);
 	processor.BuildParams(params);
-	processor.BuildInputLayout(layoutData);
-	GetBuffersExpected(layoutData);
+	processor.BuildInputLayout(vd);
+	GetBuffersExpected(vd);
 	BuildConstantBuffer();
 
 	Compile(outputString.c_str(), library);
-
-	data.resize(shaderBlob->GetBufferSize());
-	memcpy(&data[0], shaderBlob->GetBufferPointer(), data.size());
-
-	hr = device->device->CreateVertexShader(data.data(), data.size(),
-			NULL, shader.Assign());
-	if (FAILED(hr))
-		throw HRError("Failed to create vertex shader", hr);
-
-	hr = device->device->CreateInputLayout(layoutData.data(),
-			(UINT)layoutData.size(),
-			data.data(), data.size(), layout.Assign());
-	if (FAILED(hr))
-		throw HRError("Failed to create input layout", hr);
 
 	viewProj = gs_shader_get_param_by_name(this, "ViewProj");
 	world    = gs_shader_get_param_by_name(this, "World");
@@ -67,10 +52,8 @@ gs_pixel_shader::gs_pixel_shader(gs_device_t *device, const char *file,
 	: gs_shader(device, gs_type::gs_pixel_shader, GS_SHADER_PIXEL)
 {
 	ShaderProcessor    processor(device);
-	id<MTLLibrary>     library;
 	string             outputString;
-	HRESULT            hr;
-
+	
 	processor.Process(shaderString, file);
 	processor.BuildString(outputString);
 	processor.BuildParams(params);
@@ -78,14 +61,6 @@ gs_pixel_shader::gs_pixel_shader(gs_device_t *device, const char *file,
 	BuildConstantBuffer();
 
 	Compile(outputString.c_str(), library);
-
-	data.resize(shaderBlob->GetBufferSize());
-	memcpy(&data[0], shaderBlob->GetBufferPointer(), data.size());
-
-	hr = device->device->CreatePixelShader(data.data(), data.size(),
-			NULL, shader.Assign());
-	if (FAILED(hr))
-		throw HRError("Failed to create pixel shader", hr);
 }
 
 /*
@@ -120,12 +95,12 @@ void gs_shader::BuildConstantBuffer()
 		switch (param.type) {
 		case GS_SHADER_PARAM_BOOL:
 		case GS_SHADER_PARAM_INT:
-		case GS_SHADER_PARAM_FLOAT:     size = sizeof(float);   break;
-		case GS_SHADER_PARAM_VEC2:      size = sizeof(vec2);    break;
-		case GS_SHADER_PARAM_VEC3:      size = sizeof(float)*3; break;
-		case GS_SHADER_PARAM_VEC4:      size = sizeof(vec4);    break;
+		case GS_SHADER_PARAM_FLOAT:     size = sizeof(float);     break;
+		case GS_SHADER_PARAM_VEC2:      size = sizeof(vec2);      break;
+		case GS_SHADER_PARAM_VEC3:      size = sizeof(float) * 3; break;
+		case GS_SHADER_PARAM_VEC4:      size = sizeof(vec4);      break;
 		case GS_SHADER_PARAM_MATRIX4X4:
-			size = sizeof(float)*4*4;
+			size = sizeof(float) * 4 * 4;
 			break;
 		case GS_SHADER_PARAM_TEXTURE:
 		case GS_SHADER_PARAM_STRING:
@@ -146,15 +121,14 @@ void gs_shader::BuildConstantBuffer()
 		constantSize += size;
 	}
 
-	memset(&bd, 0, sizeof(bd));
-
 	if (constantSize) {
-		NSUInteger length = (constantSize + 15) & 0xFFFFFFF0;
+		NSUInteger length = (constantSize + 15) & ~15;
 		MTLResourceOptions options =
-				MTLResourceCPUCacheModeWriteCombined;
+				MTLResourceCPUCacheModeWriteCombined |
+				MTLResourceStorageModeShared;
 
 		constants = [device->device newBufferWithLength:length
-				options:options]
+				options:options];
 		if (constants == nil)
 			throw "Failed to create constant buffer";
 	}
@@ -163,52 +137,40 @@ void gs_shader::BuildConstantBuffer()
 		gs_shader_set_default(&params[i]);
 }
 
-void gs_shader::Compile(const char *shaderString, id<MTLLibrary> &library)
+void gs_shader::Compile(const char *shaderString, id<MTLFunction> &function)
 {
 	NSString          *nsShaderString;
-	NSError           *errors = nil;
+	NSError           *errors  = nil;
 	MTLCompileOptions *options = nil;
+	id<MTLLibrary>    library  = nil;
 
 	if (!shaderString)
 		throw "No shader string specified";
 	
 	nsShaderString = [NSString stringWithUTF8String:shaderString];
 
-	options = [[MTLCompileOptions alloc] init];
+	options = [MTLCompileOptions new];
 	options.languageVersion = MTLLanguageVersion1_1;
 	
 	library = [device->device newLibraryWithSource:nsShaderString
 			options:options error:&errors];
 	if (library == nil) {
-		if (errorsBlob != nil)
+		if (errors != nil)
 			throw ShaderError(errors);
 		else
 			throw "Failed to compile shader";
 	}
 }
 
-inline void gs_shader::UpdateParam(vector<uint8_t> &constData,
-		gs_shader_param &param, bool &upload)
+inline void gs_shader::UpdateParam(uint8_t *data, gs_shader_param &param)
 {
 	if (param.type != GS_SHADER_PARAM_TEXTURE) {
 		if (!param.curValue.size())
 			throw "Not all shader parameters were set";
-
-		/* padding in case the constant needs to start at a new
-		 * register */
-		if (param.pos > constData.size()) {
-			uint8_t zero  = 0;
-
-			constData.insert(constData.end(),
-					param.pos - constData.size(), zero);
-		}
-
-		constData.insert(constData.end(),
-				param.curValue.begin(),
-				param.curValue.end());
-
+		
 		if (param.changed) {
-			upload = true;
+			memcpy(data, param.curValue.data(),
+					param.curValue.size());
 			param.changed = false;
 		}
 
@@ -228,29 +190,12 @@ inline void gs_shader::UpdateParam(vector<uint8_t> &constData,
 
 void gs_shader::UploadParams()
 {
-	vector<uint8_t> constData;
-	bool            upload = false;
-
-	constData.reserve(constantSize);
-
+	uint8_t *data;
+	
+	data = (uint8_t *)constants.contents;
+	
 	for (size_t i = 0; i < params.size(); i++)
-		UpdateParam(constData, params[i], upload);
-
-	if (constData.size() != constantSize)
-		throw "Invalid constant data size given to shader";
-
-	if (upload) {
-		D3D11_MAPPED_SUBRESOURCE map;
-		HRESULT hr;
-
-		hr = device->context->Map(constants, 0, D3D11_MAP_WRITE_DISCARD,
-				0, &map);
-		if (FAILED(hr))
-			throw HRError("Could not lock constant buffer", hr);
-
-		memcpy(map.pData, constData.data(), constData.size());
-		device->context->Unmap(constants, 0);
-	}
+		UpdateParam(data, params[i]);
 }
 
 void gs_shader_destroy(gs_shader_t *shader)

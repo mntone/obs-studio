@@ -78,7 +78,7 @@ void gs_vertex_buffer::BuildBuffers()
 		if (!tverts->array)
 			throw "No texture vertices specified";
 
-		id <MTLBuffer> buffer;
+		id<MTLBuffer> buffer;
 		InitBuffer(tverts->width * sizeof(float), vbd.data->num,
 				tverts->array, buffer);
 
