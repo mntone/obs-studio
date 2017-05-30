@@ -28,7 +28,7 @@ gs_obj::~gs_obj()
 
 void gs_device::InitDevice(uint32_t deviceIdx)
 {
-	uint32_t featureSetFamily, featureSetVersion;
+	uint32_t featureSetFamily = 0, featureSetVersion = 0;
 	NSArray *devices;
 	
 	devIdx  = deviceIdx;
@@ -54,7 +54,7 @@ void gs_device::InitDevice(uint32_t deviceIdx)
 			featureSetFamily, featureSetVersion);
 }
 
-void gs_device::UpdateRasterState(id<MTLRenderCommandEncoder> commandEncoder)
+void gs_device::LoadRasterState(id<MTLRenderCommandEncoder> commandEncoder)
 {
 	[commandEncoder setViewport:rasterState.mtlViewport];
 	/* use CCW to convert to a right-handed coordinate system */
@@ -72,7 +72,7 @@ void gs_device::UpdateRasterState(id<MTLRenderCommandEncoder> commandEncoder)
 #endif
 }
 
-void gs_device::UpdateZStencilState(id<MTLRenderCommandEncoder> commandEncoder)
+void gs_device::LoadZStencilState(id<MTLRenderCommandEncoder> commandEncoder)
 {
 	if (zstencilState.depthEnabled) {
 		id<MTLDepthStencilState> state = [device
@@ -106,7 +106,7 @@ void gs_device::Draw(id<MTLRenderCommandEncoder> commandEncoder,
 	MTLPrimitiveType primitive = ConvertGSTopology(draw_mode);
 	if (curIndexBuffer) {
 		if (num_verts == 0)
-			num_verts = (uint32_t)curIndexBuffer->num;
+			num_verts = static_cast<uint32_t>(curIndexBuffer->num);
 		[commandEncoder drawIndexedPrimitives:primitive
 				indexCount:num_verts
 				indexType:curIndexBuffer->indexType
@@ -114,7 +114,8 @@ void gs_device::Draw(id<MTLRenderCommandEncoder> commandEncoder,
 				indexBufferOffset:0];
 	} else {
 		if (num_verts == 0)
-			num_verts = (uint32_t)curVertexBuffer->numVerts;
+			num_verts = static_cast<uint32_t>(
+					curVertexBuffer->vbd->num);
 		[commandEncoder drawPrimitives:primitive
 				vertexStart:start_vert vertexCount:num_verts];
 	}
@@ -515,27 +516,10 @@ void device_load_vertexbuffer(gs_device_t *device, gs_vertbuffer_t *vertbuffer)
 
 void device_load_indexbuffer(gs_device_t *device, gs_indexbuffer_t *indexbuffer)
 {
-	MTLPixelFormat format;
-	id<MTLBuffer>  buffer;
-
 	if (device->curIndexBuffer == indexbuffer)
 		return;
 
-	if (indexbuffer) {
-		switch (indexbuffer->indexSize) {
-		case 2: format = MTLPixelFormatR16Uint; break;
-		default:
-		case 4: format = MTLPixelFormatR32Uint; break;
-		}
-
-		buffer = indexbuffer->indexBuffer;
-	} else {
-		buffer = nil;
-		format = MTLPixelFormatR32Uint;
-	}
-
 	device->curIndexBuffer = indexbuffer;
-	device->context->IASetIndexBuffer(buffer, format, 0);
 }
 
 void device_load_texture(gs_device_t *device, gs_texture_t *tex, int unit)
@@ -579,11 +563,12 @@ void device_load_vertexshader(gs_device_t *device, gs_shader_t *vertshader)
 			return;
 		}
 
-		function  = vs->function;
-		vd        = vs->vd;
+		function = vs->function;
+		vd       = vs->vd;
 	}
 
 	device->curVertexShader = vs;
+	
 	device->pipelineDesc.vertexFunction = function;
 	device->pipelineDesc.vertexDescriptor = vd;
 }
@@ -598,7 +583,7 @@ static inline void clear_textures(gs_device_t *device)
 void device_load_pixelshader(gs_device_t *device, gs_shader_t *pixelshader)
 {
 	id<MTLFunction>      function  = nil;
-	MTLSamplerDescriptor *states[GS_MAX_TEXTURES];
+	MTLSamplerDescriptor *descs[GS_MAX_TEXTURES];
 
 	if (device->curPixelShader == pixelshader)
 		return;
@@ -613,19 +598,20 @@ void device_load_pixelshader(gs_device_t *device, gs_shader_t *pixelshader)
 		}
 
 		function  = ps->function;
-		ps->GetSamplerStates(states);
+		ps->GetSamplerStates(descs);
 	} else {
-		memset(states, 0, sizeof(states));
+		memset(descs, 0, sizeof(descs));
 	}
 
 	clear_textures(device);
 
 	device->curPixelShader = ps;
+	
 	device->pipelineDesc.fragmentFunction = function;
 	
 	for (int i = 0; i < GS_MAX_TEXTURES; i++)
 		if (device->curSamplers[i] &&
-				device->curSamplers[i]->state != states[i])
+				device->curSamplers[i]->sd != descs[i])
 			device->curSamplers[i] = nullptr;
 }
 
@@ -889,8 +875,8 @@ void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 			gs_effect_update_params(effect);
 		
 		device->LoadVertexBufferData(commandEncoder);
-		device->UpdateRasterState(commandEncoder);
-		device->UpdateZStencilState(commandEncoder);
+		device->LoadRasterState(commandEncoder);
+		device->LoadZStencilState(commandEncoder);
 		device->UpdateViewProjMatrix();
 		device->curVertexShader->UploadParams();
 		device->curPixelShader->UploadParams();
@@ -1468,7 +1454,7 @@ void gs_vertexbuffer_destroy(gs_vertbuffer_t *vertbuffer)
 
 void gs_vertexbuffer_flush(gs_vertbuffer_t *vertbuffer)
 {
-	if (!vertbuffer->dynamic) {
+	if (!vertbuffer->isDynamic) {
 		blog(LOG_ERROR, "gs_vertexbuffer_flush: vertex buffer is "
 		                "not dynamic");
 		return;

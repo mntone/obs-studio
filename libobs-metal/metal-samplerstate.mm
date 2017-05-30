@@ -17,7 +17,7 @@ static inline MTLSamplerAddressMode ConvertGSAddressMode(gs_address_mode mode)
 		return MTLSamplerAddressModeMirrorClampToEdge;
 	}
 
-	return D3D11_TEXTURE_ADDRESS_WRAP;
+	return MTLSamplerAddressModeRepeat;
 }
 
 static inline MTLSamplerMinMagFilter ConvertGSMinFilter(gs_sample_filter filter)
@@ -103,8 +103,6 @@ gs_sampler_state::gs_sampler_state(gs_device_t *device,
 	: gs_obj (device, gs_type::gs_sampler_state),
 	  info   (*info)
 {
-	vec4 v4;
-
 	sd = [MTLSamplerDescriptor new];
 	sd.rAddressMode    = ConvertGSAddressMode(info->address_u);
 	sd.sAddressMode    = ConvertGSAddressMode(info->address_v);
@@ -122,5 +120,5 @@ gs_sampler_state::gs_sampler_state(gs_device_t *device,
 	else
 		sd.borderColor = MTLSamplerBorderColorOpaqueBlack;
 
-	state = [device->device newSamplerStateWithDescriptor:sd]
+	state = [device->device newSamplerStateWithDescriptor:sd];
 }

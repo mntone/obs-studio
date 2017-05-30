@@ -48,7 +48,7 @@ static inline MTLPixelFormat ConvertGSTextureFormat(gs_color_format format)
 
 static inline gs_color_format ConvertMTLTextureFormat(MTLPixelFormat format)
 {
-	switch (format) {
+	switch ((NSUInteger)format) {
 	case MTLPixelFormatA8Unorm:       return GS_A8;
 	case MTLPixelFormatR8Unorm:       return GS_R8;
 	case MTLPixelFormatRGBA8Unorm:    return GS_RGBA;
@@ -86,7 +86,7 @@ static inline MTLPixelFormat ConvertGSZStencilFormat(gs_zstencil_format format)
 static inline gs_zstencil_format ConvertMTLPixelFormatDepth(
 		MTLPixelFormat format)
 {
-	switch (format) {
+	switch ((NSUInteger)format) {
 	case MTLPixelFormatDepth16Unorm:          return GS_Z16;
 	case MTLPixelFormatDepth24Unorm_Stencil8: return GS_Z24_S8;
 	case MTLPixelFormatDepth32Float:          return GS_Z24_S8;
@@ -208,6 +208,10 @@ struct VBDataPtr {
 
 	inline VBDataPtr(gs_vb_data *data) : data(data) {}
 	inline ~VBDataPtr() {gs_vbdata_destroy(data);}
+	
+	VBDataPtr(const VBDataPtr &other) = delete;
+	
+	inline gs_vb_data *operator->(){return data;}
 };
 
 enum class gs_type {
@@ -239,16 +243,15 @@ struct gs_obj {
 };
 
 struct gs_vertex_buffer : gs_obj {
+	const bool            isDynamic;
+	VBDataPtr             vbd;
+	
 	id<MTLBuffer>         vertexBuffer;
 	id<MTLBuffer>         normalBuffer;
 	id<MTLBuffer>         colorBuffer;
 	id<MTLBuffer>         tangentBuffer;
 	vector<id<MTLBuffer>> uvBuffers;
-
-	bool           dynamic;
-	VBDataPtr      vbd;
-	size_t         numVerts;
-	vector<size_t> uvSizes;
+	vector<size_t>        uvSizes;
 
 	void FlushBuffer(id<MTLBuffer> buffer, void *array,
 			size_t elementSize);
@@ -264,12 +267,12 @@ struct gs_vertex_buffer : gs_obj {
 
 	inline void Release()
 	{
-		[vertexBuffer release];
-		[normalBuffer release];
-		[colorBuffer release];
-		[tangentBuffer release];
-		for (auto buffer : uvBuffers)
-			[buffer release];
+		CFRelease(vertexBuffer);
+		CFRelease(normalBuffer);
+		CFRelease(colorBuffer);
+		CFRelease(tangentBuffer);
+		for (auto uvBuffer : uvBuffers)
+			CFRelease(uvBuffer);
 		uvBuffers.clear();
 	}
 
@@ -296,7 +299,7 @@ struct gs_index_buffer : gs_obj {
 	const bool          isDynamic;
 	
 	id<MTLBuffer> indexBuffer;
-	size_t        indexSize;
+	uint32_t      indexSize;
 	MTLIndexType  indexType;
 
 	void InitBuffer();
@@ -516,7 +519,7 @@ struct gs_vertex_shader : gs_shader {
 		return count;
 	}
 
-	void GetBuffersExpected(const vector<D3D11_INPUT_ELEMENT_DESC> &inputs);
+	void GetBuffersExpected(MTLVertexDescriptor *inputs);
 
 	gs_vertex_shader(gs_device_t *device, const char *file,
 			const char *shaderString);
@@ -539,7 +542,7 @@ struct gs_pixel_shader : gs_shader {
 		for (i = 0; i < samplers.size(); i++)
 			states[i] = samplers[i]->sampler.sd;
 		for (; i < GS_MAX_TEXTURES; i++)
-			states[i] = NULL;
+			states[i] = nullptr;
 	}
 
 	gs_pixel_shader(gs_device_t *device, const char *file,
@@ -657,11 +660,11 @@ struct ZStencilState {
 	MTLDepthStencilDescriptor *dsd;
 	
 	inline ZStencilState()
-	: depthEnabled        (true),
-	depthWriteEnabled   (true),
-	depthFunc           (GS_LESS),
-	stencilEnabled      (false),
-	stencilWriteEnabled (true)
+		: depthEnabled        (true),
+		  depthWriteEnabled   (true),
+		  depthFunc           (GS_LESS),
+		  stencilEnabled      (false),
+		  stencilWriteEnabled (true)
 	{
 		dsd = [MTLDepthStencilDescriptor new];
 	}
@@ -718,8 +721,8 @@ struct gs_device {
 	void InitDevice(uint32_t adapterIdx);
 	
 	void LoadVertexBufferData(id<MTLRenderCommandEncoder> commandEncoder);
-	void UpdateRasterState(id<MTLRenderCommandEncoder> commandEncoder);
-	void UpdateZStencilState(id<MTLRenderCommandEncoder> commandEncoder);
+	void LoadRasterState(id<MTLRenderCommandEncoder> commandEncoder);
+	void LoadZStencilState(id<MTLRenderCommandEncoder> commandEncoder);
 	void Draw(id<MTLRenderCommandEncoder> commandEncoder,
 			gs_draw_mode draw_mode,
 			uint32_t start_vert, uint32_t num_verts);

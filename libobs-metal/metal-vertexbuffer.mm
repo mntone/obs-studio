@@ -45,33 +45,38 @@ void gs_vertex_buffer::MakeBufferList(gs_vertex_shader *shader,
 void gs_vertex_buffer::InitBuffer(const size_t elementSize,
 		const size_t numVerts, void *array, id<MTLBuffer> &buffer)
 {
+	if (buffer != nil) {
+		CFRelease(buffer);
+		buffer = nil;
+	}
+	
 	NSUInteger         length  = elementSize * numVerts;
-	MTLResourceOptions options = dynamic ? MTLResourceStorageModeManaged
+	MTLResourceOptions options = isDynamic ? MTLResourceStorageModeShared
 			: MTLResourceStorageModePrivate;
 	
 	buffer = [device->device newBufferWithBytes:array
 			length:length options:options];
+	if (buffer == nil)
+		throw "Failed to create buffer";
 }
 
 void gs_vertex_buffer::BuildBuffers()
 {
-	InitBuffer(sizeof(vec3), vbd.data->num, vbd.data->points,
-			vertexBuffer);
+	InitBuffer(sizeof(vec3), vbd->num, vbd->points, vertexBuffer);
 
 	if (vbd.data->normals)
-		InitBuffer(sizeof(vec3), vbd.data->num, vbd.data->normals,
-				normalBuffer);
+		InitBuffer(sizeof(vec3), vbd->num, vbd->normals, normalBuffer);
 
 	if (vbd.data->tangents)
-		InitBuffer(sizeof(vec3), vbd.data->num, vbd.data->tangents,
+		InitBuffer(sizeof(vec3), vbd->num, vbd->tangents,
 				tangentBuffer);
 
 	if (vbd.data->colors)
-		InitBuffer(sizeof(uint32_t), vbd.data->num, vbd.data->colors,
+		InitBuffer(sizeof(uint32_t), vbd->num, vbd->colors,
 				colorBuffer);
 
-	for (size_t i = 0; i < vbd.data->num_tex; i++) {
-		struct gs_tvertarray *tverts = vbd.data->tvarray+i;
+	for (size_t i = 0; i < vbd->num_tex; i++) {
+		struct gs_tvertarray *tverts = vbd->tvarray+i;
 
 		if (tverts->width != 2 && tverts->width != 4)
 			throw "Invalid texture vertex size specified";
@@ -79,7 +84,7 @@ void gs_vertex_buffer::BuildBuffers()
 			throw "No texture vertices specified";
 
 		id<MTLBuffer> buffer;
-		InitBuffer(tverts->width * sizeof(float), vbd.data->num,
+		InitBuffer(tverts->width * sizeof(float), vbd->num,
 				tverts->array, buffer);
 
 		uvBuffers.push_back(buffer);
@@ -87,12 +92,19 @@ void gs_vertex_buffer::BuildBuffers()
 	}
 }
 
+inline void gs_vertex_buffer::Rebuild()
+{
+	uvBuffers.clear();
+	uvSizes.clear();
+	
+	BuildBuffers();
+}
+
 gs_vertex_buffer::gs_vertex_buffer(gs_device_t *device, struct gs_vb_data *data,
 		uint32_t flags)
-	: gs_obj   (device, gs_type::gs_vertex_buffer),
-	  dynamic  ((flags & GS_DYNAMIC) != 0),
-	  vbd      (data),
-	  numVerts (data->num)
+	: gs_obj    (device, gs_type::gs_vertex_buffer),
+	  isDynamic ((flags & GS_DYNAMIC) != 0),
+	  vbd       (data)
 {
 	if (!data->num)
 		throw "Cannot initialize vertex buffer with 0 vertices";
