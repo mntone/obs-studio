@@ -48,7 +48,7 @@ static inline MTLPixelFormat ConvertGSTextureFormat(gs_color_format format)
 
 static inline gs_color_format ConvertMTLTextureFormat(MTLPixelFormat format)
 {
-	switch ((unsigned long)format) {
+	switch (format) {
 	case MTLPixelFormatA8Unorm:       return GS_A8;
 	case MTLPixelFormatR8Unorm:       return GS_R8;
 	case MTLPixelFormatRGBA8Unorm:    return GS_RGBA;
@@ -81,6 +81,19 @@ static inline MTLPixelFormat ConvertGSZStencilFormat(gs_zstencil_format format)
 	}
 
 	return MTLPixelFormatInvalid;
+}
+
+static inline gs_zstencil_format ConvertMTLPixelFormatDepth(
+		MTLPixelFormat format)
+{
+	switch (format) {
+	case MTLPixelFormatDepth16Unorm:          return GS_Z16;
+	case MTLPixelFormatDepth24Unorm_Stencil8: return GS_Z24_S8;
+	case MTLPixelFormatDepth32Float:          return GS_Z24_S8;
+	case MTLPixelFormatDepth32Float_Stencil8: return GS_Z32F_S8X24;
+	}
+	
+	return GS_ZS_NONE;
 }
 
 static inline MTLCompareFunction ConvertGSDepthTest(gs_depth_test test)
@@ -116,17 +129,28 @@ static inline MTLStencilOperation ConvertGSStencilOp(gs_stencil_op_type op)
 static inline MTLBlendFactor ConvertGSBlendType(gs_blend_type type)
 {
 	switch (type) {
-	case GS_BLEND_ZERO:        return MTLBlendFactorZero;
-	case GS_BLEND_ONE:         return MTLBlendFactorOne;
-	case GS_BLEND_SRCCOLOR:    return MTLBlendFactorSourceColor;
-	case GS_BLEND_INVSRCCOLOR: return MTLBlendFactorOneMinusSourceColor;
-	case GS_BLEND_SRCALPHA:    return MTLBlendFactorSourceAlpha;
-	case GS_BLEND_INVSRCALPHA: return MTLBlendFactorOneMinusSourceAlpha;
-	case GS_BLEND_DSTCOLOR:    return MTLBlendFactorDestinationColor;
-	case GS_BLEND_INVDSTCOLOR: return MTLBlendFactorOneMinusDestinationColor;
-	case GS_BLEND_DSTALPHA:    return MTLBlendFactorDestinationAlpha;
-	case GS_BLEND_INVDSTALPHA: return MTLBlendFactorOneMinusDestinationAlpha;
-	case GS_BLEND_SRCALPHASAT: return MTLBlendFactorSourceAlphaSaturated;
+	case GS_BLEND_ZERO:
+		return MTLBlendFactorZero;
+	case GS_BLEND_ONE:
+		return MTLBlendFactorOne;
+	case GS_BLEND_SRCCOLOR:
+		return MTLBlendFactorSourceColor;
+	case GS_BLEND_INVSRCCOLOR:
+		return MTLBlendFactorOneMinusSourceColor;
+	case GS_BLEND_SRCALPHA:
+		return MTLBlendFactorSourceAlpha;
+	case GS_BLEND_INVSRCALPHA:
+		return MTLBlendFactorOneMinusSourceAlpha;
+	case GS_BLEND_DSTCOLOR:
+		return MTLBlendFactorDestinationColor;
+	case GS_BLEND_INVDSTCOLOR:
+		return MTLBlendFactorOneMinusDestinationColor;
+	case GS_BLEND_DSTALPHA:
+		return MTLBlendFactorDestinationAlpha;
+	case GS_BLEND_INVDSTALPHA:
+		return MTLBlendFactorOneMinusDestinationAlpha;
+	case GS_BLEND_SRCALPHASAT:
+		return MTLBlendFactorSourceAlphaSaturated;
 	}
 
 	return MTLBlendFactorOne;
@@ -266,12 +290,12 @@ struct DataPtr {
 };
 
 struct gs_index_buffer : gs_obj {
-	id<MTLBuffer> indexBuffer;
-	bool          dynamic;
-	gs_index_type type;
-	size_t        num;
-	DataPtr       indices;
+	const gs_index_type type;
+	const DataPtr       indices;
+	const size_t        num;
+	const bool          isDynamic;
 	
+	id<MTLBuffer> indexBuffer;
 	size_t        indexSize;
 	MTLIndexType  indexType;
 
@@ -279,26 +303,18 @@ struct gs_index_buffer : gs_obj {
 
 	inline void Rebuild(id<MTLDevice> dev);
 
-	inline void Release() {[indexBuffer release];}
+	inline void Release() {CFRelease(indexBuffer);}
 
 	gs_index_buffer(gs_device_t *device, enum gs_index_type type,
 			void *indices, size_t num, uint32_t flags);
 };
 
 struct gs_texture : gs_obj {
-	const gs_texture_type type;
+	const gs_texture_type type   = GS_TEXTURE_2D;
 	const uint32_t        levels;
-	const gs_color_format format;
+	const gs_color_format format = GS_UNKNOWN;
 
 	inline void Rebuild(id<MTLDevice> dev);
-	
-	inline gs_texture(gs_texture_type type, uint32_t levels,
-			  gs_color_format format)
-		: type   (type),
-		  levels (levels),
-		  format (format)
-	{
-	}
 
 	inline gs_texture(gs_device *device, gs_type obj_type,
 			gs_texture_type type,
@@ -312,11 +328,11 @@ struct gs_texture : gs_obj {
 };
 
 struct gs_texture_2d : gs_texture {
-	const uint32_t        width = 0, height = 0;
-	const bool            isRenderTarget = false;
-	const bool            isDynamic = false;
-	const bool            isShared = false;
-	const bool            genMipmaps = false;
+	const uint32_t       width = 0, height = 0;
+	const bool           isRenderTarget = false;
+	const bool           isDynamic      = false;
+	const bool           isShared       = false;
+	const bool           genMipmaps     = false;
 	
 	id<MTLTexture>       texture;
 	MTLTextureDescriptor *td = nil;
@@ -329,11 +345,12 @@ struct gs_texture_2d : gs_texture {
 	void RebuildSharedTextureFallback();
 	inline void Rebuild(id<MTLDevice> dev);
 
-	inline void Release() {[texture release];}
-
-	inline gs_texture_2d()
-		: gs_texture (GS_TEXTURE_2D, 0, GS_UNKNOWN)
+	inline void Release()
 	{
+		if (!isShared) {
+			CFRelease(texture);
+			[td release];
+		}
 	}
 	
 	inline uint32_t bytesPerRow() const
@@ -352,28 +369,26 @@ struct gs_texture_2d : gs_texture {
 struct gs_zstencil_buffer : gs_obj {
 	const uint32_t           width = 0, height = 0;
 	const gs_zstencil_format format = GS_ZS_NONE;
+	const bool               isShared = false;
 	
 	id<MTLTexture>           texture;
 	MTLTextureDescriptor     *td = nil;
 	
-	inline void InitTexture();
+	inline void InitBuffer();
 	inline void Rebuild(id<MTLDevice> dev);
 
 	inline void Release()
 	{
-		CFRelease(texture);
-		[td release];
-	}
-
-	inline gs_zstencil_buffer()
-		: width          (0),
-		  height         (0),
-		  format         (GS_ZS_NONE)
-	{
+		if (!isShared) {
+			CFRelease(texture);
+			[td release];
+		}
 	}
 
 	gs_zstencil_buffer(gs_device_t *device, uint32_t width,
-			uint32_t height, gs_zstencil_format format);
+			   uint32_t height, gs_zstencil_format format);
+	
+	gs_zstencil_buffer(gs_device_t *device, id<MTLTexture> texture);
 };
 
 struct gs_stage_surface : gs_obj {
@@ -534,11 +549,16 @@ struct gs_pixel_shader : gs_shader {
 struct gs_swap_chain : gs_obj {
 	uint32_t           numBuffers;
 	NSView             *view = nil;
-	gs_init_data       initData;
 	MTKView            *metalView;
-
-	void Resize(uint32_t cx, uint32_t cy);
+	
+	gs_init_data       initData;
+	gs_texture_2d      *target = nullptr;
+	gs_zstencil_buffer *zs     = nullptr;
+	
+	void InitTarget(uint32_t cx, uint32_t cy);
+	void InitZStencilBuffer(uint32_t cx, uint32_t cy);
 	void Init();
+	void Resize(uint32_t cx, uint32_t cy);
 
 	inline void Rebuild(id<MTLDevice> dev);
 
@@ -546,6 +566,8 @@ struct gs_swap_chain : gs_obj {
 	{
 		view = nil;
 		CFRelease(metalView);
+		delete target;
+		delete zs;
 	}
 
 	gs_swap_chain(gs_device *device, const gs_init_data *data);
