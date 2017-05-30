@@ -98,6 +98,25 @@ static inline MTLSamplerMipFilter ConvertGSMipFilter(gs_sample_filter filter)
 	return MTLSamplerMipFilterNearest;
 }
 
+inline void gs_sampler_state::InitSampler()
+{
+	samplerState = [device->device newSamplerStateWithDescriptor:sd];
+	if (samplerState == nil)
+		throw "Failed to create sampler state";
+}
+
+inline void gs_sampler_state::Rebuild(id<MTLDevice> dev)
+{
+	if (samplerState != nil) {
+		CFRelease(samplerState);
+		samplerState = nil;
+	}
+	
+	InitSampler();
+	
+	UNUSED_PARAMETER(dev);
+}
+
 gs_sampler_state::gs_sampler_state(gs_device_t *device,
 		const gs_sampler_info *info)
 	: gs_obj (device, gs_type::gs_sampler_state),
@@ -120,5 +139,5 @@ gs_sampler_state::gs_sampler_state(gs_device_t *device,
 	else
 		sd.borderColor = MTLSamplerBorderColorOpaqueBlack;
 
-	state = [device->device newSamplerStateWithDescriptor:sd];
+	InitSampler();
 }

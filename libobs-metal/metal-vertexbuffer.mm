@@ -75,9 +75,9 @@ void gs_vertex_buffer::BuildBuffers()
 		InitBuffer(sizeof(uint32_t), vbd->num, vbd->colors,
 				colorBuffer);
 
-	for (size_t i = 0; i < vbd->num_tex; i++) {
-		struct gs_tvertarray *tverts = vbd->tvarray+i;
-
+	for (struct gs_tvertarray *tverts = vbd->tvarray;
+			tverts != vbd->tvarray + vbd->num_tex;
+			tverts++) {
 		if (tverts->width != 2 && tverts->width != 4)
 			throw "Invalid texture vertex size specified";
 		if (!tverts->array)

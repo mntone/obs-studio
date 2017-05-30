@@ -256,8 +256,6 @@ void device_resize(gs_device_t *device, uint32_t cx, uint32_t cy)
 	try {
 		id<MTLTexture> renderTarget = nil;
 		id<MTLTexture> depthTarget = nil;
-		
-		int i = device->curRenderSide;
 
 		device->passDesc.colorAttachments[0].texture = nil;
 		device->passDesc.stencilAttachment.texture   = nil;
@@ -534,6 +532,7 @@ void device_load_texture(gs_device_t *device, gs_texture_t *tex, int unit)
 		texture = tex2d->texture;
 
 	device->curTextures[unit] = tex;
+	
 	device->passDesc.colorAttachments[unit].texture = texture;
 }
 

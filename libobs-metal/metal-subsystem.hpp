@@ -337,8 +337,8 @@ struct gs_texture_2d : gs_texture {
 	const bool           isShared       = false;
 	const bool           genMipmaps     = false;
 	
-	id<MTLTexture>       texture;
 	MTLTextureDescriptor *td = nil;
+	id<MTLTexture>       texture = nil;
 	
 	vector<vector<uint8_t>> data;
 
@@ -374,8 +374,8 @@ struct gs_zstencil_buffer : gs_obj {
 	const gs_zstencil_format format = GS_ZS_NONE;
 	const bool               isShared = false;
 	
-	id<MTLTexture>           texture;
 	MTLTextureDescriptor     *td = nil;
+	id<MTLTexture>           texture = nil;
 	
 	inline void InitBuffer();
 	inline void Rebuild(id<MTLDevice> dev);
@@ -398,8 +398,8 @@ struct gs_stage_surface : gs_obj {
 	const uint32_t        width = 0, height = 0;
 	const gs_color_format format = GS_UNKNOWN;
 	
-	id<MTLTexture>        texture;
 	MTLTextureDescriptor  *td = nil;
+	id<MTLTexture>        texture = nil;
 	
 	inline void InitTexture();
 	inline void Rebuild(id<MTLDevice> dev);
@@ -411,16 +411,17 @@ struct gs_stage_surface : gs_obj {
 };
 
 struct gs_sampler_state : gs_obj {
-	id<MTLSamplerState>  state;
-	MTLSamplerDescriptor *sd = nil;
+	const gs_sampler_info info;
 	
-	gs_sampler_info      info;
-
+	MTLSamplerDescriptor  *sd = nil;
+	id<MTLSamplerState>   samplerState = nil;
+	
+	inline void InitSampler();
 	inline void Rebuild(id<MTLDevice> dev);
 
 	inline void Release()
 	{
-		CFRelease(state);
+		CFRelease(samplerState);
 		[sd release];
 	}
 
