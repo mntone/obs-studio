@@ -611,7 +611,7 @@ void device_load_pixelshader(gs_device_t *device, gs_shader_t *pixelshader)
 	
 	for (int i = 0; i < GS_MAX_TEXTURES; i++)
 		if (device->curSamplers[i] &&
-				device->curSamplers[i]->sd != descs[i])
+				device->curSamplers[i]->samplerDesc != descs[i])
 			device->curSamplers[i] = nullptr;
 }
 
@@ -1461,22 +1461,22 @@ void gs_vertexbuffer_flush(gs_vertbuffer_t *vertbuffer)
 	}
 
 	vertbuffer->FlushBuffer(vertbuffer->vertexBuffer,
-			vertbuffer->vbd.data->points, sizeof(vec3));
+			vertbuffer->vbData->points, sizeof(vec3));
 
 	if (vertbuffer->normalBuffer)
 		vertbuffer->FlushBuffer(vertbuffer->normalBuffer,
-				vertbuffer->vbd.data->normals, sizeof(vec3));
+				vertbuffer->vbData->normals, sizeof(vec3));
 
 	if (vertbuffer->tangentBuffer)
 		vertbuffer->FlushBuffer(vertbuffer->tangentBuffer,
-				vertbuffer->vbd.data->tangents, sizeof(vec3));
+				vertbuffer->vbData->tangents, sizeof(vec3));
 
 	if (vertbuffer->colorBuffer)
 		vertbuffer->FlushBuffer(vertbuffer->colorBuffer,
-				vertbuffer->vbd.data->colors, sizeof(uint32_t));
+				vertbuffer->vbData->colors, sizeof(uint32_t));
 
 	for (size_t i = 0; i < vertbuffer->uvBuffers.size(); i++) {
-		gs_tvertarray &tv = vertbuffer->vbd.data->tvarray[i];
+		gs_tvertarray &tv = vertbuffer->vbData->tvarray[i];
 		vertbuffer->FlushBuffer(vertbuffer->uvBuffers[i],
 				tv.array, tv.width*sizeof(float));
 	}
@@ -1484,7 +1484,7 @@ void gs_vertexbuffer_flush(gs_vertbuffer_t *vertbuffer)
 
 struct gs_vb_data *gs_vertexbuffer_get_data(const gs_vertbuffer_t *vertbuffer)
 {
-	return vertbuffer->vbd.data;
+	return vertbuffer->vbData.get();
 }
 
 
@@ -1498,13 +1498,13 @@ void gs_indexbuffer_flush(gs_indexbuffer_t *indexbuffer)
 	if (!indexbuffer->isDynamic)
 		return;
 	
-	memcpy(indexbuffer->indexBuffer.contents, indexbuffer->indices.data,
+	memcpy(indexbuffer->indexBuffer.contents, &indexbuffer->indices,
 			indexbuffer->num * indexbuffer->indexSize);
 }
 
 void *gs_indexbuffer_get_data(const gs_indexbuffer_t *indexbuffer)
 {
-	return indexbuffer->indices.data;
+	return indexbuffer->indices.get();
 }
 
 size_t gs_indexbuffer_get_num_indices(const gs_indexbuffer_t *indexbuffer)
