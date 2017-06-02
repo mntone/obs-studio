@@ -202,18 +202,6 @@ static inline MTLScissorRect ConvertGSRectToMTLScissorRect(gs_rect rect)
 	return ret;
 }
 
-/* exception-safe RAII wrapper for vertex buffer data (NOTE: not copy-safe) */
-struct VBDataPtr {
-	gs_vb_data *data;
-
-	inline VBDataPtr(gs_vb_data *data) : data(data) {}
-	inline ~VBDataPtr() {gs_vbdata_destroy(data);}
-	
-	VBDataPtr(const VBDataPtr &other) = delete;
-	
-	inline gs_vb_data *operator->(){return data;}
-};
-
 enum class gs_type {
 	gs_vertex_buffer,
 	gs_index_buffer,
@@ -236,7 +224,8 @@ struct gs_obj {
 		device(nullptr),
 		next(nullptr),
 		prev_next(nullptr)
-	{}
+	{
+	}
 
 	gs_obj(gs_device_t *device, gs_type type);
 	virtual ~gs_obj();
@@ -244,7 +233,7 @@ struct gs_obj {
 
 struct gs_vertex_buffer : gs_obj {
 	const bool            isDynamic;
-	VBDataPtr             vbd;
+	const unique_ptr<gs_vb_data, decltype(&gs_vbdata_destroy)> vbData;
 	
 	id<MTLBuffer>         vertexBuffer;
 	id<MTLBuffer>         normalBuffer;
@@ -253,26 +242,23 @@ struct gs_vertex_buffer : gs_obj {
 	vector<id<MTLBuffer>> uvBuffers;
 	vector<size_t>        uvSizes;
 
-	void FlushBuffer(id<MTLBuffer> buffer, void *array,
-			size_t elementSize);
+	void FlushBuffer(id<MTLBuffer> buffer, void *array, size_t elementSize);
 
 	void MakeBufferList(gs_vertex_shader *shader,
 			vector<id<MTLBuffer>> &buffers);
 
-	void InitBuffer(const size_t elementSize,
-			const size_t numVerts, void *array,
+	void InitBuffer(size_t elementSize, size_t numVerts, void *array,
 			id<MTLBuffer> &buffer);
-
-	void BuildBuffers();
+	void InitBuffers();
 
 	inline void Release()
 	{
-		CFRelease(vertexBuffer);
-		CFRelease(normalBuffer);
-		CFRelease(colorBuffer);
-		CFRelease(tangentBuffer);
+		[vertexBuffer release];
+		[normalBuffer release];
+		[colorBuffer release];
+		[tangentBuffer release];
 		for (auto uvBuffer : uvBuffers)
-			CFRelease(uvBuffer);
+			[uvBuffer release];
 		uvBuffers.clear();
 	}
 
@@ -282,31 +268,21 @@ struct gs_vertex_buffer : gs_obj {
 			uint32_t flags);
 };
 
-/* exception-safe RAII wrapper for index buffer data (NOTE: not copy-safe) */
-struct DataPtr {
-	void *data;
-
-	inline DataPtr(void *data) : data(data) {}
-	inline ~DataPtr() {bfree(data);}
-	
-	DataPtr(const DataPtr &other) = delete;
-};
-
 struct gs_index_buffer : gs_obj {
 	const gs_index_type type;
-	const DataPtr       indices;
+	const unique_ptr<void, decltype(&bfree)> indices;
 	const size_t        num;
 	const bool          isDynamic;
 	
-	id<MTLBuffer> indexBuffer;
-	uint32_t      indexSize;
-	MTLIndexType  indexType;
+	uint32_t            indexSize;
+	MTLIndexType        indexType;
+	id<MTLBuffer>       indexBuffer;
 
 	void InitBuffer();
 
 	inline void Rebuild(id<MTLDevice> dev);
 
-	inline void Release() {CFRelease(indexBuffer);}
+	inline void Release() {[indexBuffer release];}
 
 	gs_index_buffer(gs_device_t *device, enum gs_index_type type,
 			void *indices, size_t num, uint32_t flags);
@@ -334,25 +310,24 @@ struct gs_texture_2d : gs_texture {
 	const uint32_t       width = 0, height = 0;
 	const bool           isRenderTarget = false;
 	const bool           isDynamic      = false;
-	const bool           isShared       = false;
 	const bool           genMipmaps     = false;
+	const bool           isShared       = false;
 	
-	MTLTextureDescriptor *td = nil;
+	MTLTextureDescriptor *textureDesc = nil;
 	id<MTLTexture>       texture = nil;
 	
 	vector<vector<uint8_t>> data;
 
-	void InitTexture(const uint8_t **data);
 	void BackupTexture(const uint8_t **data);
-
-	void RebuildSharedTextureFallback();
+	void InitTexture();
+	
 	inline void Rebuild(id<MTLDevice> dev);
 
 	inline void Release()
 	{
 		if (!isShared) {
-			CFRelease(texture);
-			[td release];
+			[texture release];
+			[textureDesc release];
 		}
 	}
 	
@@ -364,7 +339,7 @@ struct gs_texture_2d : gs_texture {
 	gs_texture_2d(gs_device_t *device, uint32_t width, uint32_t height,
 			gs_color_format colorFormat, uint32_t levels,
 			const uint8_t **data, uint32_t flags,
-			gs_texture_type type, bool shared);
+			gs_texture_type type);
 
 	gs_texture_2d(gs_device_t *device, id<MTLTexture> texture);
 };
@@ -374,17 +349,18 @@ struct gs_zstencil_buffer : gs_obj {
 	const gs_zstencil_format format = GS_ZS_NONE;
 	const bool               isShared = false;
 	
-	MTLTextureDescriptor     *td = nil;
+	MTLTextureDescriptor     *textureDesc = nil;
 	id<MTLTexture>           texture = nil;
 	
 	inline void InitBuffer();
+	
 	inline void Rebuild(id<MTLDevice> dev);
 
 	inline void Release()
 	{
 		if (!isShared) {
-			CFRelease(texture);
-			[td release];
+			[texture release];
+			[textureDesc release];
 		}
 	}
 
@@ -398,13 +374,18 @@ struct gs_stage_surface : gs_obj {
 	const uint32_t        width = 0, height = 0;
 	const gs_color_format format = GS_UNKNOWN;
 	
-	MTLTextureDescriptor  *td = nil;
+	MTLTextureDescriptor  *textureDesc = nil;
 	id<MTLTexture>        texture = nil;
 	
 	inline void InitTexture();
+	
 	inline void Rebuild(id<MTLDevice> dev);
 
-	inline void Release() {[texture release];}
+	inline void Release()
+	{
+		[texture release];
+		[textureDesc release];
+	}
 
 	gs_stage_surface(gs_device_t *device, uint32_t width, uint32_t height,
 			gs_color_format colorFormat);
@@ -413,16 +394,17 @@ struct gs_stage_surface : gs_obj {
 struct gs_sampler_state : gs_obj {
 	const gs_sampler_info info;
 	
-	MTLSamplerDescriptor  *sd = nil;
+	MTLSamplerDescriptor  *samplerDesc = nil;
 	id<MTLSamplerState>   samplerState = nil;
 	
 	inline void InitSampler();
+	
 	inline void Rebuild(id<MTLDevice> dev);
 
 	inline void Release()
 	{
-		CFRelease(samplerState);
-		[sd release];
+		[samplerState release];
+		[samplerDesc release];
 	}
 
 	gs_sampler_state(gs_device_t *device, const gs_sampler_info *info);
@@ -457,6 +439,7 @@ struct ShaderError {
 
 struct gs_shader : gs_obj {
 	gs_shader_type          type;
+	id<MTLLibrary>          library;
 	id<MTLFunction>         function;
 	vector<gs_shader_param> params;
 	id<MTLBuffer>           constants;
@@ -466,7 +449,8 @@ struct gs_shader : gs_obj {
 	void UploadParams();
 
 	void BuildConstantBuffer();
-	void Compile(const char *shaderStr, id<MTLFunction> &function);
+	void Compile(const char *shaderStr, id<MTLLibrary> &library,
+			id<MTLFunction> &function);
 
 	inline gs_shader(gs_device_t *device, gs_type obj_type,
 			gs_shader_type type)
@@ -492,9 +476,9 @@ struct ShaderSampler {
 };
 
 struct gs_vertex_shader : gs_shader {
-	MTLVertexDescriptor *vd = nil;
-
 	gs_shader_param *world, *viewProj;
+	
+	MTLVertexDescriptor *vertexDesc = nil;
 
 	bool     hasNormals;
 	bool     hasColors;
@@ -506,7 +490,7 @@ struct gs_vertex_shader : gs_shader {
 	inline void Release()
 	{
 		[function release];
-		CFRelease(vd);
+		[vertexDesc release];
 		[constants release];
 	}
 
@@ -541,9 +525,9 @@ struct gs_pixel_shader : gs_shader {
 	{
 		size_t i;
 		for (i = 0; i < samplers.size(); i++)
-			states[i] = samplers[i]->sampler.sd;
+			states[i] = samplers[i]->sampler.samplerDesc;
 		for (; i < GS_MAX_TEXTURES; i++)
-			states[i] = nullptr;
+			states[i] = nil;
 	}
 
 	gs_pixel_shader(gs_device_t *device, const char *file,
@@ -568,8 +552,8 @@ struct gs_swap_chain : gs_obj {
 
 	inline void Release()
 	{
+		[metalView release];
 		view = nil;
-		CFRelease(metalView);
 		delete target;
 		delete zs;
 	}

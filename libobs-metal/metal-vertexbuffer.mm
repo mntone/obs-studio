@@ -14,10 +14,10 @@ static inline void PushBuffer(vector<id<MTLBuffer>> &buffers,
 	}
 }
 
-void gs_vertex_buffer::FlushBuffer(id <MTLBuffer> buffer, void *array,
+void gs_vertex_buffer::FlushBuffer(id<MTLBuffer> buffer, void *array,
 		size_t elementSize)
 {
-	memcpy([buffer contents], array, elementSize * vbd.data->num);
+	memcpy(buffer.contents, array, elementSize * vbData->num);
 }
 
 void gs_vertex_buffer::MakeBufferList(gs_vertex_shader *shader,
@@ -32,9 +32,8 @@ void gs_vertex_buffer::MakeBufferList(gs_vertex_shader *shader,
 	if (shader->hasTangents)
 		PushBuffer(buffers, tangentBuffer, "tangent");
 	if (shader->nTexUnits <= uvBuffers.size()) {
-		for (size_t i = 0; i < shader->nTexUnits; i++) {
+		for (size_t i = 0; i < shader->nTexUnits; i++)
 			buffers.push_back(uvBuffers[i]);
-		}
 	} else {
 		blog(LOG_ERROR, "This vertex shader requires at least %u "
 		                "texture buffers.",
@@ -42,14 +41,9 @@ void gs_vertex_buffer::MakeBufferList(gs_vertex_shader *shader,
 	}
 }
 
-void gs_vertex_buffer::InitBuffer(const size_t elementSize,
-		const size_t numVerts, void *array, id<MTLBuffer> &buffer)
+void gs_vertex_buffer::InitBuffer(size_t elementSize, size_t numVerts,
+		void *array, id<MTLBuffer> &buffer)
 {
-	if (buffer != nil) {
-		CFRelease(buffer);
-		buffer = nil;
-	}
-	
 	NSUInteger         length  = elementSize * numVerts;
 	MTLResourceOptions options = isDynamic ? MTLResourceStorageModeShared
 			: MTLResourceStorageModePrivate;
@@ -60,23 +54,24 @@ void gs_vertex_buffer::InitBuffer(const size_t elementSize,
 		throw "Failed to create buffer";
 }
 
-void gs_vertex_buffer::BuildBuffers()
+void gs_vertex_buffer::InitBuffers()
 {
-	InitBuffer(sizeof(vec3), vbd->num, vbd->points, vertexBuffer);
+	InitBuffer(sizeof(vec3), vbData->num, vbData->points, vertexBuffer);
 
-	if (vbd.data->normals)
-		InitBuffer(sizeof(vec3), vbd->num, vbd->normals, normalBuffer);
+	if (vbData->normals)
+		InitBuffer(sizeof(vec3), vbData->num, vbData->normals,
+				normalBuffer);
 
-	if (vbd.data->tangents)
-		InitBuffer(sizeof(vec3), vbd->num, vbd->tangents,
+	if (vbData->tangents)
+		InitBuffer(sizeof(vec3), vbData->num, vbData->tangents,
 				tangentBuffer);
 
-	if (vbd.data->colors)
-		InitBuffer(sizeof(uint32_t), vbd->num, vbd->colors,
+	if (vbData->colors)
+		InitBuffer(sizeof(uint32_t), vbData->num, vbData->colors,
 				colorBuffer);
 
-	for (struct gs_tvertarray *tverts = vbd->tvarray;
-			tverts != vbd->tvarray + vbd->num_tex;
+	for (struct gs_tvertarray *tverts = vbData->tvarray;
+			tverts != vbData->tvarray + vbData->num_tex;
 			tverts++) {
 		if (tverts->width != 2 && tverts->width != 4)
 			throw "Invalid texture vertex size specified";
@@ -84,7 +79,7 @@ void gs_vertex_buffer::BuildBuffers()
 			throw "No texture vertices specified";
 
 		id<MTLBuffer> buffer;
-		InitBuffer(tverts->width * sizeof(float), vbd->num,
+		InitBuffer(tverts->width * sizeof(float), vbData->num,
 				tverts->array, buffer);
 
 		uvBuffers.push_back(buffer);
@@ -94,22 +89,28 @@ void gs_vertex_buffer::BuildBuffers()
 
 inline void gs_vertex_buffer::Rebuild()
 {
+	[vertexBuffer release];
+	[normalBuffer release];
+	[colorBuffer release];
+	[tangentBuffer release];
+	for (auto uvBuffer : uvBuffers)
+		[uvBuffer release];
 	uvBuffers.clear();
 	uvSizes.clear();
 	
-	BuildBuffers();
+	InitBuffers();
 }
 
 gs_vertex_buffer::gs_vertex_buffer(gs_device_t *device, struct gs_vb_data *data,
 		uint32_t flags)
 	: gs_obj    (device, gs_type::gs_vertex_buffer),
 	  isDynamic ((flags & GS_DYNAMIC) != 0),
-	  vbd       (data)
+	  vbData    (data, gs_vbdata_destroy)
 {
 	if (!data->num)
 		throw "Cannot initialize vertex buffer with 0 vertices";
 	if (!data->points)
 		throw "No points specified for vertex buffer";
 
-	BuildBuffers();
+	InitBuffers();
 }

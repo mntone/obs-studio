@@ -25,61 +25,81 @@ void gs_texture_2d::BackupTexture(const uint8_t **data)
 	}
 }
 
-void gs_texture_2d::InitTexture(const uint8_t **data)
+void gs_texture_2d::InitTexture()
 {
-	MTLPixelFormat mtlPixelFormat = ConvertGSTextureFormat(format);
-	if (type == GS_TEXTURE_CUBE) {
-		NSUInteger size = 6 * width * height;
-		td = [MTLTextureDescriptor textureCubeDescriptorWithPixelFormat:
-				mtlPixelFormat
-				size:size
-				mipmapped:genMipmaps ? YES : NO];
-	} else {
-		td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:
-				mtlPixelFormat
-				width:width height:height
-				mipmapped:genMipmaps ? YES : NO];
+	assert(!isShared);
+	
+	texture = [device->device newTextureWithDescriptor:textureDesc];
+	if (texture == nil)
+		throw "Failed to create 2D texture";
+}
+
+inline void gs_texture_2d::Rebuild(id<MTLDevice> dev)
+{
+	if (isShared)
+		return;
+	
+	if (texture != nil) {
+		[texture release];
+		texture = nil;
 	}
 	
-	switch (type) {
-		case GS_TEXTURE_3D:
-			td.textureType = MTLTextureType3D;
-			break;
-		case GS_TEXTURE_CUBE:
-			td.textureType = MTLTextureTypeCube;
-			break;
-		case GS_TEXTURE_2D:
-		default:
-			break;
-	}
-	td.mipmapLevelCount = genMipmaps ? 0 : levels;
-	td.arrayLength      = type == GS_TEXTURE_CUBE ? 6 : 1;
-	td.cpuCacheMode     = isDynamic ? MTLCPUCacheModeWriteCombined
-			: MTLCPUCacheModeDefaultCache;
-	td.storageMode      = MTLStorageModeShared;
-	td.usage            = isRenderTarget ? MTLTextureUsageRenderTarget
-			: MTLTextureUsageShaderRead;
-
-	if (data)
-		BackupTexture(data);
-
-	texture = [device->device newTextureWithDescriptor:td];
+	InitTexture();
+	
+	UNUSED_PARAMETER(dev);
 }
 
 gs_texture_2d::gs_texture_2d(gs_device_t *device, uint32_t width,
 		uint32_t height, gs_color_format colorFormat, uint32_t levels,
-		const uint8_t **data, uint32_t flags, gs_texture_type type,
-		bool shared)
+		const uint8_t **data, uint32_t flags, gs_texture_type type)
 	: gs_texture      (device, gs_type::gs_texture_2d, type, levels,
 	                   colorFormat),
 	  width           (width),
 	  height          (height),
 	  isRenderTarget  ((flags & GS_RENDER_TARGET) != 0),
 	  isDynamic       ((flags & GS_DYNAMIC) != 0),
-	  isShared        (shared),
-	  genMipmaps      ((flags & GS_BUILD_MIPMAPS) != 0)
+	  genMipmaps      ((flags & GS_BUILD_MIPMAPS) != 0),
+	  isShared        (false)
 {
-	InitTexture(data);
+	MTLPixelFormat mtlPixelFormat = ConvertGSTextureFormat(format);
+	if (type == GS_TEXTURE_CUBE) {
+		NSUInteger size = 6 * width * height;
+		textureDesc = [MTLTextureDescriptor
+				textureCubeDescriptorWithPixelFormat:
+				mtlPixelFormat size:size
+				mipmapped:genMipmaps ? YES : NO];
+	} else {
+		textureDesc = [MTLTextureDescriptor
+				texture2DDescriptorWithPixelFormat:
+				mtlPixelFormat width:width height:height
+				mipmapped:genMipmaps ? YES : NO];
+	}
+	
+	switch (type) {
+	case GS_TEXTURE_3D:
+		textureDesc.textureType = MTLTextureType3D;
+		break;
+	case GS_TEXTURE_CUBE:
+		textureDesc.textureType = MTLTextureTypeCube;
+		break;
+	case GS_TEXTURE_2D:
+	default:
+		break;
+	}
+	textureDesc.mipmapLevelCount = genMipmaps ? 0 : levels;
+	textureDesc.arrayLength      = type == GS_TEXTURE_CUBE ? 6 : 1;
+	textureDesc.cpuCacheMode     = isDynamic
+			? MTLCPUCacheModeWriteCombined
+			: MTLCPUCacheModeDefaultCache;
+	textureDesc.storageMode      = MTLStorageModeShared;
+	textureDesc.usage            = isRenderTarget
+			? MTLTextureUsageRenderTarget
+			: MTLTextureUsageShaderRead;
+	
+	if (data)
+		BackupTexture(data);
+	
+	InitTexture();
 }
 
 gs_texture_2d::gs_texture_2d(gs_device_t *device, id<MTLTexture> texture)

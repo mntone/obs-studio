@@ -1,6 +1,7 @@
 #include "metal-subsystem.hpp"
 #include "metal-shaderprocessor.hpp"
 
+#include <string>
 #include <sstream>
 using namespace std;
 
@@ -62,16 +63,17 @@ static void BuildInputLayoutFromVars(shader_parser *parser, darray *vars,
 	}
 }
 
-void ShaderProcessor::BuildInputLayout(MTLVertexDescriptor *vd)
+void ShaderProcessor::BuildInputLayout(MTLVertexDescriptor *vertexDesc)
 {
 	shader_func *func = shader_parser_getfunc(&parser, "main");
 	if (!func)
 		throw "Failed to find 'main' shader function";
 
 	size_t index = 0, offset = 0;
-	BuildInputLayoutFromVars(&parser, &func->params.da, vd, index, offset);
+	BuildInputLayoutFromVars(&parser, &func->params.da, vertexDesc,
+			index, offset);
 	
-	vd.layouts[0].stride = offset;
+	vertexDesc.layouts[0].stride = offset;
 }
 
 gs_shader_param::gs_shader_param(shader_var &var, uint32_t &texCounter)
@@ -120,6 +122,78 @@ void ShaderProcessor::BuildSamplers(vector<unique_ptr<ShaderSampler>> &samplers)
 {
 	for (size_t i = 0; i < parser.samplers.num; i++)
 		AddSampler(device, parser.samplers.array[i], samplers);
+}
+
+class ShaderBuilder
+{
+	ShaderParser *parser;
+	stringstream output;
+	
+	bool hasConstant = false;
+	
+	void Build();
+	
+private:
+	void WriteType(const char *type);
+	void WriteParam(shader_var *param);
+	
+	void WriteInclude();
+	void WriteParams();
+};
+
+inline void ShaderBuilder::WriteType(const char *tempType)
+{
+	string type(tempType);
+	if (type == "texture2d")
+		output << "texture2d<float>";
+	else if (type == "texture3d")
+		output << "texture3d<float>";
+	else if (type == "texture_cube")
+		output << "texturecube<float>";
+	else if (type == "texture_rect")
+		throw "texture_rect is not supported in Metal";
+	else
+		output << type;
+}
+
+inline void ShaderBuilder::WriteInclude()
+{
+	
+}
+
+inline void ShaderBuilder::WriteParam(shader_var *param)
+{
+	output << '\t';
+	
+	if (param->var_type == SHADER_VAR_CONST)
+		output << "constant ";
+	
+	WriteType(param->type);
+	
+	output << ' ' << param->name << ';' << endl;
+}
+
+inline void ShaderBuilder::WriteParams()
+{
+	if (parser->params.num == 0)
+		return;
+	
+	output << "struct UniformData {" << endl;
+	for (struct shader_var *param = parser->params.array;
+	     param != parser->params.array + parser->params.num;
+	     param++) {
+		if (astrcmp_n("texture", param->type, 7) != 0)
+			WriteParam(param);
+	}
+	output << "};" << endl;
+	
+	hasConstant = true;
+}
+
+void ShaderBuilder::Build()
+{
+	WriteInclude();
+	WriteParams();
 }
 
 void ShaderProcessor::BuildString(string &outputString)

@@ -2,12 +2,9 @@
 
 inline void gs_zstencil_buffer::InitBuffer()
 {
-	if (texture != nil) {
-		CFRelease(texture);
-		texture = nil;
-	}
+	assert(!isShared);
 	
-	texture = [device->device newTextureWithDescriptor:td];
+	texture = [device->device newTextureWithDescriptor:textureDesc];
 	if (texture == nil)
 		throw "Failed to create depth stencil texture";
 }
@@ -16,6 +13,11 @@ inline void gs_zstencil_buffer::Rebuild(id<MTLDevice> dev)
 {
 	if (isShared)
 		return;
+	
+	if (texture != nil) {
+		[texture release];
+		texture = nil;
+	}
 	
 	InitBuffer();
 	
@@ -31,10 +33,10 @@ gs_zstencil_buffer::gs_zstencil_buffer(gs_device_t *device,
 	  format   (format),
 	  isShared (false)
 {
-	td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:
+	textureDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:
 			ConvertGSZStencilFormat(format)
 			width:width height:height mipmapped:NO];
-	td.storageMode = MTLStorageModeShared;
+	textureDesc.storageMode = MTLStorageModeShared;
 	
 	InitBuffer();
 }

@@ -100,7 +100,8 @@ static inline MTLSamplerMipFilter ConvertGSMipFilter(gs_sample_filter filter)
 
 inline void gs_sampler_state::InitSampler()
 {
-	samplerState = [device->device newSamplerStateWithDescriptor:sd];
+	samplerState = [device->device
+			newSamplerStateWithDescriptor:samplerDesc];
 	if (samplerState == nil)
 		throw "Failed to create sampler state";
 }
@@ -122,22 +123,22 @@ gs_sampler_state::gs_sampler_state(gs_device_t *device,
 	: gs_obj (device, gs_type::gs_sampler_state),
 	  info   (*info)
 {
-	sd = [MTLSamplerDescriptor new];
-	sd.rAddressMode    = ConvertGSAddressMode(info->address_u);
-	sd.sAddressMode    = ConvertGSAddressMode(info->address_v);
-	sd.tAddressMode    = ConvertGSAddressMode(info->address_w);
-	sd.minFilter       = ConvertGSMinFilter(info->filter);
-	sd.magFilter       = ConvertGSMagFilter(info->filter);
-	sd.mipFilter       = ConvertGSMipFilter(info->filter);
-	sd.maxAnisotropy   = info->max_anisotropy;
-	sd.compareFunction = MTLCompareFunctionAlways;
+	samplerDesc = [MTLSamplerDescriptor new];
+	samplerDesc.rAddressMode    = ConvertGSAddressMode(info->address_u);
+	samplerDesc.sAddressMode    = ConvertGSAddressMode(info->address_v);
+	samplerDesc.tAddressMode    = ConvertGSAddressMode(info->address_w);
+	samplerDesc.minFilter       = ConvertGSMinFilter(info->filter);
+	samplerDesc.magFilter       = ConvertGSMagFilter(info->filter);
+	samplerDesc.mipFilter       = ConvertGSMipFilter(info->filter);
+	samplerDesc.maxAnisotropy   = info->max_anisotropy;
+	samplerDesc.compareFunction = MTLCompareFunctionAlways;
 
 	if ((info->border_color & 0xFF000000) == 0)
-		sd.borderColor = MTLSamplerBorderColorTransparentBlack;
+		samplerDesc.borderColor = MTLSamplerBorderColorTransparentBlack;
 	else if (info->border_color == 0xFFFFFFFF)
-		sd.borderColor = MTLSamplerBorderColorOpaqueWhite;
+		samplerDesc.borderColor = MTLSamplerBorderColorOpaqueWhite;
 	else
-		sd.borderColor = MTLSamplerBorderColorOpaqueBlack;
+		samplerDesc.borderColor = MTLSamplerBorderColorOpaqueBlack;
 
 	InitSampler();
 }

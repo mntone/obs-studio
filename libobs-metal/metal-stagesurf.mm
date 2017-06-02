@@ -2,7 +2,7 @@
 
 inline void gs_stage_surface::InitTexture()
 {
-	texture = [device->device newTextureWithDescriptor:td];
+	texture = [device->device newTextureWithDescriptor:textureDesc];
 	if (texture == nil)
 		throw "Failed to create staging surface";
 }
@@ -10,7 +10,7 @@ inline void gs_stage_surface::InitTexture()
 inline void gs_stage_surface::Rebuild(id<MTLDevice> dev)
 {
 	if (texture != nil) {
-		CFRelease(texture);
+		[texture release];
 		texture = nil;
 	}
 	
@@ -26,10 +26,10 @@ gs_stage_surface::gs_stage_surface(gs_device_t *device, uint32_t width,
 	  height (height),
 	  format (colorFormat)
 {
-	td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:
+	textureDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:
 			ConvertGSTextureFormat(colorFormat)
 			width:width height:height mipmapped:NO];
-	td.storageMode = MTLStorageModeShared;
+	textureDesc.storageMode = MTLStorageModeShared;
 	
 	InitTexture();
 }

@@ -6,7 +6,7 @@ void gs_index_buffer::InitBuffer()
 	MTLResourceOptions options = isDynamic ? MTLResourceStorageModeShared
 			: MTLResourceStorageModePrivate;
     
-	indexBuffer = [device->device newBufferWithBytes:indices.data
+	indexBuffer = [device->device newBufferWithBytes:&indices
 			length:length options:options];
 	if (indexBuffer == nil)
 		throw "Failed to create buffer";
@@ -15,7 +15,7 @@ void gs_index_buffer::InitBuffer()
 inline void gs_index_buffer::Rebuild(id<MTLDevice> dev)
 {
 	if (indexBuffer != nil) {
-		CFRelease(indexBuffer);
+		[indexBuffer release];
 		indexBuffer = nil;
 	}
 	
@@ -28,7 +28,7 @@ gs_index_buffer::gs_index_buffer(gs_device_t *device, enum gs_index_type type,
 		void *indices, size_t num, uint32_t flags)
 	: gs_obj    (device, gs_type::gs_index_buffer),
 	  type      (type),
-	  indices   (indices),
+	  indices   (indices, bfree),
 	  num       (num),
 	  isDynamic ((flags & GS_DYNAMIC) != 0)
 {

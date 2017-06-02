@@ -11,7 +11,7 @@ struct ShaderProcessor {
 	gs_device_t  *device;
 	ShaderParser parser;
 
-	void BuildInputLayout(MTLVertexDescriptor *vd);
+	void BuildInputLayout(MTLVertexDescriptor *vertexDesc);
 	void BuildParams(vector<gs_shader_param> &params);
 	void BuildSamplers(vector<unique_ptr<ShaderSampler>> &samplers);
 	void BuildString(string &outputString);

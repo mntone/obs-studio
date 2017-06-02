@@ -6,9 +6,9 @@
 #include "metal-subsystem.hpp"
 #include "metal-shaderprocessor.hpp"
 
-void gs_vertex_shader::GetBuffersExpected(MTLVertexDescriptor *inputs)
+void gs_vertex_shader::GetBuffersExpected(MTLVertexDescriptor *vertexDesc)
 {
-	for (size_t i = 0; i < vd.attributes.size(); i++) {
+	for (size_t i = 0; i < vertexDesc.attributes.size(); i++) {
 		const D3D11_INPUT_ELEMENT_DESC &input = inputs[i];
 		if (strcmp(input.SemanticName, "NORMAL") == 0)
 			hasNormals = true;
@@ -32,7 +32,7 @@ gs_vertex_shader::gs_vertex_shader(gs_device_t *device, const char *file,
 	ShaderProcessor    processor(device);
 	string             outputString;
 	
-	vd = [MTLVertexDescriptor new];
+	vertexDesc = [MTLVertexDescriptor new];
 
 	processor.Process(shaderString, file);
 	processor.BuildString(outputString);

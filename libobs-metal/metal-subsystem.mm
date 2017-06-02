@@ -115,7 +115,7 @@ void gs_device::Draw(id<MTLRenderCommandEncoder> commandEncoder,
 	} else {
 		if (num_verts == 0)
 			num_verts = static_cast<uint32_t>(
-					curVertexBuffer->vbd->num);
+					curVertexBuffer->vbData->num);
 		[commandEncoder drawPrimitives:primitive
 				vertexStart:start_vert vertexCount:num_verts];
 	}
@@ -191,7 +191,8 @@ static inline void LogMetalAdapters()
     
 	for (size_t i = 0; i < devices.count; i++) {
 		id<MTLDevice> device = devices[i];
-		blog(LOG_INFO, "\tAdapter %d: %s", i, [device name].UTF8String);
+		blog(LOG_INFO, "\tAdapter %zu: %s", i,
+				[device name].UTF8String);
 	}
 }
 
@@ -316,7 +317,7 @@ gs_texture_t *device_texture_create(gs_device_t *device, uint32_t width,
 	gs_texture *texture = nullptr;
 	try {
 		texture = new gs_texture_2d(device, width, height, color_format,
-				levels, data, flags, GS_TEXTURE_2D, false);
+				levels, data, flags, GS_TEXTURE_2D);
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_texture_create (Metal): %s", error);
 	}
@@ -331,7 +332,7 @@ gs_texture_t *device_cubetexture_create(gs_device_t *device, uint32_t size,
 	gs_texture *texture = nullptr;
 	try {
 		texture = new gs_texture_2d(device, size, size, color_format,
-				levels, data, flags, GS_TEXTURE_CUBE, false);
+				levels, data, flags, GS_TEXTURE_CUBE);
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_cubetexture_create (Metal): %s", error);
 	}
@@ -563,7 +564,7 @@ void device_load_vertexshader(gs_device_t *device, gs_shader_t *vertshader)
 		}
 
 		function = vs->function;
-		vd       = vs->vd;
+		vd       = vs->vertexDesc;
 	}
 
 	device->curVertexShader = vs;
