@@ -132,15 +132,6 @@ static inline size_t get_video_bit_per_channel(enum video_format format)
 	case VIDEO_FORMAT_BGRX:
 	case VIDEO_FORMAT_NONE:
 		return 8;
-
-	case VIDEO_FORMAT_R210:
-	case VIDEO_FORMAT_R10B:
-	case VIDEO_FORMAT_R10L:
-		return 10;
-
-	case VIDEO_FORMAT_R12B:
-	case VIDEO_FORMAT_R12L:
-		return 10;
 	}
 
 	return 0;
