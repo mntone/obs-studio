@@ -36,7 +36,7 @@ gs_zstencil_buffer::gs_zstencil_buffer(gs_device_t *device,
 	textureDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:
 			ConvertGSZStencilFormat(format)
 			width:width height:height mipmapped:NO];
-	textureDesc.storageMode = MTLStorageModeShared;
+	textureDesc.storageMode = MTLStorageModeManaged;
 	
 	InitBuffer();
 }

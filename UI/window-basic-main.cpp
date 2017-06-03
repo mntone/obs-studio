@@ -2744,14 +2744,14 @@ int OBSBasic::ResetVideo()
 	}
 
 	ret = AttemptToResetVideo(&ovi);
-	if (IS_WIN32 && ret != OBS_VIDEO_SUCCESS) {
+	if (ret != OBS_VIDEO_SUCCESS) {
 		if (ret == OBS_VIDEO_CURRENTLY_ACTIVE) {
 			blog(LOG_WARNING, "Tried to reset when "
 			                  "already active");
 			return ret;
 		}
 
-		/* Try OpenGL if DirectX fails on windows */
+		/* Try OpenGL if DirectX/Metal fails on windows/macOS */
 		if (astrcmpi(ovi.graphics_module, DL_OPENGL) != 0) {
 			blog(LOG_WARNING, "Failed to initialize obs video (%d) "
 					  "with graphics_module='%s', retrying "
