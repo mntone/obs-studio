@@ -903,7 +903,7 @@ const char *OBSApp::GetRenderModule() const
 {
 	const char *renderer = config_get_string(globalConfig, "Video",
 			"Renderer");
-	
+
 #ifdef __APPLE__
 	return (astrcmpi(renderer, "Metal") == 0) ?
 		DL_METAL : DL_OPENGL;
