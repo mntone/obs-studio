@@ -1,5 +1,22 @@
 project(libobs-metal)
 
+find_library(QUARTZCORE QuartzCore)
+mark_as_advanced(QUARTZCORE)
+include_directories(${QUARTZCORE})
+
+find_library(METAL Metal)
+mark_as_advanced(METAL)
+include_directories(${METAL})
+
+find_library(METALKIT MetalKit)
+mark_as_advanced(METALKIT)
+include_directories(${METALKIT})
+
+set(libobs-metal_PLATFORM_DEPS
+	${QUARTZCORE}
+	${METAL}
+	${METALKIT})
+
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/libobs")
 
 add_definitions(-DLIBOBS_EXPORTS)
@@ -28,6 +45,9 @@ set_target_properties(libobs-metal
 		OUTPUT_NAME libobs-metal
 		PREFIX "")
 target_link_libraries(libobs-metal
-	libobs)
+	PRIVATE
+		${libobs-metal_PLATFORM_DEPS}
+	PUBLIC
+		libobs)
 
 install_obs_core(libobs-metal)

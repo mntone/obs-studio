@@ -8,7 +8,7 @@
 
 void gs_vertex_shader::GetBuffersExpected(MTLVertexDescriptor *vertexDesc)
 {
-	for (size_t i = 0; i < vertexDesc.attributes.size(); i++) {
+	/*for (size_t i = 0; i < vertexDesc.attributes.size(); i++) {
 		const D3D11_INPUT_ELEMENT_DESC &input = inputs[i];
 		if (strcmp(input.SemanticName, "NORMAL") == 0)
 			hasNormals = true;
@@ -18,7 +18,7 @@ void gs_vertex_shader::GetBuffersExpected(MTLVertexDescriptor *vertexDesc)
 			hasColors = true;
 		else if (strcmp(input.SemanticName, "TEXCOORD") == 0)
 			nTexUnits++;
-	}
+	}*/
 }
 
 gs_vertex_shader::gs_vertex_shader(gs_device_t *device, const char *file,
@@ -35,13 +35,13 @@ gs_vertex_shader::gs_vertex_shader(gs_device_t *device, const char *file,
 	vertexDesc = [MTLVertexDescriptor new];
 
 	processor.Process(shaderString, file);
-	processor.BuildString(outputString);
+	processor.BuildString(type, outputString);
 	processor.BuildParams(params);
-	processor.BuildInputLayout(vd);
-	GetBuffersExpected(vd);
+	processor.BuildInputLayout(vertexDesc);
+	GetBuffersExpected(vertexDesc);
 	BuildConstantBuffer();
 
-	Compile(outputString.c_str(), library);
+	Compile(outputString.c_str(), library, function);
 
 	viewProj = gs_shader_get_param_by_name(this, "ViewProj");
 	world    = gs_shader_get_param_by_name(this, "World");
@@ -55,12 +55,12 @@ gs_pixel_shader::gs_pixel_shader(gs_device_t *device, const char *file,
 	string             outputString;
 	
 	processor.Process(shaderString, file);
-	processor.BuildString(outputString);
+	processor.BuildString(type, outputString);
 	processor.BuildParams(params);
 	processor.BuildSamplers(samplers);
 	BuildConstantBuffer();
 
-	Compile(outputString.c_str(), library);
+	Compile(outputString.c_str(), library, function);
 }
 
 /*
@@ -137,12 +137,12 @@ void gs_shader::BuildConstantBuffer()
 		gs_shader_set_default(&params[i]);
 }
 
-void gs_shader::Compile(const char *shaderString, id<MTLFunction> &function)
+void gs_shader::Compile(const char *shaderString, id<MTLLibrary> &library,
+		id<MTLFunction> &function)
 {
 	NSString          *nsShaderString;
 	NSError           *errors  = nil;
 	MTLCompileOptions *options = nil;
-	id<MTLLibrary>    library  = nil;
 
 	if (!shaderString)
 		throw "No shader string specified";
@@ -160,6 +160,10 @@ void gs_shader::Compile(const char *shaderString, id<MTLFunction> &function)
 		else
 			throw "Failed to compile shader";
 	}
+	
+	function = [library newFunctionWithName:@"main"];
+	if (function == nil)
+		throw "Failed to create function";
 }
 
 inline void gs_shader::UpdateParam(uint8_t *data, gs_shader_param &param)
@@ -179,12 +183,12 @@ inline void gs_shader::UpdateParam(uint8_t *data, gs_shader_param &param)
 		memcpy(&tex, param.curValue.data(), sizeof(gs_texture_t*));
 		device_load_texture(device, tex, param.textureID);
 
-		if (param.nextSampler) {
+		/*if (param.nextSampler) {
 			ID3D11SamplerState *state = param.nextSampler->state;
 			device->context->PSSetSamplers(param.textureID, 1,
 					&state);
 			param.nextSampler = nullptr;
-		}
+		}*/
 	}
 }
 

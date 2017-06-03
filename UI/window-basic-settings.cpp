@@ -475,8 +475,10 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 		ui->processPriority->addItem(QTStr(pri.name), pri.val);
 
 #else
+#ifndef __APPLE__
 	delete ui->rendererLabel;
 	delete ui->renderer;
+#endif
 	delete ui->adapterLabel;
 	delete ui->adapter;
 	delete ui->processPriorityLabel;
@@ -487,8 +489,10 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 #ifdef __APPLE__
 	delete ui->disableAudioDucking;
 #endif
+#ifndef __APPLE__
 	ui->rendererLabel = nullptr;
 	ui->renderer = nullptr;
+#endif
 	ui->adapterLabel = nullptr;
 	ui->adapter = nullptr;
 	ui->processPriorityLabel = nullptr;
@@ -1073,11 +1077,16 @@ void OBSBasicSettings::LoadStream1Settings()
 
 void OBSBasicSettings::LoadRendererList()
 {
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 	const char *renderer = config_get_string(GetGlobalConfig(), "Video",
 			"Renderer");
 
+#ifdef _WIN32
 	ui->renderer->addItem(QT_UTF8("Direct3D 11"));
+#endif
+#ifdef __APPLE__
+	ui->renderer->addItem(QT_UTF8("Metal"));
+#endif
 	if (opt_allow_opengl || strcmp(renderer, "OpenGL") == 0)
 		ui->renderer->addItem(QT_UTF8("OpenGL"));
 
@@ -2589,12 +2598,14 @@ void OBSBasicSettings::SaveAdvancedSettings()
 {
 	QString lastMonitoringDevice = config_get_string(main->Config(),
 			"Audio", "MonitoringDeviceId");
-
-#ifdef _WIN32
+	
+#if defined(_WIN32) || defined(__APPLE__)
 	if (WidgetChanged(ui->renderer))
 		config_set_string(App()->GlobalConfig(), "Video", "Renderer",
 				QT_TO_UTF8(ui->renderer->currentText()));
-
+#endif
+	
+#ifdef _WIN32
 	std::string priority =
 		QT_TO_UTF8(ui->processPriority->currentData().toString());
 	config_set_string(App()->GlobalConfig(), "General", "ProcessPriority",

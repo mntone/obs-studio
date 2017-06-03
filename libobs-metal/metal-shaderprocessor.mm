@@ -3,6 +3,7 @@
 
 #include <string>
 #include <sstream>
+#include <set>
 using namespace std;
 
 static void AddInputLayoutVar(shader_var *var,
@@ -124,26 +125,47 @@ void ShaderProcessor::BuildSamplers(vector<unique_ptr<ShaderSampler>> &samplers)
 		AddSampler(device, parser.samplers.array[i], samplers);
 }
 
-class ShaderBuilder
+constexpr const char *UNIFORM_DATA_NAME = "UniformData";
+
+struct ShaderBuilder
 {
-	ShaderParser *parser;
-	stringstream output;
+	const gs_shader_type type;
+	ShaderParser         *parser;
+	ostringstream        output;
+
+	set<string>          constantNames;
+	vector<struct shader_var*> textureVars;
 	
-	bool hasConstant = false;
+	string Build();
 	
-	void Build();
+	ShaderBuilder(gs_shader_type type, ShaderParser *parser)
+		: type(type),
+		  parser(parser)
+	{
+	}
 	
 private:
+	bool WriteType(const string &type);
 	void WriteType(const char *type);
-	void WriteParam(shader_var *param);
+	bool WriteTypeToken(struct cf_token *token);
+	void WriteMapping(const char *mapping);
+	bool WriteMul(struct cf_token *&token);
+	bool WriteConstantVariable(struct cf_token *token);
+	bool WriteIntrinsic(struct cf_token *&token);
+	void WriteFunctionContent(struct cf_token *&token, const char *end);
+	
+	void WriteVariable(const shader_var *var);
+	void WriteStruct(const shader_struct *str);
+	void WriteFunction(const shader_func *func);
 	
 	void WriteInclude();
-	void WriteParams();
+	void WriteVariables();
+	void WriteStructs();
+	void WriteFunctions();
 };
 
-inline void ShaderBuilder::WriteType(const char *tempType)
+inline bool ShaderBuilder::WriteType(const string &type)
 {
-	string type(tempType);
 	if (type == "texture2d")
 		output << "texture2d<float>";
 	else if (type == "texture3d")
@@ -152,77 +174,308 @@ inline void ShaderBuilder::WriteType(const char *tempType)
 		output << "texturecube<float>";
 	else if (type == "texture_rect")
 		throw "texture_rect is not supported in Metal";
+	else if (type == "min10float")
+		throw "min10float is not supported in Metal";
+	else if (type == "double")
+		throw "double is not supported in Metal";
+	else if (type == "min16int")
+		output << "short";
+	else if (type == "min16uint")
+		output << "ushort";
+	else if (type == "min12int")
+		throw "min12int is not supported in Metal";
 	else
+		return false;
+	
+	return true;
+}
+
+inline void ShaderBuilder::WriteType(const char *rawType)
+{
+	string type(rawType);
+	if (!WriteType(type))
 		output << type;
+}
+
+inline bool ShaderBuilder::WriteTypeToken(struct cf_token *token)
+{
+	string type(token->str.array, token->str.len);
+	return WriteType(type);
+}
+
+inline void ShaderBuilder::WriteMapping(const char *rawMapping)
+{
+	if (rawMapping == nullptr)
+		return;
+	
+	string mapping(rawMapping);
+	if (mapping == "POSITION")
+		output << " [[position]]";
+	else if (mapping == "COLOR")
+		output << " [[color(0)]]";
 }
 
 inline void ShaderBuilder::WriteInclude()
 {
-	
+	output << "#include <metal_stdlib>" << endl
+	       << "using namespace metal;" << endl
+	       << endl;
 }
 
-inline void ShaderBuilder::WriteParam(shader_var *param)
+inline void ShaderBuilder::WriteVariable(const shader_var *var)
 {
-	output << '\t';
-	
-	if (param->var_type == SHADER_VAR_CONST)
+	if (var->var_type == SHADER_VAR_CONST)
 		output << "constant ";
 	
-	WriteType(param->type);
+	WriteType(var->type);
 	
-	output << ' ' << param->name << ';' << endl;
+	output << ' ' << var->name;
 }
 
-inline void ShaderBuilder::WriteParams()
+inline void ShaderBuilder::WriteVariables()
 {
 	if (parser->params.num == 0)
 		return;
 	
-	output << "struct UniformData {" << endl;
-	for (struct shader_var *param = parser->params.array;
-	     param != parser->params.array + parser->params.num;
-	     param++) {
-		if (astrcmp_n("texture", param->type, 7) != 0)
-			WriteParam(param);
+	output << "struct " << UNIFORM_DATA_NAME << " {" << endl;
+	for (struct shader_var *var = parser->params.array;
+	     var != parser->params.array + parser->params.num;
+	     var++) {
+		if (astrcmp_n("texture", var->type, 7) != 0) {
+			output << '\t';
+			WriteVariable(var);
+			WriteMapping(var->mapping);
+			output << ';' << endl;
+			
+			constantNames.emplace(var->name);
+		} else
+			textureVars.emplace_back(var);
 	}
-	output << "};" << endl;
-	
-	hasConstant = true;
+	output << "};" << endl << endl;
 }
 
-void ShaderBuilder::Build()
+inline void ShaderBuilder::WriteStruct(const shader_struct *str)
+{
+	output << "struct " << str->name << " {" << endl;
+	for (struct shader_var *var = str->vars.array;
+	     var != str->vars.array + str->vars.num;
+	     var++) {
+		output << '\t';
+		WriteVariable(var);
+		WriteMapping(var->mapping);
+		output << ';' << endl;
+	}
+	output << "};" << endl << endl;
+}
+
+inline void ShaderBuilder::WriteStructs()
+{
+	for (struct shader_struct *str = parser->structs.array;
+	     str != parser->structs.array + parser->structs.num;
+	     str++) {
+		WriteStruct(str);
+	}
+}
+
+/*
+ * NOTE: HLSL-> Metal Shading Language intrinsic conversions
+ *   clip     -> (unsupported)
+ *   ddx      -> dfdx
+ *   ddy      -> dfdy
+ *   frac     -> fract
+ *   lerp     -> mix
+ *   mul      -> (change to operator)
+ *   tex*     -> texture
+ *   tex*grad -> textureGrad
+ *   tex*lod  -> textureLod
+ *   tex*bias -> (use optional 'bias' value)
+ *   tex*proj -> textureProj
+ *
+ *   All else can be left as-is
+ */
+
+inline bool ShaderBuilder::WriteMul(struct cf_token *&token)
+{
+	struct cf_parser *cfp = &parser->cfp;
+	cfp->cur_token = token;
+	
+	if (!cf_next_token(cfp))    return false;
+	if (!cf_token_is(cfp, "(")) return false;
+	
+	output << '(';
+	WriteFunctionContent(cfp->cur_token, ",");
+	output << ") * (";
+	cf_next_token(cfp);
+	WriteFunctionContent(cfp->cur_token, ")");
+	output << "))";
+	
+	token = cfp->cur_token;
+	return true;
+}
+
+inline bool ShaderBuilder::WriteConstantVariable(struct cf_token *token)
+{
+	string str(token->str.array, token->str.len);
+	if (constantNames.find(str) != constantNames.end()) {
+		output << "uniforms." << str;
+		return true;
+	}
+	return false;
+}
+
+inline bool ShaderBuilder::WriteIntrinsic(struct cf_token *&token)
+{
+	bool written = true;
+	
+	if (strref_cmp(&token->str, "ddx") == 0)
+		output << "dfdx";
+	else if (strref_cmp(&token->str, "ddy") == 0)
+		output << "dfdy";
+	else if (strref_cmp(&token->str, "frac") == 0)
+		output << "fract";
+	else if (strref_cmp(&token->str, "lerp") == 0)
+		output << "mix";
+	else if (strref_cmp(&token->str, "mul") == 0)
+		written = WriteMul(token);
+	else {
+		/*struct shader_var *var = sp_getparam(glsp, token);
+		if (var && astrcmp_n(var->type, "texture", 7) == 0)
+			written = WriteTextureCode(token, var);
+		else*/
+			written = false;
+	}
+	
+	return written;
+}
+
+inline void ShaderBuilder::WriteFunctionContent(struct cf_token *&token,
+		const char *end)
+{
+	if (token->type != CFTOKEN_NAME ||
+	    (!WriteTypeToken(token) && !WriteIntrinsic(token) &&
+	     !WriteConstantVariable(token)))
+		output.write(token->str.array, token->str.len);
+	
+	while (token->type != CFTOKEN_NONE) {
+		token++;
+		
+		if (strref_cmp(&token->str, end) == 0)
+			break;
+		
+		if (token->type == CFTOKEN_NAME) {
+			if (!WriteTypeToken(token) && !WriteIntrinsic(token) &&
+			    !WriteConstantVariable(token))
+				output.write(token->str.array, token->str.len);
+			
+		} else if (token->type == CFTOKEN_OTHER) {
+			if (*token->str.array == '{')
+				WriteFunctionContent(token, "}");
+			else if (*token->str.array == '(')
+				WriteFunctionContent(token, ")");
+			
+			output.write(token->str.array, token->str.len);
+			
+		} else
+			output.write(token->str.array, token->str.len);
+	}
+}
+
+inline void ShaderBuilder::WriteFunction(const shader_func *func)
+{
+	const bool isMain = strcmp(func->name, "main") == 0;
+	const bool isPixelShader = type == GS_SHADER_PIXEL;
+	if (isMain) {
+		if (type == GS_SHADER_VERTEX)
+			output << "vertex ";
+		else if (isPixelShader)
+			output << "fragment ";
+		else
+			throw "Failed to add shader prefix";
+	}
+	
+	output << func->return_type << ' ' << func->name << '(';
+	
+	bool isFirst = true;
+	for (struct shader_var *param = func->params.array;
+	     param != func->params.array + func->params.num;
+	     param++) {
+		if (!isFirst)
+			output << ", ";
+		
+		WriteVariable(param);
+		
+		if (isMain) {
+			if (!isFirst)
+				throw "Failed to add type";
+			output << " [[stage_in]]";
+				
+		}
+		
+		if (isFirst)
+			isFirst = false;
+	}
+	
+	if (constantNames.size() != 0)
+	{
+		if (!isFirst)
+			output << ", ";
+	
+		output << "constant " << UNIFORM_DATA_NAME << " &uniforms";
+		
+		if (isMain)
+			output << " [[buffer(1)]]";
+		
+		if (isFirst)
+			isFirst = false;
+	}
+	
+	if (isPixelShader)
+	{
+		size_t textureId = 0;
+		for (auto var = textureVars.cbegin();
+		     var != textureVars.cend();
+		     var++) {
+			if (!isFirst)
+				output << ", ";
+			
+			WriteVariable(*var);
+			
+			if (isMain)
+				output << " [[texture(" << textureId++ << ")]]";
+			
+			if (isFirst)
+				isFirst = false;
+		}
+	}
+	
+	output << ")" << endl;
+	
+	struct cf_token *token = func->start;
+	WriteFunctionContent(token, "}");
+	
+	output << '}' << endl << endl;
+}
+
+inline void ShaderBuilder::WriteFunctions()
+{
+	for (struct shader_func *func = parser->funcs.array;
+	     func != parser->funcs.array + parser->funcs.num;
+	     func++)
+		WriteFunction(func);
+}
+
+string ShaderBuilder::Build()
 {
 	WriteInclude();
-	WriteParams();
+	WriteVariables();
+	WriteStructs();
+	WriteFunctions();
+	return output.str();
 }
 
-void ShaderProcessor::BuildString(string &outputString)
+void ShaderProcessor::BuildString(gs_shader_type type, string &outputString)
 {
-	stringstream output;
-	cf_token *token = cf_preprocessor_get_tokens(&parser.cfp.pp);
-	while (token->type != CFTOKEN_NONE) {
-		/* cheaply just replace specific tokens */
-		if (strref_cmp(&token->str, "POSITION") == 0)
-			output << "position";
-		else if (strref_cmp(&token->str, "TARGET") == 0)
-			output << "color(0)";
-		else if (strref_cmp(&token->str, "texture2d") == 0)
-			output << "texture2d";
-		else if (strref_cmp(&token->str, "texture3d") == 0)
-			output << "texture3d";
-		else if (strref_cmp(&token->str, "texture_cube") == 0)
-			output << "texturecube";
-		else if (strref_cmp(&token->str, "texture_rect") == 0)
-			throw "texture_rect is not supported in Metal";
-		else if (strref_cmp(&token->str, "sampler_state") == 0)
-			output << "SamplerState";
-		else
-			output.write(token->str.array, token->str.len);
-
-		token++;
-	}
-
-	outputString = move(output.str());
+	outputString = ShaderBuilder(type, &parser).Build();
 }
 
 void ShaderProcessor::Process(const char *shader_string, const char *file)

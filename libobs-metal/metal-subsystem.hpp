@@ -701,7 +701,7 @@ struct gs_device {
 	matrix4                     curViewMatrix;
 	matrix4                     curViewProjMatrix;
 
-	gs_obj                      *first_obj;
+	gs_obj                      *first_obj = nullptr;
     
 	void InitDevice(uint32_t adapterIdx);
 	
