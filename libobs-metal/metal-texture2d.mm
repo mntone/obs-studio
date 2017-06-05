@@ -59,9 +59,9 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, uint32_t width,
 	  isRenderTarget  ((flags & GS_RENDER_TARGET) != 0),
 	  isDynamic       ((flags & GS_DYNAMIC) != 0),
 	  genMipmaps      ((flags & GS_BUILD_MIPMAPS) != 0),
-	  isShared        (false)
+	  isShared        (false),
+	  mtlPixelFormat  (ConvertGSTextureFormat(format))
 {
-	MTLPixelFormat mtlPixelFormat = ConvertGSTextureFormat(format);
 	if (type == GS_TEXTURE_CUBE) {
 		NSUInteger size = 6 * width * height;
 		textureDesc = [MTLTextureDescriptor
@@ -113,8 +113,9 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, id<MTLTexture> texture)
 	  height          (texture.height),
 	  isRenderTarget  (false),
 	  isDynamic       (false),
-	  isShared        (true),
 	  genMipmaps      (false),
+	  isShared        (true),
+	  mtlPixelFormat  (texture.pixelFormat),
 	  texture         (texture)
 {
 }

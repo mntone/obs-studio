@@ -6,21 +6,6 @@
 #include "metal-subsystem.hpp"
 #include "metal-shaderprocessor.hpp"
 
-void gs_vertex_shader::GetBuffersExpected(MTLVertexDescriptor *vertexDesc)
-{
-	/*for (size_t i = 0; i < vertexDesc.attributes.size(); i++) {
-		const D3D11_INPUT_ELEMENT_DESC &input = inputs[i];
-		if (strcmp(input.SemanticName, "NORMAL") == 0)
-			hasNormals = true;
-		else if (strcmp(input.SemanticName, "TANGENT") == 0)
-			hasTangents = true;
-		else if (strcmp(input.SemanticName, "COLOR") == 0)
-			hasColors = true;
-		else if (strcmp(input.SemanticName, "TEXCOORD") == 0)
-			nTexUnits++;
-	}*/
-}
-
 gs_vertex_shader::gs_vertex_shader(gs_device_t *device, const char *file,
 		const char *shaderString)
 	: gs_shader   (device, gs_type::gs_vertex_shader, GS_SHADER_VERTEX),
@@ -38,7 +23,6 @@ gs_vertex_shader::gs_vertex_shader(gs_device_t *device, const char *file,
 	processor.BuildString(type, outputString);
 	processor.BuildParams(params);
 	processor.BuildInputLayout(vertexDesc);
-	GetBuffersExpected(vertexDesc);
 	BuildConstantBuffer();
 
 	Compile(outputString.c_str(), library, function);

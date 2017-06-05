@@ -65,9 +65,12 @@ gs_swap_chain::gs_swap_chain(gs_device *device, const gs_init_data *data)
 	metalView = [[MTKView alloc] initWithFrame:frameRect
 		device:device->device];
 	metalView.sampleCount = numBuffers;
-	metalView.colorPixelFormat = ConvertGSTextureFormat(data->format);
-	metalView.depthStencilPixelFormat =
-			ConvertGSZStencilFormat(data->zsformat);
+	
+	/*if (metalView.colorPixelFormat !=
+			ConvertGSTextureFormat(data->format) ||
+	    metalView.depthStencilPixelFormat !=
+			ConvertGSZStencilFormat(data->zsformat))
+		throw "Incompabile format";*/
 	
 	Init();
 }

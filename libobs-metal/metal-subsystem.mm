@@ -491,8 +491,8 @@ void gs_device::LoadVertexBufferData(id<MTLRenderCommandEncoder> commandEncoder)
 	if (curVertexBuffer && curVertexShader) {
 		curVertexBuffer->MakeBufferList(curVertexShader, buffers);
 	} else {
-		size_t buffersToClear = curVertexShader
-			? curVertexShader->NumBuffersExpected() : 0;
+		size_t buffersToClear = curVertexShader ?
+				curVertexShader->NumBuffersExpected() : 0;
 		buffers.resize(buffersToClear);
 	}
 
@@ -525,18 +525,16 @@ void device_load_indexbuffer(gs_device_t *device, gs_indexbuffer_t *indexbuffer)
 
 void device_load_texture(gs_device_t *device, gs_texture_t *tex, int unit)
 {
-	id<MTLTexture> texture = nil;
+	MTLPixelFormat pixelFormat = MTLPixelFormatInvalid;
 	
 	if (device->curTextures[unit] == tex)
 		return;
 	
 	gs_texture_2d *tex2d = static_cast<gs_texture_2d*>(tex);
-	if (tex2d != nil)
-		texture = tex2d->texture;
+	if (tex2d != nullptr)
+		pixelFormat = tex2d->mtlPixelFormat;
 
 	device->curTextures[unit] = tex;
-	
-	device->passDesc.colorAttachments[unit].texture = texture;
 }
 
 void device_load_samplerstate(gs_device_t *device,
@@ -681,6 +679,17 @@ void device_set_render_target(gs_device_t *device, gs_texture_t *tex,
 	device->curRenderTarget   = tex2d;
 	device->curRenderSide     = 0;
 	device->curZStencilBuffer = zstencil;
+	
+	if (tex2d != nullptr) {
+		device->passDesc.colorAttachments[0].texture = tex2d->texture;
+		device->pipelineDesc.colorAttachments[0].pixelFormat =
+				tex2d->mtlPixelFormat;
+	}
+	if (zstencil != nullptr) {
+		device->passDesc.depthAttachment.texture = zstencil->texture;
+		device->pipelineDesc.depthAttachmentPixelFormat =
+				zstencil->mtlPixelFormat;
+	}
 }
 
 void device_set_cube_render_target(gs_device_t *device, gs_texture_t *tex,
@@ -717,6 +726,18 @@ void device_set_cube_render_target(gs_device_t *device, gs_texture_t *tex,
 	device->curRenderTarget   = tex2d;
 	device->curRenderSide     = side;
 	device->curZStencilBuffer = zstencil;
+	
+	if (tex2d != nullptr) {
+		device->passDesc.colorAttachments[0].texture = tex2d->texture;
+		device->pipelineDesc.colorAttachments[0].pixelFormat =
+				tex2d->mtlPixelFormat;
+	}
+	if (zstencil != nullptr) {
+		device->passDesc.depthAttachment.texture = zstencil->texture;
+		device->pipelineDesc.depthAttachmentPixelFormat =
+				zstencil->mtlPixelFormat;
+	}
+
 }
 
 inline void gs_device::CopyTex(id<MTLTexture> dst,
@@ -1408,6 +1429,9 @@ enum gs_color_format gs_stagesurface_get_color_format(
 bool gs_stagesurface_map(gs_stagesurf_t *stagesurf, uint8_t **data,
 		uint32_t *linesize)
 {
+	if (stagesurf->texture.buffer == nil)
+		return false;
+	
 	*data     = (uint8_t *)stagesurf->texture.buffer.contents;
 	*linesize = stagesurf->texture.bufferBytesPerRow;
 	return true;
@@ -1456,26 +1480,7 @@ void gs_vertexbuffer_flush(gs_vertbuffer_t *vertbuffer)
 		return;
 	}
 
-	vertbuffer->FlushBuffer(vertbuffer->vertexBuffer,
-			vertbuffer->vbData->points, sizeof(vec3));
-
-	if (vertbuffer->normalBuffer)
-		vertbuffer->FlushBuffer(vertbuffer->normalBuffer,
-				vertbuffer->vbData->normals, sizeof(vec3));
-
-	if (vertbuffer->tangentBuffer)
-		vertbuffer->FlushBuffer(vertbuffer->tangentBuffer,
-				vertbuffer->vbData->tangents, sizeof(vec3));
-
-	if (vertbuffer->colorBuffer)
-		vertbuffer->FlushBuffer(vertbuffer->colorBuffer,
-				vertbuffer->vbData->colors, sizeof(uint32_t));
-
-	for (size_t i = 0; i < vertbuffer->uvBuffers.size(); i++) {
-		gs_tvertarray &tv = vertbuffer->vbData->tvarray[i];
-		vertbuffer->FlushBuffer(vertbuffer->uvBuffers[i],
-				tv.array, tv.width*sizeof(float));
-	}
+	vertbuffer->FlushBuffers();
 }
 
 struct gs_vb_data *gs_vertexbuffer_get_data(const gs_vertbuffer_t *vertbuffer)

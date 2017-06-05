@@ -235,14 +235,15 @@ struct gs_vertex_buffer : gs_obj {
 	const bool            isDynamic;
 	const unique_ptr<gs_vb_data, decltype(&gs_vbdata_destroy)> vbData;
 	
-	id<MTLBuffer>         vertexBuffer;
-	id<MTLBuffer>         normalBuffer;
-	id<MTLBuffer>         colorBuffer;
-	id<MTLBuffer>         tangentBuffer;
+	id<MTLBuffer>         vertexBuffer  = nil;
+	id<MTLBuffer>         normalBuffer  = nil;
+	id<MTLBuffer>         colorBuffer   = nil;
+	id<MTLBuffer>         tangentBuffer = nil;
 	vector<id<MTLBuffer>> uvBuffers;
 	vector<size_t>        uvSizes;
 
 	void FlushBuffer(id<MTLBuffer> buffer, void *array, size_t elementSize);
+	void FlushBuffers();
 
 	void MakeBufferList(gs_vertex_shader *shader,
 			vector<id<MTLBuffer>> &buffers);
@@ -312,6 +313,7 @@ struct gs_texture_2d : gs_texture {
 	const bool           isDynamic      = false;
 	const bool           genMipmaps     = false;
 	const bool           isShared       = false;
+	const MTLPixelFormat mtlPixelFormat = MTLPixelFormatInvalid;
 	
 	MTLTextureDescriptor *textureDesc = nil;
 	id<MTLTexture>       texture = nil;
@@ -348,6 +350,7 @@ struct gs_zstencil_buffer : gs_obj {
 	const uint32_t           width = 0, height = 0;
 	const gs_zstencil_format format = GS_ZS_NONE;
 	const bool               isShared = false;
+	const MTLPixelFormat     mtlPixelFormat = MTLPixelFormatInvalid;
 	
 	MTLTextureDescriptor     *textureDesc = nil;
 	id<MTLTexture>           texture = nil;
@@ -503,8 +506,6 @@ struct gs_vertex_shader : gs_shader {
 
 		return count;
 	}
-
-	void GetBuffersExpected(MTLVertexDescriptor *inputs);
 
 	gs_vertex_shader(gs_device_t *device, const char *file,
 			const char *shaderString);

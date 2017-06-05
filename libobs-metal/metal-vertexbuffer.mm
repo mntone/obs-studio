@@ -20,6 +20,25 @@ void gs_vertex_buffer::FlushBuffer(id<MTLBuffer> buffer, void *array,
 	memcpy(buffer.contents, array, elementSize * vbData->num);
 }
 
+void gs_vertex_buffer::FlushBuffers()
+{
+	FlushBuffer(vertexBuffer, vbData->points, sizeof(vec3));
+	
+	if (normalBuffer != nil)
+		FlushBuffer(normalBuffer, vbData->normals, sizeof(vec3));
+	
+	if (tangentBuffer != nil)
+		FlushBuffer(tangentBuffer, vbData->tangents, sizeof(vec3));
+	
+	if (colorBuffer != nil)
+		FlushBuffer(colorBuffer, vbData->colors, sizeof(uint32_t));
+	
+	for (size_t i = 0; i < uvBuffers.size(); i++) {
+		gs_tvertarray &tv = vbData->tvarray[i];
+		FlushBuffer(uvBuffers[i], tv.array, tv.width * sizeof(float));
+	}
+}
+
 void gs_vertex_buffer::MakeBufferList(gs_vertex_shader *shader,
 		vector<id<MTLBuffer>> &buffers)
 {
