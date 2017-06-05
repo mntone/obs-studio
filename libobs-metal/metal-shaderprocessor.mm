@@ -3,6 +3,7 @@
 
 #include <string>
 #include <sstream>
+#include <map>
 #include <set>
 using namespace std;
 
@@ -111,30 +112,33 @@ void ShaderProcessor::BuildParams(vector<gs_shader_param> &params)
 		AddParam(parser.params.array[i], params, texCounter);
 }
 
-static inline void AddSampler(gs_device_t *device, shader_sampler &sampler,
-		vector<unique_ptr<ShaderSampler>> &samplers)
-{
-	gs_sampler_info si;
-	shader_sampler_convert(&sampler, &si);
-	samplers.emplace_back(new ShaderSampler(sampler.name, device, &si));
-}
-
-void ShaderProcessor::BuildSamplers(vector<unique_ptr<ShaderSampler>> &samplers)
-{
-	for (size_t i = 0; i < parser.samplers.num; i++)
-		AddSampler(device, parser.samplers.array[i], samplers);
-}
-
 constexpr const char *UNIFORM_DATA_NAME = "UniformData";
+
+enum class ShaderTextureCallType
+{
+	Sample,
+	SampleBias,
+	SampleGrad,
+	SampleLevel,
+	Load
+};
+
+struct ShaderFunctionInfo
+{
+	bool           useUniform;
+	vector<string> useTextures;
+};
 
 struct ShaderBuilder
 {
-	const gs_shader_type type;
-	ShaderParser         *parser;
-	ostringstream        output;
+	const gs_shader_type            type;
+	
+	ShaderParser                    *parser;
+	ostringstream                   output;
 
-	set<string>          constantNames;
-	vector<struct shader_var*> textureVars;
+	set<string>                     constantNames;
+	vector<struct shader_var*>      textureVars;
+	map<string, ShaderFunctionInfo> functionInfo;
 	
 	string Build();
 	
@@ -144,34 +148,52 @@ struct ShaderBuilder
 	{
 	}
 	
+	bool isVertexShader() const {return type == GS_SHADER_VERTEX;}
+	bool isPixelShader() const {return type == GS_SHADER_PIXEL;}
+	
 private:
-	bool WriteType(const string &type);
+	struct shader_var *GetVariable(struct cf_token *token);
+	
+	void AnalysisFunction(struct cf_token *&token, const char *end,
+			ShaderFunctionInfo &info);
+	
 	void WriteType(const char *type);
 	bool WriteTypeToken(struct cf_token *token);
-	void WriteMapping(const char *mapping);
 	bool WriteMul(struct cf_token *&token);
 	bool WriteConstantVariable(struct cf_token *token);
+	bool WriteTextureCall(struct cf_token *&token,
+			ShaderTextureCallType type);
+	bool WriteTextureCode(struct cf_token *&token, struct shader_var *var);
 	bool WriteIntrinsic(struct cf_token *&token);
+	void WriteFunctionAdditionalParam(string funcionName);
 	void WriteFunctionContent(struct cf_token *&token, const char *end);
+	void WriteSamplerParamDelimitter(bool &first);
+	void WriteSamplerFilter(enum gs_sample_filter filter, bool &first);
+	void WriteSamplerAddress(enum gs_address_mode address,
+			const char key, bool &first);
+	void WriteSamplerMaxAnisotropy(int maxAnisotropy, bool &first);
+	void WriteSamplerBorderColor(uint32_t borderColor, bool &first);
 	
 	void WriteVariable(const shader_var *var);
+	void WriteSampler(shader_sampler *sampler);
 	void WriteStruct(const shader_struct *str);
 	void WriteFunction(const shader_func *func);
 	
 	void WriteInclude();
 	void WriteVariables();
+	void WriteSamplers();
 	void WriteStructs();
 	void WriteFunctions();
 };
 
-inline bool ShaderBuilder::WriteType(const string &type)
+static inline const char *GetType(const string &type)
 {
 	if (type == "texture2d")
-		output << "texture2d<float>";
+		return "texture2d<float>";
 	else if (type == "texture3d")
-		output << "texture3d<float>";
+		return "texture3d<float>";
 	else if (type == "texture_cube")
-		output << "texturecube<float>";
+		return "texturecube<float>";
 	else if (type == "texture_rect")
 		throw "texture_rect is not supported in Metal";
 	else if (type == "min10float")
@@ -179,40 +201,31 @@ inline bool ShaderBuilder::WriteType(const string &type)
 	else if (type == "double")
 		throw "double is not supported in Metal";
 	else if (type == "min16int")
-		output << "short";
+		return "short";
 	else if (type == "min16uint")
-		output << "ushort";
+		return "ushort";
 	else if (type == "min12int")
 		throw "min12int is not supported in Metal";
-	else
-		return false;
 	
-	return true;
+	return nullptr;
 }
 
 inline void ShaderBuilder::WriteType(const char *rawType)
 {
 	string type(rawType);
-	if (!WriteType(type))
-		output << type;
+	const char *newType = GetType(string(rawType));
+	output << (newType != nullptr ? newType : type);
 }
 
 inline bool ShaderBuilder::WriteTypeToken(struct cf_token *token)
 {
 	string type(token->str.array, token->str.len);
-	return WriteType(type);
-}
+	const char *newType = GetType(type);
+	if (newType == nullptr)
+		return false;
 
-inline void ShaderBuilder::WriteMapping(const char *rawMapping)
-{
-	if (rawMapping == nullptr)
-		return;
-	
-	string mapping(rawMapping);
-	if (mapping == "POSITION")
-		output << " [[position]]";
-	else if (mapping == "COLOR")
-		output << " [[color(0)]]";
+	output << newType;
+	return true;
 }
 
 inline void ShaderBuilder::WriteInclude()
@@ -232,39 +245,217 @@ inline void ShaderBuilder::WriteVariable(const shader_var *var)
 	output << ' ' << var->name;
 }
 
+static inline const char *GetMapping(const char *rawMapping)
+{
+	if (rawMapping == nullptr)
+		return nullptr;
+	
+	string mapping(rawMapping);
+	if (mapping == "POSITION")
+		return "position";
+	if (mapping == "COLOR")
+		return "color(0)";
+	
+	return nullptr;
+}
+
 inline void ShaderBuilder::WriteVariables()
 {
 	if (parser->params.num == 0)
 		return;
 	
-	output << "struct " << UNIFORM_DATA_NAME << " {" << endl;
+	bool isFirst = true;
 	for (struct shader_var *var = parser->params.array;
 	     var != parser->params.array + parser->params.num;
 	     var++) {
 		if (astrcmp_n("texture", var->type, 7) != 0) {
+			if (isFirst) {
+				output << "struct " << UNIFORM_DATA_NAME
+				       << " {" << endl;
+				isFirst = false;
+			}
+			
 			output << '\t';
 			WriteVariable(var);
-			WriteMapping(var->mapping);
+			
+			const char* mapping = GetMapping(var->mapping);
+			if (mapping != nullptr)
+				output << " [[" << mapping << "]]";
+			
 			output << ';' << endl;
 			
 			constantNames.emplace(var->name);
+			
 		} else
 			textureVars.emplace_back(var);
 	}
-	output << "};" << endl << endl;
+	if (!isFirst)
+		output << "};" << endl << endl;
+}
+
+inline void ShaderBuilder::WriteSamplerParamDelimitter(bool &first)
+{
+	if (!first)
+		output << "," << endl;
+	else
+		first = false;
+}
+
+inline void ShaderBuilder::WriteSamplerFilter(enum gs_sample_filter filter,
+		bool &first)
+{
+	if (filter != GS_FILTER_POINT) {
+		WriteSamplerParamDelimitter(first);
+		
+		switch (filter) {
+		case GS_FILTER_LINEAR:
+		case GS_FILTER_ANISOTROPIC:
+			output << "\tfilter::linear";
+			break;
+		case GS_FILTER_MIN_MAG_POINT_MIP_LINEAR:
+			output << "\tmag_filter::nearest," << endl
+			       << "\tmin_filter::nearest," << endl
+			       << "\tmip_filter::linear";
+			break;
+		case GS_FILTER_MIN_POINT_MAG_LINEAR_MIP_POINT:
+			output << "\tmag_filter::nearest," << endl
+			       << "\tmin_filter::nearest," << endl
+			       << "\tmip_filter::linear";
+			break;
+		case GS_FILTER_MIN_POINT_MAG_MIP_LINEAR:
+			output << "\tmag_filter::linear," << endl
+			       << "\tmin_filter::nearest," << endl
+			       << "\tmip_filter::linear";
+			break;
+		case GS_FILTER_MIN_LINEAR_MAG_MIP_POINT:
+			output << "\tmag_filter::nearest," << endl
+			       << "\tmin_filter::linear," << endl
+			       << "\tmip_filter::nearest";
+			break;
+		case GS_FILTER_MIN_LINEAR_MAG_POINT_MIP_LINEAR:
+			output << "\tmag_filter::nearest," << endl
+			       << "\tmin_filter::linear," << endl
+			       << "\tmip_filter::linear";
+			break;
+		case GS_FILTER_MIN_MAG_LINEAR_MIP_POINT:
+			output << "\tmag_filter::linear," << endl
+			       << "\tmin_filter::linear," << endl
+			       << "\tmip_filter::nearest";
+			break;
+		case GS_FILTER_POINT:
+		default:
+			throw "Unknown error";
+		}
+	}
+}
+
+inline void ShaderBuilder::WriteSamplerAddress(enum gs_address_mode address,
+		const char key, bool &first)
+{
+	if (address != GS_ADDRESS_CLAMP) {
+		WriteSamplerParamDelimitter(first);
+		
+		output << "\t" << key << "_address::";
+		switch (address)
+		{
+		case GS_ADDRESS_WRAP:
+			output << "repeat";
+			break;
+		case GS_ADDRESS_MIRROR:
+			output << "mirrored_repeat";
+			break;
+		case GS_ADDRESS_BORDER:
+			output << "clamp_to_border";
+			break;
+		case GS_ADDRESS_MIRRORONCE:
+			throw "Not to support mirrored_clamp_to_edge";
+		default:
+		case GS_ADDRESS_CLAMP:
+			throw "Unknown error";
+		}
+	}
+}
+
+inline void ShaderBuilder::WriteSamplerMaxAnisotropy(int maxAnisotropy,
+		bool &first)
+{
+	if (maxAnisotropy >= 2 && maxAnisotropy <= 16) {
+		WriteSamplerParamDelimitter(first);
+		
+		output << "\tmax_anisotropy(" << maxAnisotropy << ")";
+	}
+}
+
+inline void ShaderBuilder::WriteSamplerBorderColor(uint32_t borderColor,
+		bool &first)
+{
+	const bool isNotTransBlack = (borderColor & 0x000000FF) != 0;
+	const bool isOpaqueWhite = borderColor == 0xFFFFFFFF;
+	if (isNotTransBlack || isOpaqueWhite) {
+		WriteSamplerParamDelimitter(first);
+		
+		output << "\tborder_color::";
+		
+		if (isOpaqueWhite)
+			output << "opaque_white";
+		else if (isNotTransBlack)
+			output << "opaque_black";
+	}
+}
+
+inline void ShaderBuilder::WriteSampler(shader_sampler *sampler)
+{
+	gs_sampler_info si;
+	shader_sampler_convert(sampler, &si);
+	
+	output << "constexpr sampler " << sampler->name << "(" << endl;
+	
+	bool isFirst = true;
+	WriteSamplerFilter(si.filter, isFirst);
+	WriteSamplerAddress(si.address_u, 's', isFirst);
+	WriteSamplerAddress(si.address_v, 't', isFirst);
+	WriteSamplerAddress(si.address_w, 'r', isFirst);
+	WriteSamplerMaxAnisotropy(si.max_anisotropy, isFirst);
+	WriteSamplerBorderColor(si.border_color, isFirst);
+	
+	output << ");" << endl << endl;
+	
+}
+
+inline void ShaderBuilder::WriteSamplers()
+{
+	if (isPixelShader()) {
+		for (struct shader_sampler *sampler = parser->samplers.array;
+		     sampler != parser->samplers.array + parser->samplers.num;
+		     sampler++)
+			WriteSampler(sampler);
+	}
 }
 
 inline void ShaderBuilder::WriteStruct(const shader_struct *str)
 {
 	output << "struct " << str->name << " {" << endl;
+	
+	size_t attributeId = 0;
 	for (struct shader_var *var = str->vars.array;
 	     var != str->vars.array + str->vars.num;
 	     var++) {
 		output << '\t';
 		WriteVariable(var);
-		WriteMapping(var->mapping);
+		
+		const char* mapping = GetMapping(var->mapping);
+		if (isVertexShader()) {
+			output << " [[attribute(" << attributeId++
+			<< ")";
+			if (mapping != nullptr)
+				output << ", " << mapping;
+			output << "]]";
+		} /*else if (mapping != nullptr)
+			output << " [[" << mapping << "]]";*/
+			
 		output << ';' << endl;
 	}
+	
 	output << "};" << endl << endl;
 }
 
@@ -272,13 +463,12 @@ inline void ShaderBuilder::WriteStructs()
 {
 	for (struct shader_struct *str = parser->structs.array;
 	     str != parser->structs.array + parser->structs.num;
-	     str++) {
+	     str++)
 		WriteStruct(str);
-	}
 }
 
 /*
- * NOTE: HLSL-> Metal Shading Language intrinsic conversions
+ * NOTE: HLSL -> MSL intrinsic conversions
  *   clip     -> (unsupported)
  *   ddx      -> dfdx
  *   ddy      -> dfdy
@@ -323,6 +513,122 @@ inline bool ShaderBuilder::WriteConstantVariable(struct cf_token *token)
 	return false;
 }
 
+inline bool ShaderBuilder::WriteTextureCall(struct cf_token *&token,
+		ShaderTextureCallType type)
+{
+	struct cf_parser *cfp = &parser->cfp;
+	cfp->cur_token = token;
+	
+	/* ( */
+	if (!cf_next_token(cfp))    return false;
+	if (!cf_token_is(cfp, "(")) return false;
+	
+	/* sampler */
+	if (type != ShaderTextureCallType::Load) {
+		output << "sample(";
+		
+		if (!cf_next_token(cfp))    return false;
+		if (cfp->cur_token->type != CFTOKEN_NAME) return false;
+		output.write(cfp->cur_token->str.array,
+				cfp->cur_token->str.len);
+		
+		if (!cf_next_token(cfp))    return false;
+		if (!cf_token_is(cfp, ",")) return false;
+		output << ", ";
+	} else
+		output << "read((u";
+	
+	/* location */
+	if (!cf_next_token(cfp))    return false;
+	if (type != ShaderTextureCallType::Sample &&
+	    type != ShaderTextureCallType::Load) {
+		WriteFunctionContent(cfp->cur_token, ",");
+	
+		/* bias, gradient2d, level */
+		switch (type)
+		{
+		case ShaderTextureCallType::SampleBias:
+			output << "bias(";
+			if (!cf_next_token(cfp))    return false;
+			WriteFunctionContent(cfp->cur_token, ")");
+			output << ')';
+			break;
+			
+		case ShaderTextureCallType::SampleGrad:
+			output << "gradient2d(";
+			if (!cf_next_token(cfp))    return false;
+			WriteFunctionContent(cfp->cur_token, ",");
+			if (!cf_next_token(cfp))    return false;
+			WriteFunctionContent(cfp->cur_token, ")");
+			output << ')';
+			break;
+			
+		case ShaderTextureCallType::SampleLevel:
+			output << "level(";
+			if (!cf_next_token(cfp))    return false;
+			WriteFunctionContent(cfp->cur_token, ")");
+			output << ')';
+			break;
+		}
+	} else
+		WriteFunctionContent(cfp->cur_token, ")");
+	
+	/* ) */
+	if (type == ShaderTextureCallType::Load)
+		output << ").xy)";
+	else
+		output << ')';
+	
+	return true;
+}
+
+inline bool ShaderBuilder::WriteTextureCode(struct cf_token *&token,
+		struct shader_var *var)
+{
+	struct cf_parser *cfp = &parser->cfp;
+	bool succeeded = false;
+	cfp->cur_token = token;
+	
+	if (!cf_next_token(cfp))    return false;
+	if (!cf_token_is(cfp, ".")) return false;
+	output << var->name << ".";
+	
+	if (!cf_next_token(cfp))    return false;
+	if (cf_token_is(cfp, "Sample"))
+		succeeded = WriteTextureCall(cfp->cur_token,
+				ShaderTextureCallType::Sample);
+	else if (cf_token_is(cfp, "SampleBias"))
+		succeeded = WriteTextureCall(cfp->cur_token,
+				ShaderTextureCallType::SampleBias);
+	else if (cf_token_is(cfp, "SampleGrad"))
+		succeeded = WriteTextureCall(cfp->cur_token,
+				ShaderTextureCallType::SampleGrad);
+	else if (cf_token_is(cfp, "SampleLevel"))
+		succeeded = WriteTextureCall(cfp->cur_token,
+				ShaderTextureCallType::SampleLevel);
+	else if (cf_token_is(cfp, "Load"))
+		succeeded = WriteTextureCall(cfp->cur_token,
+				ShaderTextureCallType::Load);
+	
+	if (!succeeded)
+		throw "Failed to write texture code";
+	
+	token = cfp->cur_token;
+	return true;
+}
+
+inline struct shader_var *ShaderBuilder::GetVariable(struct cf_token *token)
+{
+	for (struct shader_var *var = parser->params.array;
+	     var != parser->params.array + parser->params.num;
+	     var++) {
+		if (strref_cmp(&token->str, var->name) == 0)
+			return var;
+	}
+	
+	return nullptr;
+}
+
 inline bool ShaderBuilder::WriteIntrinsic(struct cf_token *&token)
 {
 	bool written = true;
@@ -338,24 +644,105 @@ inline bool ShaderBuilder::WriteIntrinsic(struct cf_token *&token)
 	else if (strref_cmp(&token->str, "mul") == 0)
 		written = WriteMul(token);
 	else {
-		/*struct shader_var *var = sp_getparam(glsp, token);
-		if (var && astrcmp_n(var->type, "texture", 7) == 0)
+		struct shader_var *var = GetVariable(token);
+		if (var != nullptr && astrcmp_n(var->type, "texture", 7) == 0)
 			written = WriteTextureCode(token, var);
-		else*/
+		else
 			written = false;
 	}
 	
 	return written;
 }
 
+inline void ShaderBuilder::AnalysisFunction(struct cf_token *&token,
+		const char *end, ShaderFunctionInfo &info)
+{
+	while (token->type != CFTOKEN_NONE) {
+		token++;
+		
+		if (strref_cmp(&token->str, end) == 0)
+			break;
+		
+		if (token->type == CFTOKEN_NAME) {
+			string name(token->str.array, token->str.len);
+			
+			/* Check function */
+			auto fi = functionInfo.find(name);
+			if (fi != functionInfo.end()) {
+				if (fi->second.useUniform)
+					info.useUniform = true;
+				info.useTextures.insert(info.useTextures.end(),
+						fi->second.useTextures.begin(),
+						fi->second.useTextures.end());
+				continue;
+			}
+			
+			/* Check UniformData */
+			if (!info.useUniform &&
+			    constantNames.find(name) != constantNames.end()) {
+				info.useUniform = true;
+				continue;
+			}
+			
+			/* Check texture */
+			if (isPixelShader()) {
+				for (auto tex = textureVars.cbegin();
+				     tex != textureVars.cend();
+				     tex++) {
+					if (name == (*tex)->name) {
+						info.useTextures.emplace_back(
+								name);
+						break;
+					}
+				}
+			}
+			
+		} else if (token->type == CFTOKEN_OTHER) {
+			if (*token->str.array == '{')
+				AnalysisFunction(token, "}", info);
+			else if (*token->str.array == '(')
+				AnalysisFunction(token, ")", info);
+		}
+	}
+}
+
+inline void ShaderBuilder::WriteFunctionAdditionalParam(string funcionName)
+{
+	auto fi = functionInfo.find(funcionName);
+	if (fi != functionInfo.end()) {
+		if (fi->second.useUniform)
+			output << ", uniforms";
+		
+		auto &textures = fi->second.useTextures;
+		for (auto var = textureVars.cbegin();
+		     var != textureVars.cend();
+		     var++) {
+			for (auto tex = textures.cbegin();
+			     tex != textures.cend();
+			     tex++) {
+				if (*tex == (*var)->name) {
+					output << ", " << *tex;
+					break;
+				}
+			}
+		}
+	}
+}
+
 inline void ShaderBuilder::WriteFunctionContent(struct cf_token *&token,
 		const char *end)
 {
-	if (token->type != CFTOKEN_NAME ||
-	    (!WriteTypeToken(token) && !WriteIntrinsic(token) &&
-	     !WriteConstantVariable(token)))
+	string temp;
+	if (token->type != CFTOKEN_NAME)
 		output.write(token->str.array, token->str.len);
 	
+	else if((!WriteTypeToken(token) && !WriteIntrinsic(token) &&
+	     !WriteConstantVariable(token))) {
+		temp = string(token->str.array, token->str.len);
+		output << temp;
+	}
+	
+	bool dot = false;
 	while (token->type != CFTOKEN_NONE) {
 		token++;
 		
@@ -364,14 +751,22 @@ inline void ShaderBuilder::WriteFunctionContent(struct cf_token *&token,
 		
 		if (token->type == CFTOKEN_NAME) {
 			if (!WriteTypeToken(token) && !WriteIntrinsic(token) &&
-			    !WriteConstantVariable(token))
-				output.write(token->str.array, token->str.len);
+			    (dot || !WriteConstantVariable(token))) {
+				if (dot)
+					dot = false;
+				
+				temp = string(token->str.array, token->str.len);
+				output << temp;
+			}
 			
 		} else if (token->type == CFTOKEN_OTHER) {
 			if (*token->str.array == '{')
 				WriteFunctionContent(token, "}");
-			else if (*token->str.array == '(')
+			else if (*token->str.array == '(') {
 				WriteFunctionContent(token, ")");
+				WriteFunctionAdditionalParam(temp);
+			} else if (*token->str.array == '.')
+				dot = true;
 			
 			output.write(token->str.array, token->str.len);
 			
@@ -382,18 +777,27 @@ inline void ShaderBuilder::WriteFunctionContent(struct cf_token *&token,
 
 inline void ShaderBuilder::WriteFunction(const shader_func *func)
 {
-	const bool isMain = strcmp(func->name, "main") == 0;
-	const bool isPixelShader = type == GS_SHADER_PIXEL;
+	string funcName(func->name);
+	
+	const bool isMain = funcName == "main";
 	if (isMain) {
-		if (type == GS_SHADER_VERTEX)
+		if (isVertexShader())
 			output << "vertex ";
-		else if (isPixelShader)
+		else if (isPixelShader())
 			output << "fragment ";
 		else
 			throw "Failed to add shader prefix";
+		
+		funcName = "_main";
 	}
 	
-	output << func->return_type << ' ' << func->name << '(';
+	ShaderFunctionInfo info;
+	struct cf_token *token = func->start;
+	AnalysisFunction(token, "}", info);
+	unique(info.useTextures.begin(), info.useTextures.end());
+	functionInfo.emplace(funcName, info);
+	
+	output << func->return_type << ' ' << funcName << '(';
 	
 	bool isFirst = true;
 	for (struct shader_var *param = func->params.array;
@@ -415,7 +819,7 @@ inline void ShaderBuilder::WriteFunction(const shader_func *func)
 			isFirst = false;
 	}
 	
-	if (constantNames.size() != 0)
+	if (constantNames.size() != 0 && (isMain || info.useUniform))
 	{
 		if (!isFirst)
 			output << ", ";
@@ -429,12 +833,26 @@ inline void ShaderBuilder::WriteFunction(const shader_func *func)
 			isFirst = false;
 	}
 	
-	if (isPixelShader)
+	if (isPixelShader())
 	{
 		size_t textureId = 0;
 		for (auto var = textureVars.cbegin();
 		     var != textureVars.cend();
 		     var++) {
+			if (!isMain) {
+				bool additional = false;
+				for (auto tex = info.useTextures.cbegin();
+				     tex != info.useTextures.cend();
+				     tex++) {
+					if (*tex == (*var)->name) {
+						additional = true;
+						break;
+					}
+				}
+				if (!additional)
+					continue;
+			}
+			
 			if (!isFirst)
 				output << ", ";
 			
@@ -450,7 +868,7 @@ inline void ShaderBuilder::WriteFunction(const shader_func *func)
 	
 	output << ")" << endl;
 	
-	struct cf_token *token = func->start;
+	token = func->start;
 	WriteFunctionContent(token, "}");
 	
 	output << '}' << endl << endl;
@@ -467,6 +885,7 @@ inline void ShaderBuilder::WriteFunctions()
 string ShaderBuilder::Build()
 {
 	WriteInclude();
+	WriteSamplers();
 	WriteVariables();
 	WriteStructs();
 	WriteFunctions();

@@ -57,7 +57,6 @@ gs_pixel_shader::gs_pixel_shader(gs_device_t *device, const char *file,
 	processor.Process(shaderString, file);
 	processor.BuildString(type, outputString);
 	processor.BuildParams(params);
-	processor.BuildSamplers(samplers);
 	BuildConstantBuffer();
 
 	Compile(outputString.c_str(), library, function);
@@ -96,8 +95,11 @@ void gs_shader::BuildConstantBuffer()
 		case GS_SHADER_PARAM_BOOL:
 		case GS_SHADER_PARAM_INT:
 		case GS_SHADER_PARAM_FLOAT:     size = sizeof(float);     break;
+		case GS_SHADER_PARAM_INT2:
 		case GS_SHADER_PARAM_VEC2:      size = sizeof(vec2);      break;
+		case GS_SHADER_PARAM_INT3:
 		case GS_SHADER_PARAM_VEC3:      size = sizeof(float) * 3; break;
+		case GS_SHADER_PARAM_INT4:
 		case GS_SHADER_PARAM_VEC4:      size = sizeof(vec4);      break;
 		case GS_SHADER_PARAM_MATRIX4X4:
 			size = sizeof(float) * 4 * 4;
@@ -155,13 +157,16 @@ void gs_shader::Compile(const char *shaderString, id<MTLLibrary> &library,
 	library = [device->device newLibraryWithSource:nsShaderString
 			options:options error:&errors];
 	if (library == nil) {
+		blog(LOG_DEBUG, "Converted shader program:\n%s\n------\n",
+			shaderString);
+		
 		if (errors != nil)
 			throw ShaderError(errors);
 		else
 			throw "Failed to compile shader";
 	}
 	
-	function = [library newFunctionWithName:@"main"];
+	function = [library newFunctionWithName:@"_main"];
 	if (function == nil)
 		throw "Failed to create function";
 }

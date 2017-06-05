@@ -29,7 +29,7 @@ gs_stage_surface::gs_stage_surface(gs_device_t *device, uint32_t width,
 	textureDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:
 			ConvertGSTextureFormat(colorFormat)
 			width:width height:height mipmapped:NO];
-	textureDesc.storageMode = MTLStorageModeShared;
+	textureDesc.storageMode = MTLStorageModePrivate;
 	
 	InitTexture();
 }

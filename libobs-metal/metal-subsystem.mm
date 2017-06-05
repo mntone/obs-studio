@@ -134,7 +134,9 @@ gs_device::gs_device(uint32_t adapterIdx)
 
 	InitDevice(adapterIdx);
 	
+	commandQueue = [device newCommandQueue];
 	passDesc = [MTLRenderPassDescriptor new];
+	pipelineDesc = [MTLRenderPipelineDescriptor new];
 	
 	device_set_render_target(this, nullptr, nullptr);
 }
@@ -679,9 +681,6 @@ void device_set_render_target(gs_device_t *device, gs_texture_t *tex,
 	device->curRenderTarget   = tex2d;
 	device->curRenderSide     = 0;
 	device->curZStencilBuffer = zstencil;
-	
-	device->passDesc.colorAttachments[0].texture = tex2d->texture;
-	device->passDesc.stencilAttachment.texture   = zstencil->texture;
 }
 
 void device_set_cube_render_target(gs_device_t *device, gs_texture_t *tex,
@@ -718,9 +717,6 @@ void device_set_cube_render_target(gs_device_t *device, gs_texture_t *tex,
 	device->curRenderTarget   = tex2d;
 	device->curRenderSide     = side;
 	device->curZStencilBuffer = zstencil;
-	
-	device->passDesc.colorAttachments[0].texture = tex2d->texture;
-	device->passDesc.stencilAttachment.texture   = zstencil->texture;
 }
 
 inline void gs_device::CopyTex(id<MTLTexture> dst,

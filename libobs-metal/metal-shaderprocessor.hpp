@@ -13,7 +13,6 @@ struct ShaderProcessor {
 
 	void BuildInputLayout(MTLVertexDescriptor *vertexDesc);
 	void BuildParams(vector<gs_shader_param> &params);
-	void BuildSamplers(vector<unique_ptr<ShaderSampler>> &samplers);
 	void BuildString(gs_shader_type type, string &outputString);
 	void Process(const char *shader_string, const char *file);
 
