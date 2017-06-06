@@ -449,7 +449,7 @@ struct gs_shader : gs_obj {
 	size_t                  constantSize;
 
 	inline void UpdateParam(uint8_t *data, gs_shader_param &param);
-	void UploadParams();
+	void UploadParams(id<MTLRenderCommandEncoder> commandEncoder);
 
 	void BuildConstantBuffer();
 	void Compile(const char *shaderStr, id<MTLLibrary> &library,
@@ -706,7 +706,9 @@ struct gs_device {
     
 	void InitDevice(uint32_t adapterIdx);
 	
-	void LoadVertexBufferData(id<MTLRenderCommandEncoder> commandEncoder);
+	void LoadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder);
+	void LoadTextures(id<MTLRenderCommandEncoder> commandEncoder);
+	void LoadSamplers(id<MTLRenderCommandEncoder> commandEncoder);
 	void LoadRasterState(id<MTLRenderCommandEncoder> commandEncoder);
 	void LoadZStencilState(id<MTLRenderCommandEncoder> commandEncoder);
 	void Draw(id<MTLRenderCommandEncoder> commandEncoder,

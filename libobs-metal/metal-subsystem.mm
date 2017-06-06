@@ -54,6 +54,57 @@ void gs_device::InitDevice(uint32_t deviceIdx)
 			featureSetFamily, featureSetVersion);
 }
 
+
+void gs_device::LoadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder)
+{
+	NSRange               range;
+	vector<id<MTLBuffer>> buffers;
+	vector<NSUInteger>    offsets;
+	
+	if (curVertexBuffer && curVertexShader) {
+		curVertexBuffer->MakeBufferList(curVertexShader, buffers);
+	} else {
+		size_t buffersToClear = curVertexShader ?
+				curVertexShader->NumBuffersExpected() : 0;
+		buffers.resize(buffersToClear);
+	}
+	
+	range.location = 0;
+	range.length   = buffers.size();
+	offsets.resize(buffers.size());
+	
+	[commandEncoder setVertexBuffers:buffers.data()
+			offsets:offsets.data() withRange:range];
+	
+	lastVertexBuffer = curVertexBuffer;
+	lastVertexShader = curVertexShader;
+}
+
+
+void gs_device::LoadTextures(id<MTLRenderCommandEncoder> commandEncoder)
+{
+	for (size_t i = 0; i < GS_MAX_TEXTURES; ++i) {
+		gs_texture_2d *tex2d = static_cast<gs_texture_2d*>(
+				curTextures[i]);
+		if (tex2d != nullptr) {
+			[commandEncoder setFragmentTexture:tex2d->texture
+					atIndex:i];
+		}
+	}
+}
+
+void gs_device::LoadSamplers(id<MTLRenderCommandEncoder> commandEncoder)
+{
+	for (size_t i = 0; i < GS_MAX_TEXTURES; ++i) {
+		gs_sampler_state *s = static_cast<gs_sampler_state*>(
+				curSamplers[i]);
+		if (s != nullptr) {
+			[commandEncoder setFragmentSamplerState:s->samplerState
+					atIndex:i];
+		}
+	}
+}
+
 void gs_device::LoadRasterState(id<MTLRenderCommandEncoder> commandEncoder)
 {
 	[commandEncoder setViewport:rasterState.mtlViewport];
@@ -482,31 +533,6 @@ enum gs_texture_type device_get_texture_type(const gs_texture_t *texture)
 	return texture->type;
 }
 
-void gs_device::LoadVertexBufferData(id<MTLRenderCommandEncoder> commandEncoder)
-{
-	NSRange               range;
-	vector<id<MTLBuffer>> buffers;
-	vector<NSUInteger>    offsets;
-
-	if (curVertexBuffer && curVertexShader) {
-		curVertexBuffer->MakeBufferList(curVertexShader, buffers);
-	} else {
-		size_t buffersToClear = curVertexShader ?
-				curVertexShader->NumBuffersExpected() : 0;
-		buffers.resize(buffersToClear);
-	}
-
-	range.location = 0;
-	range.length   = buffers.size();
-	offsets.resize(buffers.size());
-	
-	[commandEncoder setVertexBuffers:buffers.data()
-			offsets:offsets.data() withRange:range];
-	
-	lastVertexBuffer = curVertexBuffer;
-	lastVertexShader = curVertexShader;
-}
-
 void device_load_vertexbuffer(gs_device_t *device, gs_vertbuffer_t *vertbuffer)
 {
 	if (device->curVertexBuffer == vertbuffer)
@@ -891,12 +917,14 @@ void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 		if (effect)
 			gs_effect_update_params(effect);
 		
-		device->LoadVertexBufferData(commandEncoder);
+		device->LoadVertexBuffer(commandEncoder);
+		device->LoadTextures(commandEncoder);
+		device->LoadSamplers(commandEncoder);
 		device->LoadRasterState(commandEncoder);
 		device->LoadZStencilState(commandEncoder);
 		device->UpdateViewProjMatrix();
-		device->curVertexShader->UploadParams();
-		device->curPixelShader->UploadParams();
+		device->curVertexShader->UploadParams(commandEncoder);
+		device->curPixelShader->UploadParams(commandEncoder);
 		device->Draw(commandEncoder, draw_mode, start_vert, num_verts);
 
 	} catch (const char *error) {

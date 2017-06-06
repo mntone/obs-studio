@@ -181,7 +181,7 @@ inline void gs_shader::UpdateParam(uint8_t *data, gs_shader_param &param)
 	}
 }
 
-void gs_shader::UploadParams()
+void gs_shader::UploadParams(id<MTLRenderCommandEncoder> commandEncoder)
 {
 	uint8_t *data;
 	
@@ -189,6 +189,8 @@ void gs_shader::UploadParams()
 	
 	for (size_t i = 0; i < params.size(); i++)
 		UpdateParam(data, params[i]);
+	
+	[commandEncoder setVertexBuffer:constants offset:0 atIndex:0];
 }
 
 void gs_shader_destroy(gs_shader_t *shader)
