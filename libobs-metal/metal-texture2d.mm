@@ -25,6 +25,14 @@ void gs_texture_2d::BackupTexture(const uint8_t **data)
 	}
 }
 
+void gs_texture_2d::UploadTexture(const uint8_t **data)
+{
+	uint32_t rowSizeBytes = width  * gs_get_format_bpp(format);
+	MTLRegion region = MTLRegionMake2D(0, 0, width, height);
+	[texture replaceRegion:region mipmapLevel:levels
+			withBytes:data bytesPerRow:rowSizeBytes];
+}
+
 void gs_texture_2d::InitTexture()
 {
 	assert(!isShared);
@@ -88,20 +96,22 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, uint32_t width,
 	}
 	textureDesc.mipmapLevelCount = genMipmaps ? 0 : levels;
 	textureDesc.arrayLength      = type == GS_TEXTURE_CUBE ? 6 : 1;
-	textureDesc.cpuCacheMode     = isDynamic
-			? MTLCPUCacheModeWriteCombined
-			: MTLCPUCacheModeDefaultCache;
-	textureDesc.storageMode      = isDynamic
-			? MTLStorageModeManaged
-			: MTLStorageModePrivate;
-	textureDesc.usage            = isRenderTarget
-			? MTLTextureUsageRenderTarget
-			: MTLTextureUsageShaderRead;
-	
-	if (data)
-		BackupTexture(data);
+	textureDesc.cpuCacheMode     = isDynamic ?
+			MTLCPUCacheModeWriteCombined :
+			MTLCPUCacheModeDefaultCache;
+	textureDesc.storageMode      = isDynamic ?
+			MTLStorageModeManaged :
+			MTLStorageModePrivate;
+	textureDesc.usage            = isRenderTarget ?
+			MTLTextureUsageRenderTarget :
+			MTLTextureUsageShaderRead;
 	
 	InitTexture();
+	
+	if (data) {
+		BackupTexture(data);
+		UploadTexture(data);
+	}
 }
 
 gs_texture_2d::gs_texture_2d(gs_device_t *device, id<MTLTexture> texture)
@@ -118,4 +128,5 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, id<MTLTexture> texture)
 	  mtlPixelFormat  (texture.pixelFormat),
 	  texture         (texture)
 {
+	[texture retain];
 }

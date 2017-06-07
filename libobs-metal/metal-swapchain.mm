@@ -2,36 +2,20 @@
 
 #import <QuartzCore/QuartzCore.h>
 
-void gs_swap_chain::InitTarget(uint32_t cx, uint32_t cy)
+gs_texture_2d *gs_swap_chain::NextTarget()
 {
-	if (target != nullptr) {
-		delete target;
-		target = nullptr;
-	}
+	if (nextTarget != nullptr)
+		delete nextTarget;
 	
-	target = new gs_texture_2d(device, metalView.currentDrawable.texture);
+	if (nextDrawable != nil)
+		[nextDrawable release];
 	
-	UNUSED_PARAMETER(cx);
-	UNUSED_PARAMETER(cy);
-}
-
-void gs_swap_chain::InitZStencilBuffer(uint32_t cx, uint32_t cy)
-{
-	if (zs != nullptr) {
-		delete zs;
-		zs = nullptr;
-	}
+	nextDrawable = metalLayer.nextDrawable;
 	
-	zs = new gs_zstencil_buffer(device, metalView.depthStencilTexture);
+	if (nextDrawable != nil)
+		nextTarget = new gs_texture_2d(device, nextDrawable.texture);
 	
-	UNUSED_PARAMETER(cx);
-	UNUSED_PARAMETER(cy);
-}
-
-void gs_swap_chain::Init()
-{
-	InitTarget(initData.cx, initData.cy);
-	InitZStencilBuffer(initData.cx, initData.cy);
+	return nextTarget;
 }
 
 void gs_swap_chain::Resize(uint32_t cx, uint32_t cy)
@@ -47,9 +31,7 @@ void gs_swap_chain::Resize(uint32_t cx, uint32_t cy)
 		if (cy == 0) cy = clientRect.size.height - clientRect.origin.y;
 	}
 	
-	[metalView setFrame:NSMakeRect(0, 0, cx, cy)];
-	
-	Init();
+	[metalLayer setFrame:CGRectMake(0, 0, cx, cy)];
 }
 
 gs_swap_chain::gs_swap_chain(gs_device *device, const gs_init_data *data)
@@ -62,15 +44,15 @@ gs_swap_chain::gs_swap_chain(gs_device *device, const gs_init_data *data)
 	
 	frameRect = CGRectMake(0, 0, initData.cx, initData.cy);
 	
-	metalView = [[MTKView alloc] initWithFrame:frameRect
-		device:device->device];
-	metalView.sampleCount = numBuffers;
+	metalLayer = [CAMetalLayer new];
+	metalLayer.device = device->device;
+	//metalLayer.pixelFormat = ConvertGSTextureFormat(data->format);
+	metalLayer.frame = frameRect;
+	[view.layer addSublayer:metalLayer];
 	
 	/*if (metalView.colorPixelFormat !=
 			ConvertGSTextureFormat(data->format) ||
 	    metalView.depthStencilPixelFormat !=
 			ConvertGSZStencilFormat(data->zsformat))
 		throw "Incompabile format";*/
-	
-	Init();
 }

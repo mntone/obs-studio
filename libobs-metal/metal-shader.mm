@@ -190,7 +190,7 @@ void gs_shader::UploadParams(id<MTLRenderCommandEncoder> commandEncoder)
 	for (size_t i = 0; i < params.size(); i++)
 		UpdateParam(data, params[i]);
 	
-	[commandEncoder setVertexBuffer:constants offset:0 atIndex:0];
+	[commandEncoder setVertexBuffer:constants offset:0 atIndex:1];
 }
 
 void gs_shader_destroy(gs_shader_t *shader)
@@ -224,7 +224,7 @@ gs_sparam_t *gs_shader_get_param_by_name(gs_shader_t *shader, const char *name)
 gs_sparam_t *gs_shader_get_viewproj_matrix(const gs_shader_t *shader)
 {
 	if (shader->type != GS_SHADER_VERTEX)
-		return NULL;
+		return nullptr;
 
 	return static_cast<const gs_vertex_shader*>(shader)->viewProj;
 }
@@ -232,7 +232,7 @@ gs_sparam_t *gs_shader_get_viewproj_matrix(const gs_shader_t *shader)
 gs_sparam_t *gs_shader_get_world_matrix(const gs_shader_t *shader)
 {
 	if (shader->type != GS_SHADER_VERTEX)
-		return NULL;
+		return nullptr;
 
 	return static_cast<const gs_vertex_shader*>(shader)->world;
 }

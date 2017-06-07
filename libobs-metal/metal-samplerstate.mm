@@ -109,7 +109,7 @@ inline void gs_sampler_state::InitSampler()
 inline void gs_sampler_state::Rebuild(id<MTLDevice> dev)
 {
 	if (samplerState != nil) {
-		CFRelease(samplerState);
+		[samplerState release];
 		samplerState = nil;
 	}
 	

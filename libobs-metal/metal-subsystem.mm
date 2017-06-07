@@ -55,7 +55,7 @@ void gs_device::InitDevice(uint32_t deviceIdx)
 }
 
 
-void gs_device::LoadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder)
+void gs_device::UploadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder)
 {
 	NSRange               range;
 	vector<id<MTLBuffer>> buffers;
@@ -81,7 +81,7 @@ void gs_device::LoadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder)
 }
 
 
-void gs_device::LoadTextures(id<MTLRenderCommandEncoder> commandEncoder)
+void gs_device::UploadTextures(id<MTLRenderCommandEncoder> commandEncoder)
 {
 	for (size_t i = 0; i < GS_MAX_TEXTURES; ++i) {
 		gs_texture_2d *tex2d = static_cast<gs_texture_2d*>(
@@ -302,7 +302,7 @@ gs_swapchain_t *device_swapchain_create(gs_device_t *device,
 
 void device_resize(gs_device_t *device, uint32_t cx, uint32_t cy)
 {
-	if (!device->curSwapChain) {
+	if (device->curSwapChain == nullptr) {
 		blog(LOG_WARNING, "device_resize (Metal): No active swap");
 		return;
 	}
@@ -331,7 +331,8 @@ void device_resize(gs_device_t *device, uint32_t cx, uint32_t cy)
 void device_get_size(const gs_device_t *device, uint32_t *cx, uint32_t *cy)
 {
 	if (device->curSwapChain) {
-		NSRect curRect = [device->curSwapChain->metalView frame];
+		CGRect curRect = [device->curSwapChain->metalLayer frame];
+		//NSRect curRect = [device->curSwapChain->metalView frame];
 		*cx = curRect.size.width - curRect.origin.x;
 		*cy = curRect.size.height - curRect.origin.y;
 	} else {
@@ -344,7 +345,8 @@ void device_get_size(const gs_device_t *device, uint32_t *cx, uint32_t *cy)
 uint32_t device_get_width(const gs_device_t *device)
 {
 	if (device->curSwapChain) {
-		NSRect curRect = [device->curSwapChain->metalView frame];
+		CGRect curRect = [device->curSwapChain->metalLayer frame];
+		//NSRect curRect = [device->curSwapChain->metalView frame];
 		return curRect.size.width - curRect.origin.x;
 	} else {
 		blog(LOG_ERROR, "device_get_size (Metal): No active swap");
@@ -355,7 +357,8 @@ uint32_t device_get_width(const gs_device_t *device)
 uint32_t device_get_height(const gs_device_t *device)
 {
 	if (device->curSwapChain) {
-		NSRect curRect = [device->curSwapChain->metalView frame];
+		CGRect curRect = [device->curSwapChain->metalLayer frame];
+		//NSRect curRect = [device->curSwapChain->metalView frame];
 		return curRect.size.height - curRect.origin.y;
 	} else {
 		blog(LOG_ERROR, "device_get_size (Metal): No active swap");
@@ -602,8 +605,6 @@ void device_load_vertexshader(gs_device_t *device, gs_shader_t *vertshader)
 static inline void clear_textures(gs_device_t *device)
 {
 	memset(device->curTextures, 0, sizeof(device->curTextures));
-	for (size_t i = 0; i < GS_MAX_TEXTURES; i++)
-		device->passDesc.colorAttachments[i].texture = nil;
 }
 
 void device_load_pixelshader(gs_device_t *device, gs_shader_t *pixelshader)
@@ -661,7 +662,7 @@ gs_shader_t *device_get_pixel_shader(const gs_device_t *device)
 
 gs_texture_t *device_get_render_target(const gs_device_t *device)
 {
-	if (device->curRenderTarget == device->curSwapChain->target)
+	if (device->curSwapChain != nullptr)
 		return nullptr;
 
 	return device->curRenderTarget;
@@ -669,7 +670,7 @@ gs_texture_t *device_get_render_target(const gs_device_t *device)
 
 gs_zstencil_t *device_get_zstencil_target(const gs_device_t *device)
 {
-	if (device->curZStencilBuffer == device->curSwapChain->zs)
+	if (device->curSwapChain != nullptr)
 		return nullptr;
 
 	return device->curZStencilBuffer;
@@ -678,13 +679,6 @@ gs_zstencil_t *device_get_zstencil_target(const gs_device_t *device)
 void device_set_render_target(gs_device_t *device, gs_texture_t *tex,
 		gs_zstencil_t *zstencil)
 {
-	if (device->curSwapChain) {
-		if (!tex)
-			tex = device->curSwapChain->target;
-		if (!zstencil)
-			zstencil = device->curSwapChain->zs;
-	}
-
 	if (device->curRenderTarget   == tex &&
 	    device->curZStencilBuffer == zstencil)
 		return;
@@ -705,32 +699,26 @@ void device_set_render_target(gs_device_t *device, gs_texture_t *tex,
 	device->curRenderTarget   = tex2d;
 	device->curRenderSide     = 0;
 	device->curZStencilBuffer = zstencil;
+	device->curSwapChain      = nullptr;
 	
 	if (tex2d != nullptr) {
 		device->passDesc.colorAttachments[0].texture = tex2d->texture;
 		device->pipelineDesc.colorAttachments[0].pixelFormat =
 				tex2d->mtlPixelFormat;
-	}
+	} else
+		device->passDesc.colorAttachments[0].texture = nil;
+	
 	if (zstencil != nullptr) {
 		device->passDesc.depthAttachment.texture = zstencil->texture;
 		device->pipelineDesc.depthAttachmentPixelFormat =
 				zstencil->mtlPixelFormat;
-	}
+	} else
+		device->passDesc.depthAttachment.texture = nil;
 }
 
 void device_set_cube_render_target(gs_device_t *device, gs_texture_t *tex,
 		int side, gs_zstencil_t *zstencil)
 {
-	if (device->curSwapChain) {
-		if (!tex) {
-			tex = device->curSwapChain->target;
-			side = 0;
-		}
-
-		if (!zstencil)
-			zstencil = device->curSwapChain->zs;
-	}
-
 	if (device->curRenderTarget   == tex  &&
 	    device->curRenderSide     == side &&
 	    device->curZStencilBuffer == zstencil)
@@ -752,18 +740,21 @@ void device_set_cube_render_target(gs_device_t *device, gs_texture_t *tex,
 	device->curRenderTarget   = tex2d;
 	device->curRenderSide     = side;
 	device->curZStencilBuffer = zstencil;
+	device->curSwapChain      = nullptr;
 	
 	if (tex2d != nullptr) {
 		device->passDesc.colorAttachments[0].texture = tex2d->texture;
 		device->pipelineDesc.colorAttachments[0].pixelFormat =
 				tex2d->mtlPixelFormat;
-	}
+	} else
+		device->passDesc.colorAttachments[0].texture = nil;
+	
 	if (zstencil != nullptr) {
 		device->passDesc.depthAttachment.texture = zstencil->texture;
 		device->pipelineDesc.depthAttachmentPixelFormat =
 				zstencil->mtlPixelFormat;
-	}
-
+	} else
+		device->passDesc.depthAttachment.texture = nil;
 }
 
 inline void gs_device::CopyTex(id<MTLTexture> dst,
@@ -878,8 +869,6 @@ void device_stage_texture(gs_device_t *device, gs_stagesurf_t *dst,
 void device_begin_scene(gs_device_t *device)
 {
 	device->passDesc.colorAttachments[0].loadAction = MTLLoadActionLoad;
-	
-	device->commandBuffer = [device->commandQueue commandBuffer];
 }
 
 void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
@@ -896,9 +885,16 @@ void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 		return;
 	}
 	
-	id<MTLRenderCommandEncoder> commandEncoder = [device->commandBuffer
+	if (device->curSwapChain != nullptr)
+		device->passDesc.colorAttachments[0].texture =
+				device->curSwapChain->NextTarget()->texture;
+	
+	id<MTLCommandBuffer> commandBuffer =
+			[device->commandQueue commandBuffer];
+	id<MTLRenderCommandEncoder> commandEncoder = [commandBuffer
 			  renderCommandEncoderWithDescriptor:device->passDesc];
 	[commandEncoder setRenderPipelineState:pipelineState];
+	[pipelineState release];
 	
 	try {
 		if (!device->curVertexShader)
@@ -917,14 +913,14 @@ void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 		if (effect)
 			gs_effect_update_params(effect);
 		
-		device->LoadVertexBuffer(commandEncoder);
-		device->LoadTextures(commandEncoder);
 		device->LoadSamplers(commandEncoder);
 		device->LoadRasterState(commandEncoder);
 		device->LoadZStencilState(commandEncoder);
 		device->UpdateViewProjMatrix();
 		device->curVertexShader->UploadParams(commandEncoder);
 		device->curPixelShader->UploadParams(commandEncoder);
+		device->UploadVertexBuffer(commandEncoder);
+		device->UploadTextures(commandEncoder);
 		device->Draw(commandEncoder, draw_mode, start_vert, num_verts);
 
 	} catch (const char *error) {
@@ -932,6 +928,15 @@ void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 	}
 	
 	[commandEncoder endEncoding];
+	[commandEncoder release];
+	
+	[commandBuffer commit];
+	[commandBuffer waitUntilCompleted];
+	[commandBuffer release];
+	
+	device->passDesc.colorAttachments[0].loadAction = MTLLoadActionLoad;
+	device->passDesc.depthAttachment.loadAction     = MTLLoadActionLoad;
+	device->passDesc.stencilAttachment.loadAction   = MTLLoadActionLoad;
 }
 
 void device_end_scene(gs_device_t *device)
@@ -942,25 +947,16 @@ void device_end_scene(gs_device_t *device)
 
 void device_load_swapchain(gs_device_t *device, gs_swapchain_t *swapchain)
 {
-	gs_texture_t  *target = device->curRenderTarget;
-	gs_zstencil_t *zs     = device->curZStencilBuffer;
-	bool is_cube = device->curRenderTarget ?
-		(device->curRenderTarget->type == GS_TEXTURE_CUBE) : false;
-
-	if (device->curSwapChain) {
-		if (target == device->curSwapChain->target)
-			target = nullptr;
-		if (zs == device->curSwapChain->zs)
-			zs = nullptr;
-	}
-
-	device->curSwapChain = swapchain;
-
-	if (is_cube)
-		device_set_cube_render_target(device, target,
-				device->curRenderSide, zs);
-	else
-		device_set_render_target(device, target, zs);
+	if (device->curSwapChain == swapchain)
+		return;
+	
+	device->curRenderTarget   = nullptr;
+	device->curRenderSide     = 0;
+	device->curZStencilBuffer = nullptr;
+	device->curSwapChain      = swapchain;
+	
+	device->passDesc.colorAttachments[0].texture = nil;
+	device->passDesc.depthAttachment.texture = nil;
 }
 
 void device_clear(gs_device_t *device, uint32_t clear_flags,
@@ -974,20 +970,31 @@ void device_clear(gs_device_t *device, uint32_t clear_flags,
 				color->x, color->y, color->z, color->w);
 	}
 
-	if ((clear_flags & GS_CLEAR_DEPTH) != 0)
-		device->passDesc.depthAttachment.clearDepth = depth;
+	if ((clear_flags & GS_CLEAR_DEPTH) != 0) {
+		MTLRenderPassDepthAttachmentDescriptor *depthAttachment =
+				device->passDesc.depthAttachment;
+		depthAttachment.loadAction = MTLLoadActionClear;
+		depthAttachment.clearDepth = depth;
+	}
 	
-	if ((clear_flags & GS_CLEAR_STENCIL) != 0)
-		device->passDesc.stencilAttachment.clearStencil = stencil;
+	if ((clear_flags & GS_CLEAR_STENCIL) != 0) {
+		MTLRenderPassStencilAttachmentDescriptor *stencilAttachment =
+				device->passDesc.stencilAttachment;
+		stencilAttachment.loadAction   = MTLLoadActionClear;
+		stencilAttachment.clearStencil = stencil;
+	}
 }
 
 void device_present(gs_device_t *device)
 {
 	if (device->curSwapChain) {
-		id<CAMetalDrawable> drawable =
-				device->curSwapChain->metalView.currentDrawable;
-		[device->commandBuffer presentDrawable:drawable];
-		[device->commandBuffer commit];
+		id<MTLCommandBuffer> commandBuffer =
+				[device->commandQueue commandBuffer];
+		[commandBuffer presentDrawable:
+				device->curSwapChain->nextDrawable];
+		[commandBuffer commit];
+		[commandBuffer waitUntilCompleted];
+		[commandBuffer release];
 	} else {
 		blog(LOG_WARNING, "device_present (Metal): No active swap");
 	}

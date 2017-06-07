@@ -255,9 +255,18 @@ struct gs_vertex_buffer : gs_obj {
 	inline void Release()
 	{
 		[vertexBuffer release];
-		[normalBuffer release];
-		[colorBuffer release];
-		[tangentBuffer release];
+		if (normalBuffer != nil) {
+			[normalBuffer release];
+			normalBuffer = nil;
+		}
+		if (colorBuffer != nil) {
+			[colorBuffer release];
+			colorBuffer = nil;
+		}
+		if (tangentBuffer != nil) {
+			[tangentBuffer release];
+			tangentBuffer = nil;
+		}
 		for (auto uvBuffer : uvBuffers)
 			[uvBuffer release];
 		uvBuffers.clear();
@@ -321,16 +330,19 @@ struct gs_texture_2d : gs_texture {
 	vector<vector<uint8_t>> data;
 
 	void BackupTexture(const uint8_t **data);
+	void UploadTexture(const uint8_t **data);
 	void InitTexture();
 	
 	inline void Rebuild(id<MTLDevice> dev);
 
 	inline void Release()
 	{
-		if (!isShared) {
-			[texture release];
+		[texture release];
+		if (!isShared)
 			[textureDesc release];
-		}
+		
+		texture = nil;
+		textureDesc = nil;
 	}
 	
 	inline uint32_t bytesPerRow() const
@@ -365,6 +377,9 @@ struct gs_zstencil_buffer : gs_obj {
 			[texture release];
 			[textureDesc release];
 		}
+		
+		texture = nil;
+		textureDesc = nil;
 	}
 
 	gs_zstencil_buffer(gs_device_t *device, uint32_t width,
@@ -442,10 +457,10 @@ struct ShaderError {
 
 struct gs_shader : gs_obj {
 	gs_shader_type          type;
-	id<MTLLibrary>          library;
-	id<MTLFunction>         function;
+	id<MTLLibrary>          library = nil;
+	id<MTLFunction>         function = nil;
 	vector<gs_shader_param> params;
-	id<MTLBuffer>           constants;
+	id<MTLBuffer>           constants = nil;
 	size_t                  constantSize;
 
 	inline void UpdateParam(uint8_t *data, gs_shader_param &param);
@@ -493,6 +508,7 @@ struct gs_vertex_shader : gs_shader {
 	inline void Release()
 	{
 		[function release];
+		[library release];
 		[vertexDesc release];
 		[constants release];
 	}
@@ -519,6 +535,7 @@ struct gs_pixel_shader : gs_shader {
 	inline void Release()
 	{
 		[function release];
+		[library release];
 		[constants release];
 	}
 
@@ -536,27 +553,31 @@ struct gs_pixel_shader : gs_shader {
 };
 
 struct gs_swap_chain : gs_obj {
-	uint32_t           numBuffers;
-	NSView             *view = nil;
-	MTKView            *metalView;
+	uint32_t            numBuffers;
+	NSView              *view = nil;
+	CAMetalLayer        *metalLayer = nil;
 	
-	gs_init_data       initData;
-	gs_texture_2d      *target = nullptr;
-	gs_zstencil_buffer *zs     = nullptr;
+	gs_init_data        initData;
+	id<CAMetalDrawable> nextDrawable = nil;
+	gs_texture_2d       *nextTarget = nullptr;
 	
-	void InitTarget(uint32_t cx, uint32_t cy);
-	void InitZStencilBuffer(uint32_t cx, uint32_t cy);
-	void Init();
+	gs_texture_2d *NextTarget();
 	void Resize(uint32_t cx, uint32_t cy);
 
 	inline void Rebuild(id<MTLDevice> dev);
 
 	inline void Release()
 	{
-		[metalView release];
+		if (nextTarget != nullptr) {
+			delete nextTarget;
+			nextTarget = nullptr;
+		}
+		if (nextDrawable != nil) {
+			[nextDrawable release];
+			nextDrawable = nil;
+		}
+		[metalLayer release];
 		view = nil;
-		delete target;
-		delete zs;
 	}
 
 	gs_swap_chain(gs_device *device, const gs_init_data *data);
@@ -625,10 +646,10 @@ struct StencilSide {
 	gs_stencil_op_type zpass;
 	
 	inline StencilSide()
-	: test  (GS_ALWAYS),
-	fail  (GS_KEEP),
-	zfail (GS_KEEP),
-	zpass (GS_KEEP)
+		: test  (GS_ALWAYS),
+		  fail  (GS_KEEP),
+		  zfail (GS_KEEP),
+		  zpass (GS_KEEP)
 	{
 	}
 };
@@ -671,16 +692,15 @@ struct mat4float {
 };
 
 struct gs_device {
-	id<MTLDevice>               device;
-	id<MTLCommandQueue>         commandQueue;
-	id<MTLCommandBuffer>        commandBuffer;
-	MTLRenderPipelineDescriptor *pipelineDesc;
-	MTLRenderPassDescriptor     *passDesc;
+	id<MTLDevice>               device = nil;
+	id<MTLCommandQueue>         commandQueue = nil;
+	MTLRenderPipelineDescriptor *pipelineDesc = nil;
+	MTLRenderPassDescriptor     *passDesc = nil;
 	uint32_t                    devIdx = 0;
 
 	gs_texture_2d               *curRenderTarget = nullptr;
-	gs_zstencil_buffer          *curZStencilBuffer = nullptr;
 	int                         curRenderSide = 0;
+	gs_zstencil_buffer          *curZStencilBuffer = nullptr;
 	gs_texture                  *curTextures[GS_MAX_TEXTURES];
 	gs_sampler_state            *curSamplers[GS_MAX_TEXTURES];
 	gs_vertex_buffer            *curVertexBuffer = nullptr;
@@ -706,11 +726,11 @@ struct gs_device {
     
 	void InitDevice(uint32_t adapterIdx);
 	
-	void LoadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder);
-	void LoadTextures(id<MTLRenderCommandEncoder> commandEncoder);
 	void LoadSamplers(id<MTLRenderCommandEncoder> commandEncoder);
 	void LoadRasterState(id<MTLRenderCommandEncoder> commandEncoder);
 	void LoadZStencilState(id<MTLRenderCommandEncoder> commandEncoder);
+	void UploadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder);
+	void UploadTextures(id<MTLRenderCommandEncoder> commandEncoder);
 	void Draw(id<MTLRenderCommandEncoder> commandEncoder,
 			gs_draw_mode draw_mode,
 			uint32_t start_vert, uint32_t num_verts);

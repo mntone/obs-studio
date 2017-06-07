@@ -436,10 +436,18 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 	delete ui->monitoringDeviceLabel;
 	delete ui->advAudioGroupBox;
 	delete ui->enableAutoUpdates;
+	delete ui->rendererLabel;
+	delete ui->renderer;
+	delete ui->adapterLabel;
+	delete ui->adapter;
 	ui->monitoringDevice = nullptr;
 	ui->monitoringDeviceLabel = nullptr;
 	ui->advAudioGroupBox = nullptr;
 	ui->enableAutoUpdates = nullptr;
+	ui->rendererLabel = nullptr;
+	ui->renderer = nullptr;
+	ui->adapterLabel = nullptr;
+	ui->adapter = nullptr;
 #endif
 
 #ifdef _WIN32
@@ -475,12 +483,6 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 		ui->processPriority->addItem(QTStr(pri.name), pri.val);
 
 #else
-#ifndef __APPLE__
-	delete ui->rendererLabel;
-	delete ui->renderer;
-#endif
-	delete ui->adapterLabel;
-	delete ui->adapter;
 	delete ui->processPriorityLabel;
 	delete ui->processPriority;
 	delete ui->advancedGeneralGroupBox;
@@ -489,12 +491,6 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 #ifdef __APPLE__
 	delete ui->disableAudioDucking;
 #endif
-#ifndef __APPLE__
-	ui->rendererLabel = nullptr;
-	ui->renderer = nullptr;
-#endif
-	ui->adapterLabel = nullptr;
-	ui->adapter = nullptr;
 	ui->processPriorityLabel = nullptr;
 	ui->processPriority = nullptr;
 	ui->advancedGeneralGroupBox = nullptr;
