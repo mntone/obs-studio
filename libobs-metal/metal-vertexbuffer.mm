@@ -3,6 +3,8 @@
 
 #include "metal-subsystem.hpp"
 
+using namespace std;
+
 static inline void PushBuffer(vector<id<MTLBuffer>> &buffers,
 		id<MTLBuffer> buffer, const char *name)
 {
@@ -43,20 +45,20 @@ void gs_vertex_buffer::MakeBufferList(gs_vertex_shader *shader,
 		vector<id<MTLBuffer>> &buffers)
 {
 	PushBuffer(buffers, vertexBuffer, "point");
-
 	if (shader->hasNormals)
 		PushBuffer(buffers, normalBuffer, "normal");
 	if (shader->hasColors)
 		PushBuffer(buffers, colorBuffer, "color");
 	if (shader->hasTangents)
 		PushBuffer(buffers, tangentBuffer, "tangent");
-	if (shader->nTexUnits <= uvBuffers.size()) {
-		for (size_t i = 0; i < shader->nTexUnits; i++)
+	if (shader->texUnits <= uvBuffers.size()) {
+		for (size_t i = 0; i < shader->texUnits; i++) {
 			buffers.push_back(uvBuffers[i]);
+		}
 	} else {
 		blog(LOG_ERROR, "This vertex shader requires at least %u "
 		                "texture buffers.",
-		                (uint32_t)shader->nTexUnits);
+		                (uint32_t)shader->texUnits);
 	}
 }
 
@@ -109,9 +111,18 @@ void gs_vertex_buffer::InitBuffers()
 inline void gs_vertex_buffer::Rebuild()
 {
 	[vertexBuffer release];
-	[normalBuffer release];
-	[colorBuffer release];
-	[tangentBuffer release];
+	if (normalBuffer != nil) {
+		[normalBuffer release];
+		normalBuffer = nil;
+	}
+	if (colorBuffer != nil) {
+		[colorBuffer release];
+		colorBuffer = nil;
+	}
+	if (tangentBuffer != nil) {
+		[tangentBuffer release];
+		tangentBuffer = nil;
+	}
 	for (auto uvBuffer : uvBuffers)
 		[uvBuffer release];
 	uvBuffers.clear();

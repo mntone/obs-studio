@@ -17,7 +17,7 @@ void gs_texture_2d::BackupTexture(const uint8_t **data)
 		uint32_t texSize = bbp * w * h / 8;
 		this->data[i].resize(texSize);
 
-		vector<uint8_t> &subData = this->data[i];
+		auto &subData = this->data[i];
 		memcpy(&subData[0], data[i], texSize);
 
 		w /= 2;
@@ -27,10 +27,17 @@ void gs_texture_2d::BackupTexture(const uint8_t **data)
 
 void gs_texture_2d::UploadTexture(const uint8_t **data)
 {
+	if (!isDynamic)
+		return;
+	
 	uint32_t rowSizeBytes = width  * gs_get_format_bpp(format);
-	MTLRegion region = MTLRegionMake2D(0, 0, width, height);
+	uint32_t texSizeBytes  = height * rowSizeBytes / 8;
+	/*MTLRegion region = MTLRegionMake2D(0, 0, width, height);
 	[texture replaceRegion:region mipmapLevel:levels
-			withBytes:data bytesPerRow:rowSizeBytes];
+			withBytes:data bytesPerRow:rowSizeBytes];*/
+	memcpy(texture.buffer.contents, data, texSizeBytes);
+	
+	[texture.buffer didModifyRange:NSRange { 0, texSizeBytes }];
 }
 
 void gs_texture_2d::InitTexture()

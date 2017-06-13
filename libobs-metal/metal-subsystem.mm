@@ -7,6 +7,8 @@
 
 #import <QuartzCore/QuartzCore.h>
 
+using namespace std;
+
 gs_obj::gs_obj(gs_device_t *device_, gs_type type) :
 	device    (device_),
 	obj_type  (type)
@@ -54,6 +56,15 @@ void gs_device::InitDevice(uint32_t deviceIdx)
 			featureSetFamily, featureSetVersion);
 }
 
+void gs_device::UpdateVertexDesc()
+{
+	if (curVertexBuffer && curVertexShader) {
+		curVertexShader->UpdateDesc(curVertexBuffer->vbData->num);
+	
+		pipelineDesc.vertexDescriptor = curVertexShader->vertexDesc;
+	} else
+		pipelineDesc.vertexDescriptor = nil;
+}
 
 void gs_device::UploadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder)
 {
@@ -69,12 +80,18 @@ void gs_device::UploadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder)
 		buffers.resize(buffersToClear);
 	}
 	
-	range.location = 0;
+	//offsets.resize(buffers.size());
+	range.location = 1;
 	range.length   = buffers.size();
 	offsets.resize(buffers.size());
 	
 	[commandEncoder setVertexBuffers:buffers.data()
 			offsets:offsets.data() withRange:range];
+	
+	/*for (size_t i = 0; i < buffers.size(); i++)
+		[commandEncoder setVertexBuffer:buffers[i]
+				offset:offsets[i]
+				atIndex:i + 1];*/
 	
 	lastVertexBuffer = curVertexBuffer;
 	lastVertexShader = curVertexShader;
@@ -236,16 +253,18 @@ bool device_enum_adapters(
 
 static inline void LogMetalAdapters()
 {
-	NSArray *devices;
+	@autoreleasepool {
+		NSArray *devices;
 	
-	blog(LOG_INFO, "Available Video Adapters: ");
+		blog(LOG_INFO, "Available Video Adapters: ");
     
-	devices = MTLCopyAllDevices();
+		devices = MTLCopyAllDevices();
     
-	for (size_t i = 0; i < devices.count; i++) {
-		id<MTLDevice> device = devices[i];
-		blog(LOG_INFO, "\tAdapter %zu: %s", i,
-				[device name].UTF8String);
+		for (size_t i = 0; i < devices.count; i++) {
+			id<MTLDevice> device = devices[i];
+			blog(LOG_INFO, "\tAdapter %zu: %s", i,
+					[device name].UTF8String);
+		}
 	}
 }
 
@@ -554,14 +573,8 @@ void device_load_indexbuffer(gs_device_t *device, gs_indexbuffer_t *indexbuffer)
 
 void device_load_texture(gs_device_t *device, gs_texture_t *tex, int unit)
 {
-	MTLPixelFormat pixelFormat = MTLPixelFormatInvalid;
-	
 	if (device->curTextures[unit] == tex)
 		return;
-	
-	gs_texture_2d *tex2d = static_cast<gs_texture_2d*>(tex);
-	if (tex2d != nullptr)
-		pixelFormat = tex2d->mtlPixelFormat;
 
 	device->curTextures[unit] = tex;
 }
@@ -599,7 +612,6 @@ void device_load_vertexshader(gs_device_t *device, gs_shader_t *vertshader)
 	device->curVertexShader = vs;
 	
 	device->pipelineDesc.vertexFunction = function;
-	device->pipelineDesc.vertexDescriptor = vd;
 }
 
 static inline void clear_textures(gs_device_t *device)
@@ -869,32 +881,14 @@ void device_stage_texture(gs_device_t *device, gs_stagesurf_t *dst,
 void device_begin_scene(gs_device_t *device)
 {
 	device->passDesc.colorAttachments[0].loadAction = MTLLoadActionLoad;
+	
+	device->commandBuffer = [device->commandQueue commandBuffer];
 }
 
 void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 		uint32_t start_vert, uint32_t num_verts)
 {
 	NSError *error = nil;
-	
-	id<MTLRenderPipelineState> pipelineState = [device->device
-			newRenderPipelineStateWithDescriptor:
-			device->pipelineDesc error:&error];
-	if (pipelineState == nil) {
-		blog(LOG_ERROR, "device_draw (Metal): %s",
-				error.localizedDescription.UTF8String);
-		return;
-	}
-	
-	if (device->curSwapChain != nullptr)
-		device->passDesc.colorAttachments[0].texture =
-				device->curSwapChain->NextTarget()->texture;
-	
-	id<MTLCommandBuffer> commandBuffer =
-			[device->commandQueue commandBuffer];
-	id<MTLRenderCommandEncoder> commandEncoder = [commandBuffer
-			  renderCommandEncoderWithDescriptor:device->passDesc];
-	[commandEncoder setRenderPipelineState:pipelineState];
-	[pipelineState release];
 	
 	try {
 		if (!device->curVertexShader)
@@ -909,6 +903,32 @@ void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 		if (!device->curSwapChain && !device->curRenderTarget)
 			throw "No render target or swap chain to render to";
 		
+		device->UpdateVertexDesc();
+		
+	} catch (const char *error) {
+		blog(LOG_ERROR, "device_draw (Metal): %s", error);
+		return;
+	}
+	
+	id<MTLRenderPipelineState> pipelineState = [device->device
+			newRenderPipelineStateWithDescriptor:
+			device->pipelineDesc error:&error];
+	if (pipelineState == nil) {
+		blog(LOG_ERROR, "device_draw (Metal): %s",
+				error.localizedDescription.UTF8String);
+		return;
+	}
+	
+	if (device->curSwapChain != nullptr)
+		device->passDesc.colorAttachments[0].texture =
+				device->curSwapChain->NextTarget()->texture;
+	
+	id<MTLRenderCommandEncoder> commandEncoder = [device->commandBuffer
+			  renderCommandEncoderWithDescriptor:device->passDesc];
+	[commandEncoder setRenderPipelineState:pipelineState];
+	[pipelineState release];
+	
+	try {
 		gs_effect_t *effect = gs_get_effect();
 		if (effect)
 			gs_effect_update_params(effect);
@@ -930,9 +950,8 @@ void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 	[commandEncoder endEncoding];
 	[commandEncoder release];
 	
-	[commandBuffer commit];
-	[commandBuffer waitUntilCompleted];
-	[commandBuffer release];
+	[device->commandBuffer commit];
+	[device->commandBuffer waitUntilCompleted];
 	
 	device->passDesc.colorAttachments[0].loadAction = MTLLoadActionLoad;
 	device->passDesc.depthAttachment.loadAction     = MTLLoadActionLoad;
@@ -988,13 +1007,11 @@ void device_clear(gs_device_t *device, uint32_t clear_flags,
 void device_present(gs_device_t *device)
 {
 	if (device->curSwapChain) {
-		id<MTLCommandBuffer> commandBuffer =
-				[device->commandQueue commandBuffer];
-		[commandBuffer presentDrawable:
+		[device->commandBuffer presentDrawable:
 				device->curSwapChain->nextDrawable];
-		[commandBuffer commit];
-		[commandBuffer waitUntilCompleted];
-		[commandBuffer release];
+		[device->commandBuffer commit];
+		[device->commandBuffer release];
+		device->commandBuffer = nil;
 	} else {
 		blog(LOG_WARNING, "device_present (Metal): No active swap");
 	}

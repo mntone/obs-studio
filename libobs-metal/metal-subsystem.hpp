@@ -17,8 +17,6 @@ struct shader_var;
 struct shader_sampler;
 struct gs_vertex_shader;
 
-using namespace std;
-
 
 static inline MTLPixelFormat ConvertGSTextureFormat(gs_color_format format)
 {
@@ -232,21 +230,21 @@ struct gs_obj {
 };
 
 struct gs_vertex_buffer : gs_obj {
-	const bool            isDynamic;
-	const unique_ptr<gs_vb_data, decltype(&gs_vbdata_destroy)> vbData;
+	const bool                 isDynamic;
+	const std::unique_ptr<gs_vb_data, decltype(&gs_vbdata_destroy)> vbData;
 	
-	id<MTLBuffer>         vertexBuffer  = nil;
-	id<MTLBuffer>         normalBuffer  = nil;
-	id<MTLBuffer>         colorBuffer   = nil;
-	id<MTLBuffer>         tangentBuffer = nil;
-	vector<id<MTLBuffer>> uvBuffers;
-	vector<size_t>        uvSizes;
+	id<MTLBuffer>              vertexBuffer  = nil;
+	id<MTLBuffer>              normalBuffer  = nil;
+	id<MTLBuffer>              colorBuffer   = nil;
+	id<MTLBuffer>              tangentBuffer = nil;
+	std::vector<id<MTLBuffer>> uvBuffers;
+	std::vector<size_t>        uvSizes;
 
 	void FlushBuffer(id<MTLBuffer> buffer, void *array, size_t elementSize);
 	void FlushBuffers();
 
 	void MakeBufferList(gs_vertex_shader *shader,
-			vector<id<MTLBuffer>> &buffers);
+			std::vector<id<MTLBuffer>> &buffers);
 
 	void InitBuffer(size_t elementSize, size_t numVerts, void *array,
 			id<MTLBuffer> &buffer);
@@ -280,7 +278,7 @@ struct gs_vertex_buffer : gs_obj {
 
 struct gs_index_buffer : gs_obj {
 	const gs_index_type type;
-	const unique_ptr<void, decltype(&bfree)> indices;
+	const std::unique_ptr<void, decltype(&bfree)> indices;
 	const size_t        num;
 	const bool          isDynamic;
 	
@@ -327,7 +325,7 @@ struct gs_texture_2d : gs_texture {
 	MTLTextureDescriptor *textureDesc = nil;
 	id<MTLTexture>       texture = nil;
 	
-	vector<vector<uint8_t>> data;
+	std::vector<std::vector<uint8_t>> data;
 
 	void BackupTexture(const uint8_t **data);
 	void UploadTexture(const uint8_t **data);
@@ -429,7 +427,7 @@ struct gs_sampler_state : gs_obj {
 };
 
 struct gs_shader_param {
-	string                         name;
+	std::string                    name;
 	gs_shader_param_type           type;
 
 	uint32_t                       textureID;
@@ -439,8 +437,8 @@ struct gs_shader_param {
 
 	size_t                         pos;
 
-	vector<uint8_t>                curValue;
-	vector<uint8_t>                defaultValue;
+	std::vector<uint8_t>           curValue;
+	std::vector<uint8_t>           defaultValue;
 	bool                           changed;
 
 	gs_shader_param(shader_var &var, uint32_t &texCounter);
@@ -456,12 +454,16 @@ struct ShaderError {
 };
 
 struct gs_shader : gs_obj {
-	gs_shader_type          type;
-	id<MTLLibrary>          library = nil;
-	id<MTLFunction>         function = nil;
-	vector<gs_shader_param> params;
-	id<MTLBuffer>           constants = nil;
-	size_t                  constantSize;
+	gs_shader_type               type;
+	id<MTLLibrary>               library = nil;
+	id<MTLFunction>              function = nil;
+	std::vector<gs_shader_param> params;
+	id<MTLBuffer>                constants = nil;
+	size_t                       constantSize = 0;
+	
+#ifdef _DEBUG
+	std::string                  convProgram;
+#endif
 
 	inline void UpdateParam(uint8_t *data, gs_shader_param &param);
 	void UploadParams(id<MTLRenderCommandEncoder> commandEncoder);
@@ -481,16 +483,11 @@ struct gs_shader : gs_obj {
 	virtual ~gs_shader() {}
 };
 
-struct ShaderSampler {
-	string           name;
-	gs_sampler_state sampler;
-
-	inline ShaderSampler(const char *name, gs_device_t *device,
-			gs_sampler_info *info)
-		: name    (name),
-		  sampler (device, info)
-	{
-	}
+struct ShaderBufferInfo {
+	bool     normals  = false;
+	bool     colors   = false;
+	bool     tangents = false;
+	uint32_t texUnits = 0;
 };
 
 struct gs_vertex_shader : gs_shader {
@@ -501,7 +498,9 @@ struct gs_vertex_shader : gs_shader {
 	bool     hasNormals;
 	bool     hasColors;
 	bool     hasTangents;
-	uint32_t nTexUnits;
+	uint32_t texUnits;
+	
+	void UpdateDesc(size_t elementSize);
 
 	inline void Rebuild(id<MTLDevice> dev);
 
@@ -509,13 +508,13 @@ struct gs_vertex_shader : gs_shader {
 	{
 		[function release];
 		[library release];
-		[vertexDesc release];
 		[constants release];
+		[vertexDesc release];
 	}
 
 	inline uint32_t NumBuffersExpected() const
 	{
-		uint32_t count = nTexUnits + 1;
+		uint32_t count = texUnits + 1;
 		if (hasNormals)  count++;
 		if (hasColors)   count++;
 		if (hasTangents) count++;
@@ -527,8 +526,20 @@ struct gs_vertex_shader : gs_shader {
 			const char *shaderString);
 };
 
+struct ShaderSampler {
+	std::string      name;
+	gs_sampler_state sampler;
+	
+	inline ShaderSampler(const char *name, gs_device_t *device,
+			gs_sampler_info *info)
+		: name    (name),
+		  sampler (device, info)
+	{
+	}
+};
+
 struct gs_pixel_shader : gs_shader {
-	vector<unique_ptr<ShaderSampler>> samplers;
+	std::vector<std::unique_ptr<ShaderSampler>> samplers;
 
 	inline void Rebuild(id<MTLDevice> dev);
 
@@ -694,6 +705,7 @@ struct mat4float {
 struct gs_device {
 	id<MTLDevice>               device = nil;
 	id<MTLCommandQueue>         commandQueue = nil;
+	id<MTLCommandBuffer>        commandBuffer = nil;
 	MTLRenderPipelineDescriptor *pipelineDesc = nil;
 	MTLRenderPassDescriptor     *passDesc = nil;
 	uint32_t                    devIdx = 0;
@@ -716,7 +728,7 @@ struct gs_device {
 	RasterState                 rasterState;
 	ZStencilState               zstencilState;
 
-	vector<mat4float>           projStack;
+	std::vector<mat4float>      projStack;
 
 	matrix4                     curProjMatrix;
 	matrix4                     curViewMatrix;
@@ -725,6 +737,8 @@ struct gs_device {
 	gs_obj                      *first_obj = nullptr;
     
 	void InitDevice(uint32_t adapterIdx);
+	
+	void UpdateVertexDesc();
 	
 	void LoadSamplers(id<MTLRenderCommandEncoder> commandEncoder);
 	void LoadRasterState(id<MTLRenderCommandEncoder> commandEncoder);

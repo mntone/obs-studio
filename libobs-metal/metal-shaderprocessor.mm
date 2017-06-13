@@ -1,52 +1,48 @@
 #include "metal-subsystem.hpp"
 #include "metal-shaderprocessor.hpp"
 
-#include <string>
 #include <sstream>
 #include <map>
 #include <set>
 using namespace std;
 
-static void AddInputLayoutVar(shader_var *var,
-		MTLVertexAttributeDescriptor *vad, size_t &currentOffset)
+static inline void AddInputLayoutVar(shader_var *var,
+		MTLVertexAttributeDescriptor *vad)
 {
-	vad.bufferIndex = 0;
-	vad.offset = currentOffset;
+	vad.offset = 0;
 	
 	if (strcmp(var->mapping, "COLOR") == 0) {
 		vad.format = MTLVertexFormatUChar4Normalized;
-		currentOffset += 4;
 
 	} else if (strcmp(var->mapping, "POSITION") == 0 ||
 	           strcmp(var->mapping, "NORMAL")   == 0 ||
 	           strcmp(var->mapping, "TANGENT")  == 0) {
 		vad.format = MTLVertexFormatFloat4;
-		currentOffset += 16;
-
+		
 	} else if (astrcmp_n(var->mapping, "TEXCOORD", 8) == 0) {
 		/* type is always a 'float' type */
 		switch (var->type[5]) {
 		case 0:
 			vad.format = MTLVertexFormatFloat;
-			currentOffset += 4;
 			break;
 		
 		case '2':
 			vad.format = MTLVertexFormatFloat2;
-			currentOffset += 8;
 			break;
 				
 		case '3':
+			vad.format = MTLVertexFormatFloat3;
+			break;
+				
 		case '4':
 			vad.format = MTLVertexFormatFloat4;
-			currentOffset += 16;
 			break;
 		}
 	}
 }
 
-static void BuildInputLayoutFromVars(shader_parser *parser, darray *vars,
-		MTLVertexDescriptor *vd, size_t &index, size_t &offset)
+static inline void BuildVertexDescFromVars(shader_parser *parser, darray *vars,
+		MTLVertexDescriptor *vd, size_t &index)
 {
 	shader_var *array = (shader_var*)vars->array;
 
@@ -54,28 +50,63 @@ static void BuildInputLayoutFromVars(shader_parser *parser, darray *vars,
 		shader_var *var = array + i;
 
 		if (var->mapping) {
-			AddInputLayoutVar(var, vd.attributes[index++], offset);
+			vd.attributes[index].bufferIndex = index + 1;
+			AddInputLayoutVar(var, vd.attributes[index++]);
 		} else {
 			shader_struct *st = shader_parser_getstruct(parser,
 					var->type);
 			if (st)
-				BuildInputLayoutFromVars(parser, &st->vars.da,
-						vd, index, offset);
+				BuildVertexDescFromVars(parser, &st->vars.da,
+						vd, index);
 		}
 	}
 }
 
-void ShaderProcessor::BuildInputLayout(MTLVertexDescriptor *vertexDesc)
+void ShaderProcessor::BuildVertexDesc(MTLVertexDescriptor *vertexDesc)
 {
 	shader_func *func = shader_parser_getfunc(&parser, "main");
 	if (!func)
 		throw "Failed to find 'main' shader function";
 
-	size_t index = 0, offset = 0;
-	BuildInputLayoutFromVars(&parser, &func->params.da, vertexDesc,
-			index, offset);
+	size_t index = 0;
+	BuildVertexDescFromVars(&parser, &func->params.da, vertexDesc, index);
+}
+
+static inline void BuildParamInfoFromVars(shader_parser *parser, darray *vars,
+		ShaderBufferInfo &info)
+{
+	shader_var *array = (shader_var*)vars->array;
 	
-	vertexDesc.layouts[0].stride = offset;
+	for (size_t i = 0; i < vars->num; i++) {
+		shader_var *var = array + i;
+		
+		if (var->mapping) {
+			if (strcmp(var->mapping, "NORMAL") == 0)
+				info.normals = true;
+			else if (strcmp(var->mapping, "TANGENT") == 0)
+				info.tangents = true;
+			else if (strcmp(var->mapping, "COLOR") == 0)
+				info.colors = true;
+			else if (astrcmp_n(var->mapping, "TEXCOORD", 8) == 0)
+				info.texUnits++;
+
+		} else {
+			shader_struct *st = shader_parser_getstruct(parser,
+					var->type);
+			if (st)
+				BuildParamInfoFromVars(parser, &st->vars.da,
+						info);
+		}
+	}
+}
+
+void ShaderProcessor::BuildParamInfo(ShaderBufferInfo &info)
+{
+	shader_func *func = shader_parser_getfunc(&parser, "main");
+	if (!func)
+		throw "Failed to find 'main' shader function";
+	
+	BuildParamInfoFromVars(&parser, &func->params.da, info);
 }
 
 gs_shader_param::gs_shader_param(shader_var &var, uint32_t &texCounter)
@@ -827,7 +858,7 @@ inline void ShaderBuilder::WriteFunction(const shader_func *func)
 		output << "constant " << UNIFORM_DATA_NAME << " &uniforms";
 		
 		if (isMain)
-			output << " [[buffer(1)]]";
+			output << " [[buffer(0)]]";
 		
 		if (isFirst)
 			isFirst = false;

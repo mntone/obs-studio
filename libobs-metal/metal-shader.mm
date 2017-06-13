@@ -6,27 +6,86 @@
 #include "metal-subsystem.hpp"
 #include "metal-shaderprocessor.hpp"
 
+static inline void UpdateDescLayout(MTLVertexBufferLayoutDescriptor *desc,
+		MTLVertexFormat format, size_t elementSize)
+{
+	switch ((NSUInteger)format)
+	{
+	case MTLVertexFormatUChar4Normalized:
+	case MTLVertexFormatFloat:
+		desc.stride = elementSize * 4;
+		break;
+	case MTLVertexFormatFloat2:
+		desc.stride = elementSize * 8;
+		break;
+	case MTLVertexFormatFloat3:
+	case MTLVertexFormatFloat4:
+		desc.stride = elementSize * 16;
+		break;
+	}
+}
+
+void gs_vertex_shader::UpdateDesc(size_t elementSize)
+{
+	size_t layoutIndex = 1, attrIndex = 0;
+	UpdateDescLayout(vertexDesc.layouts[layoutIndex++],
+			vertexDesc.attributes[attrIndex++].format, elementSize);
+	
+	if (hasNormals)
+		UpdateDescLayout(vertexDesc.layouts[layoutIndex++],
+				vertexDesc.attributes[attrIndex++].format,
+				elementSize);
+	
+	if (hasColors)
+		UpdateDescLayout(vertexDesc.layouts[layoutIndex++],
+				vertexDesc.attributes[attrIndex++].format,
+				 elementSize);
+	
+	if (hasTangents)
+		UpdateDescLayout(vertexDesc.layouts[layoutIndex++],
+				vertexDesc.attributes[attrIndex++].format,
+				elementSize);
+	
+	for (size_t i = 0; i < texUnits; i++)
+		UpdateDescLayout(vertexDesc.layouts[layoutIndex++],
+				vertexDesc.attributes[attrIndex++].format,
+				elementSize);
+}
+
 gs_vertex_shader::gs_vertex_shader(gs_device_t *device, const char *file,
 		const char *shaderString)
 	: gs_shader   (device, gs_type::gs_vertex_shader, GS_SHADER_VERTEX),
 	  hasNormals  (false),
 	  hasColors   (false),
 	  hasTangents (false),
-	  nTexUnits   (0)
+	  texUnits    (0)
 {
 	ShaderProcessor    processor(device);
-	string             outputString;
+	ShaderBufferInfo   info;
+	std::string        outputString;
 	
 	vertexDesc = [MTLVertexDescriptor new];
 
 	processor.Process(shaderString, file);
 	processor.BuildString(type, outputString);
 	processor.BuildParams(params);
-	processor.BuildInputLayout(vertexDesc);
+	processor.BuildParamInfo(info);
+	processor.BuildVertexDesc(vertexDesc);
 	BuildConstantBuffer();
 
 	Compile(outputString.c_str(), library, function);
 
+	hasNormals  = info.normals;
+	hasColors   = info.colors;
+	hasTangents = info.tangents;
+	texUnits    = info.texUnits;
+	
+	vertexDesc.layouts[0].stride = (constantSize + 15) & ~15;
+	
+#ifdef _DEBUG
+	convProgram = outputString;
+#endif
+	
 	viewProj = gs_shader_get_param_by_name(this, "ViewProj");
 	world    = gs_shader_get_param_by_name(this, "World");
 }
@@ -36,12 +95,16 @@ gs_pixel_shader::gs_pixel_shader(gs_device_t *device, const char *file,
 	: gs_shader(device, gs_type::gs_pixel_shader, GS_SHADER_PIXEL)
 {
 	ShaderProcessor    processor(device);
-	string             outputString;
+	std::string        outputString;
 	
 	processor.Process(shaderString, file);
 	processor.BuildString(type, outputString);
 	processor.BuildParams(params);
 	BuildConstantBuffer();
+	
+#ifdef _DEBUG
+	convProgram = outputString;
+#endif
 
 	Compile(outputString.c_str(), library, function);
 }
@@ -190,7 +253,12 @@ void gs_shader::UploadParams(id<MTLRenderCommandEncoder> commandEncoder)
 	for (size_t i = 0; i < params.size(); i++)
 		UpdateParam(data, params[i]);
 	
-	[commandEncoder setVertexBuffer:constants offset:0 atIndex:1];
+	if (type == GS_SHADER_VERTEX)
+		[commandEncoder setVertexBuffer:constants offset:0 atIndex:0];
+	else if (type == GS_SHADER_PIXEL)
+		[commandEncoder setFragmentBuffer:constants offset:0 atIndex:0];
+	else
+		throw "This is unknown shader type";
 }
 
 void gs_shader_destroy(gs_shader_t *shader)
