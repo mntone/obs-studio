@@ -81,7 +81,7 @@ void gs_device::UploadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder)
 	}
 	
 	//offsets.resize(buffers.size());
-	range.location = 1;
+	range.location = 0;
 	range.length   = buffers.size();
 	offsets.resize(buffers.size());
 	
@@ -169,23 +169,23 @@ void gs_device::UpdateViewProjMatrix()
 }
 
 void gs_device::Draw(id<MTLRenderCommandEncoder> commandEncoder,
-		gs_draw_mode draw_mode, uint32_t start_vert, uint32_t num_verts)
+		gs_draw_mode drawMode, uint32_t startVert, uint32_t numVerts)
 {
-	MTLPrimitiveType primitive = ConvertGSTopology(draw_mode);
+	MTLPrimitiveType primitive = ConvertGSTopology(drawMode);
 	if (curIndexBuffer) {
-		if (num_verts == 0)
-			num_verts = static_cast<uint32_t>(curIndexBuffer->num);
+		if (numVerts == 0)
+			numVerts = static_cast<uint32_t>(curIndexBuffer->num);
 		[commandEncoder drawIndexedPrimitives:primitive
-				indexCount:num_verts
+				indexCount:numVerts
 				indexType:curIndexBuffer->indexType
 				indexBuffer:curIndexBuffer->indexBuffer
 				indexBufferOffset:0];
 	} else {
-		if (num_verts == 0)
-			num_verts = static_cast<uint32_t>(
+		if (numVerts == 0)
+			numVerts = static_cast<uint32_t>(
 					curVertexBuffer->vbData->num);
 		[commandEncoder drawPrimitives:primitive
-				vertexStart:start_vert vertexCount:num_verts];
+				vertexStart:startVert vertexCount:numVerts];
 	}
 }
 
@@ -926,7 +926,6 @@ void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 	id<MTLRenderCommandEncoder> commandEncoder = [device->commandBuffer
 			  renderCommandEncoderWithDescriptor:device->passDesc];
 	[commandEncoder setRenderPipelineState:pipelineState];
-	[pipelineState release];
 	
 	try {
 		gs_effect_t *effect = gs_get_effect();
@@ -949,6 +948,7 @@ void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 	
 	[commandEncoder endEncoding];
 	[commandEncoder release];
+	[pipelineState release];
 	
 	[device->commandBuffer commit];
 	[device->commandBuffer waitUntilCompleted];

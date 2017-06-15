@@ -52,4 +52,5 @@ gs_zstencil_buffer::gs_zstencil_buffer(gs_device_t *device,
 	  mtlPixelFormat (texture.pixelFormat),
 	  texture        (texture)
 {
+	[texture retain];
 }

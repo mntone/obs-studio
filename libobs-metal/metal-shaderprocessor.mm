@@ -9,8 +9,6 @@ using namespace std;
 static inline void AddInputLayoutVar(shader_var *var,
 		MTLVertexAttributeDescriptor *vad)
 {
-	vad.offset = 0;
-	
 	if (strcmp(var->mapping, "COLOR") == 0) {
 		vad.format = MTLVertexFormatUChar4Normalized;
 
@@ -50,7 +48,7 @@ static inline void BuildVertexDescFromVars(shader_parser *parser, darray *vars,
 		shader_var *var = array + i;
 
 		if (var->mapping) {
-			vd.attributes[index].bufferIndex = index + 1;
+			vd.attributes[index].bufferIndex = index;
 			AddInputLayoutVar(var, vd.attributes[index++]);
 		} else {
 			shader_struct *st = shader_parser_getstruct(parser,
@@ -858,7 +856,7 @@ inline void ShaderBuilder::WriteFunction(const shader_func *func)
 		output << "constant " << UNIFORM_DATA_NAME << " &uniforms";
 		
 		if (isMain)
-			output << " [[buffer(0)]]";
+			output << " [[buffer(30)]]";
 		
 		if (isFirst)
 			isFirst = false;

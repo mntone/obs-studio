@@ -371,10 +371,9 @@ struct gs_zstencil_buffer : gs_obj {
 
 	inline void Release()
 	{
-		if (!isShared) {
-			[texture release];
+		[texture release];
+		if (!isShared)
 			[textureDesc release];
-		}
 		
 		texture = nil;
 		textureDesc = nil;
@@ -746,8 +745,8 @@ struct gs_device {
 	void UploadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder);
 	void UploadTextures(id<MTLRenderCommandEncoder> commandEncoder);
 	void Draw(id<MTLRenderCommandEncoder> commandEncoder,
-			gs_draw_mode draw_mode,
-			uint32_t start_vert, uint32_t num_verts);
+			gs_draw_mode drawMode,
+			uint32_t startVert, uint32_t numVerts);
 
 	inline void CopyTex(id<MTLTexture> dst,
 			uint32_t dst_x, uint32_t dst_y,

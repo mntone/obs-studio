@@ -27,7 +27,7 @@ static inline void UpdateDescLayout(MTLVertexBufferLayoutDescriptor *desc,
 
 void gs_vertex_shader::UpdateDesc(size_t elementSize)
 {
-	size_t layoutIndex = 1, attrIndex = 0;
+	size_t layoutIndex = 0, attrIndex = 0;
 	UpdateDescLayout(vertexDesc.layouts[layoutIndex++],
 			vertexDesc.attributes[attrIndex++].format, elementSize);
 	
@@ -79,8 +79,6 @@ gs_vertex_shader::gs_vertex_shader(gs_device_t *device, const char *file,
 	hasColors   = info.colors;
 	hasTangents = info.tangents;
 	texUnits    = info.texUnits;
-	
-	vertexDesc.layouts[0].stride = (constantSize + 15) & ~15;
 	
 #ifdef _DEBUG
 	convProgram = outputString;
@@ -254,16 +252,17 @@ void gs_shader::UploadParams(id<MTLRenderCommandEncoder> commandEncoder)
 		UpdateParam(data, params[i]);
 	
 	if (type == GS_SHADER_VERTEX)
-		[commandEncoder setVertexBuffer:constants offset:0 atIndex:0];
+		[commandEncoder setVertexBuffer:constants offset:0 atIndex:30];
 	else if (type == GS_SHADER_PIXEL)
-		[commandEncoder setFragmentBuffer:constants offset:0 atIndex:0];
+		[commandEncoder setFragmentBuffer:constants
+				offset:0 atIndex:30];
 	else
 		throw "This is unknown shader type";
 }
 
 void gs_shader_destroy(gs_shader_t *shader)
 {
-	if (shader && shader->device->lastVertexShader == shader)
+	if (shader != nullptr && shader->device->lastVertexShader == shader)
 		shader->device->lastVertexShader = nullptr;
 	delete shader;
 }
