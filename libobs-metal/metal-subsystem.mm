@@ -30,7 +30,6 @@ gs_obj::~gs_obj()
 
 void gs_device::InitDevice(uint32_t deviceIdx)
 {
-	uint32_t featureSetFamily = 0, featureSetVersion = 0;
 	NSArray *devices;
 	
 	devIdx  = deviceIdx;
@@ -42,7 +41,8 @@ void gs_device::InitDevice(uint32_t deviceIdx)
 
 	blog(LOG_INFO, "Loading up Metal on adapter %s (%" PRIu32 ")",
 			[device name].UTF8String, deviceIdx);
-
+	
+	uint32_t featureSetFamily = 0, featureSetVersion = 0;
 	if ([device supportsFeatureSet:MTLFeatureSet_OSX_GPUFamily1_v2]) {
 		featureSetFamily  = 1;
 		featureSetVersion = 2;
@@ -56,14 +56,13 @@ void gs_device::InitDevice(uint32_t deviceIdx)
 			featureSetFamily, featureSetVersion);
 }
 
-void gs_device::UpdateVertexDesc()
+void gs_device::LoadVertexDesc()
 {
 	if (curVertexBuffer && curVertexShader) {
 		curVertexShader->UpdateDesc(curVertexBuffer->vbData->num);
 	
 		pipelineDesc.vertexDescriptor = curVertexShader->vertexDesc;
-	} else
-		pipelineDesc.vertexDescriptor = nil;
+	}
 }
 
 void gs_device::UploadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder)
@@ -87,11 +86,6 @@ void gs_device::UploadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder)
 	
 	[commandEncoder setVertexBuffers:buffers.data()
 			offsets:offsets.data() withRange:range];
-	
-	/*for (size_t i = 0; i < buffers.size(); i++)
-		[commandEncoder setVertexBuffer:buffers[i]
-				offset:offsets[i]
-				atIndex:i + 1];*/
 	
 	lastVertexBuffer = curVertexBuffer;
 	lastVertexShader = curVertexShader;
@@ -211,6 +205,9 @@ gs_device::gs_device(uint32_t adapterIdx)
 
 gs_device::~gs_device()
 {
+	[pipelineDesc release];
+	[passDesc release];
+	[commandQueue release];
 }
 
 const char *device_get_name(void)
@@ -234,12 +231,14 @@ static inline void EnumMetalAdapters(
 {
 	NSArray *devices;
 	uint32_t i = 0;
-
-	devices = MTLCopyAllDevices();
+	
+	@autoreleasepool {
+		devices = MTLCopyAllDevices();
     
-	for (id<MTLDevice> device in devices) {
-		if (!callback(param, [device name].UTF8String, i++))
-			break;
+		for (id<MTLDevice> device in devices) {
+			if (!callback(param, [device name].UTF8String, i++))
+				break;
+		}
 	}
 }
 
@@ -253,11 +252,11 @@ bool device_enum_adapters(
 
 static inline void LogMetalAdapters()
 {
-	@autoreleasepool {
-		NSArray *devices;
+	NSArray *devices;
 	
-		blog(LOG_INFO, "Available Video Adapters: ");
-    
+	blog(LOG_INFO, "Available Video Adapters: ");
+	
+	@autoreleasepool {
 		devices = MTLCopyAllDevices();
     
 		for (size_t i = 0; i < devices.count; i++) {
@@ -331,7 +330,7 @@ void device_resize(gs_device_t *device, uint32_t cx, uint32_t cy)
 		id<MTLTexture> depthTarget = nil;
 
 		device->passDesc.colorAttachments[0].texture = nil;
-		device->passDesc.stencilAttachment.texture   = nil;
+		device->passDesc.depthAttachment.texture     = nil;
 		device->curSwapChain->Resize(cx, cy);
 
 		if (device->curRenderTarget)
@@ -340,7 +339,7 @@ void device_resize(gs_device_t *device, uint32_t cx, uint32_t cy)
 			depthTarget  = device->curZStencilBuffer->texture;
 		
 		device->passDesc.colorAttachments[0].texture = renderTarget;
-		device->passDesc.stencilAttachment.texture   = depthTarget;
+		device->passDesc.depthAttachment.texture     = depthTarget;
 
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_resize (Metal): %s", error);
@@ -351,7 +350,6 @@ void device_get_size(const gs_device_t *device, uint32_t *cx, uint32_t *cy)
 {
 	if (device->curSwapChain) {
 		CGRect curRect = [device->curSwapChain->metalLayer frame];
-		//NSRect curRect = [device->curSwapChain->metalView frame];
 		*cx = curRect.size.width - curRect.origin.x;
 		*cy = curRect.size.height - curRect.origin.y;
 	} else {
@@ -365,7 +363,6 @@ uint32_t device_get_width(const gs_device_t *device)
 {
 	if (device->curSwapChain) {
 		CGRect curRect = [device->curSwapChain->metalLayer frame];
-		//NSRect curRect = [device->curSwapChain->metalView frame];
 		return curRect.size.width - curRect.origin.x;
 	} else {
 		blog(LOG_ERROR, "device_get_size (Metal): No active swap");
@@ -377,7 +374,6 @@ uint32_t device_get_height(const gs_device_t *device)
 {
 	if (device->curSwapChain) {
 		CGRect curRect = [device->curSwapChain->metalLayer frame];
-		//NSRect curRect = [device->curSwapChain->metalView frame];
 		return curRect.size.height - curRect.origin.y;
 	} else {
 		blog(LOG_ERROR, "device_get_size (Metal): No active swap");
@@ -707,11 +703,11 @@ void device_set_render_target(gs_device_t *device, gs_texture_t *tex,
 		                "texture is null");
 		return;
 	}
-
+	
+	device->curSwapChain      = nullptr;
 	device->curRenderTarget   = tex2d;
 	device->curRenderSide     = 0;
 	device->curZStencilBuffer = zstencil;
-	device->curSwapChain      = nullptr;
 	
 	if (tex2d != nullptr) {
 		device->passDesc.colorAttachments[0].texture = tex2d->texture;
@@ -749,10 +745,10 @@ void device_set_cube_render_target(gs_device_t *device, gs_texture_t *tex,
 		return;
 	}
 	
+	device->curSwapChain      = nullptr;
 	device->curRenderTarget   = tex2d;
 	device->curRenderSide     = side;
 	device->curZStencilBuffer = zstencil;
-	device->curSwapChain      = nullptr;
 	
 	if (tex2d != nullptr) {
 		device->passDesc.colorAttachments[0].texture = tex2d->texture;
@@ -880,16 +876,12 @@ void device_stage_texture(gs_device_t *device, gs_stagesurf_t *dst,
 
 void device_begin_scene(gs_device_t *device)
 {
-	device->passDesc.colorAttachments[0].loadAction = MTLLoadActionLoad;
-	
 	device->commandBuffer = [device->commandQueue commandBuffer];
 }
 
 void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 		uint32_t start_vert, uint32_t num_verts)
 {
-	NSError *error = nil;
-	
 	try {
 		if (!device->curVertexShader)
 			throw "No vertex shader specified";
@@ -903,13 +895,14 @@ void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 		if (!device->curSwapChain && !device->curRenderTarget)
 			throw "No render target or swap chain to render to";
 		
-		device->UpdateVertexDesc();
+		device->LoadVertexDesc();
 		
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_draw (Metal): %s", error);
 		return;
 	}
 	
+	NSError *error = nil;
 	id<MTLRenderPipelineState> pipelineState = [device->device
 			newRenderPipelineStateWithDescriptor:
 			device->pipelineDesc error:&error];
@@ -918,10 +911,6 @@ void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 				error.localizedDescription.UTF8String);
 		return;
 	}
-	
-	if (device->curSwapChain != nullptr)
-		device->passDesc.colorAttachments[0].texture =
-				device->curSwapChain->NextTarget()->texture;
 	
 	id<MTLRenderCommandEncoder> commandEncoder = [device->commandBuffer
 			  renderCommandEncoderWithDescriptor:device->passDesc];
@@ -950,9 +939,7 @@ void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 	[commandEncoder release];
 	[pipelineState release];
 	
-	[device->commandBuffer commit];
-	[device->commandBuffer waitUntilCompleted];
-	
+	device->pipelineDesc.vertexDescriptor = nil;
 	device->passDesc.colorAttachments[0].loadAction = MTLLoadActionLoad;
 	device->passDesc.depthAttachment.loadAction     = MTLLoadActionLoad;
 	device->passDesc.stencilAttachment.loadAction   = MTLLoadActionLoad;
@@ -969,19 +956,24 @@ void device_load_swapchain(gs_device_t *device, gs_swapchain_t *swapchain)
 	if (device->curSwapChain == swapchain)
 		return;
 	
-	device->curRenderTarget   = nullptr;
+	device->curSwapChain      = swapchain;
+	device->curRenderTarget   = swapchain->NextTarget();
 	device->curRenderSide     = 0;
 	device->curZStencilBuffer = nullptr;
-	device->curSwapChain      = swapchain;
 	
-	device->passDesc.colorAttachments[0].texture = nil;
-	device->passDesc.depthAttachment.texture = nil;
+	device->pipelineDesc.colorAttachments[0].pixelFormat =
+			device->curSwapChain->metalLayer.pixelFormat;
+	device->pipelineDesc.depthAttachmentPixelFormat = MTLPixelFormatInvalid;
+	
+	device->passDesc.colorAttachments[0].texture =
+			device->curSwapChain->nextDrawable.texture;
+	device->passDesc.depthAttachment.texture     = nil;
 }
 
 void device_clear(gs_device_t *device, uint32_t clear_flags,
 		const struct vec4 *color, float depth, uint8_t stencil)
 {
-	if ((clear_flags & GS_CLEAR_COLOR) != 0) {
+	if (clear_flags & GS_CLEAR_COLOR) {
 		MTLRenderPassColorAttachmentDescriptor *colorAttachment =
 				device->passDesc.colorAttachments[0];
 		colorAttachment.loadAction = MTLLoadActionClear;
@@ -989,14 +981,14 @@ void device_clear(gs_device_t *device, uint32_t clear_flags,
 				color->x, color->y, color->z, color->w);
 	}
 
-	if ((clear_flags & GS_CLEAR_DEPTH) != 0) {
+	if (clear_flags & GS_CLEAR_DEPTH) {
 		MTLRenderPassDepthAttachmentDescriptor *depthAttachment =
 				device->passDesc.depthAttachment;
 		depthAttachment.loadAction = MTLLoadActionClear;
 		depthAttachment.clearDepth = depth;
 	}
 	
-	if ((clear_flags & GS_CLEAR_STENCIL) != 0) {
+	if (clear_flags & GS_CLEAR_STENCIL) {
 		MTLRenderPassStencilAttachmentDescriptor *stencilAttachment =
 				device->passDesc.stencilAttachment;
 		stencilAttachment.loadAction   = MTLLoadActionClear;
@@ -1009,16 +1001,20 @@ void device_present(gs_device_t *device)
 	if (device->curSwapChain) {
 		[device->commandBuffer presentDrawable:
 				device->curSwapChain->nextDrawable];
-		[device->commandBuffer commit];
-		[device->commandBuffer release];
-		device->commandBuffer = nil;
 	} else {
 		blog(LOG_WARNING, "device_present (Metal): No active swap");
 	}
+	
+	device_flush(device);
 }
 
 void device_flush(gs_device_t *device)
 {
+	[device->commandBuffer commit];
+	[device->commandBuffer waitUntilCompleted];
+	[device->commandBuffer release];
+	device->commandBuffer = nil;
+	
 	/* does nothing in Metal */
 	UNUSED_PARAMETER(device);
 }
@@ -1504,8 +1500,7 @@ void gs_zstencil_destroy(gs_zstencil_t *zstencil)
 
 void gs_samplerstate_destroy(gs_samplerstate_t *samplerstate)
 {
-	if (!samplerstate)
-		return;
+	assert(samplerstate != nullptr);
 
 	if (samplerstate->device)
 		for (int i = 0; i < GS_MAX_TEXTURES; i++)
@@ -1519,16 +1514,21 @@ void gs_samplerstate_destroy(gs_samplerstate_t *samplerstate)
 
 void gs_vertexbuffer_destroy(gs_vertbuffer_t *vertbuffer)
 {
-	if (vertbuffer && vertbuffer->device->lastVertexBuffer == vertbuffer)
+	assert(vertbuffer != nullptr);
+	
+	if (vertbuffer->device->lastVertexBuffer == vertbuffer)
 		vertbuffer->device->lastVertexBuffer = nullptr;
+	
 	delete vertbuffer;
 }
 
 void gs_vertexbuffer_flush(gs_vertbuffer_t *vertbuffer)
 {
+	assert(vertbuffer != nullptr);
+	
 	if (!vertbuffer->isDynamic) {
-		blog(LOG_ERROR, "gs_vertexbuffer_flush: vertex buffer is "
-		                "not dynamic");
+		blog(LOG_ERROR, "gs_vertexbuffer_flush: vertex buffer is not "
+		                "dynamic");
 		return;
 	}
 
@@ -1537,35 +1537,47 @@ void gs_vertexbuffer_flush(gs_vertbuffer_t *vertbuffer)
 
 struct gs_vb_data *gs_vertexbuffer_get_data(const gs_vertbuffer_t *vertbuffer)
 {
+	assert(vertbuffer != nullptr);
+	
 	return vertbuffer->vbData.get();
 }
 
 
 void gs_indexbuffer_destroy(gs_indexbuffer_t *indexbuffer)
 {
+	assert(indexbuffer != nullptr);
+	
 	delete indexbuffer;
 }
 
 void gs_indexbuffer_flush(gs_indexbuffer_t *indexbuffer)
 {
-	if (!indexbuffer->isDynamic)
+	if (!indexbuffer->isDynamic) {
+		blog(LOG_ERROR, "gs_indexbuffer_flush: index buffer is not "
+		                "dynamic");
 		return;
+	}
 	
-	memcpy(indexbuffer->indexBuffer.contents, &indexbuffer->indices,
-			indexbuffer->num * indexbuffer->indexSize);
+	indexbuffer->FlushBuffer();
 }
 
 void *gs_indexbuffer_get_data(const gs_indexbuffer_t *indexbuffer)
 {
+	assert(indexbuffer != nullptr);
+	
 	return indexbuffer->indices.get();
 }
 
 size_t gs_indexbuffer_get_num_indices(const gs_indexbuffer_t *indexbuffer)
 {
+	assert(indexbuffer != nullptr);
+	
 	return indexbuffer->num;
 }
 
 enum gs_index_type gs_indexbuffer_get_type(const gs_indexbuffer_t *indexbuffer)
 {
+	assert(indexbuffer != nullptr);
+	
 	return indexbuffer->type;
 }

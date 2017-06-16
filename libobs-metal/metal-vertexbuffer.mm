@@ -5,17 +5,6 @@
 
 using namespace std;
 
-static inline void PushBuffer(vector<id<MTLBuffer>> &buffers,
-		id<MTLBuffer> buffer, const char *name)
-{
-	if (buffer) {
-		buffers.push_back(buffer);
-	} else {
-		blog(LOG_ERROR, "This vertex shader requires a %s buffer",
-				name);
-	}
-}
-
 void gs_vertex_buffer::FlushBuffer(id<MTLBuffer> buffer, void *array,
 		size_t elementSize)
 {
@@ -24,6 +13,8 @@ void gs_vertex_buffer::FlushBuffer(id<MTLBuffer> buffer, void *array,
 
 void gs_vertex_buffer::FlushBuffers()
 {
+	assert(isDynamic);
+	
 	FlushBuffer(vertexBuffer, vbData->points, sizeof(vec3));
 	
 	if (normalBuffer != nil)
@@ -41,6 +32,17 @@ void gs_vertex_buffer::FlushBuffers()
 	}
 }
 
+static inline void PushBuffer(vector<id<MTLBuffer>> &buffers,
+		id<MTLBuffer> buffer, const char *name)
+{
+	if (buffer != nil) {
+		buffers.push_back(buffer);
+	} else {
+		blog(LOG_ERROR, "This vertex shader requires a %s buffer",
+				name);
+	}
+}
+
 void gs_vertex_buffer::MakeBufferList(gs_vertex_shader *shader,
 		vector<id<MTLBuffer>> &buffers)
 {
@@ -52,9 +54,8 @@ void gs_vertex_buffer::MakeBufferList(gs_vertex_shader *shader,
 	if (shader->hasTangents)
 		PushBuffer(buffers, tangentBuffer, "tangent");
 	if (shader->texUnits <= uvBuffers.size()) {
-		for (size_t i = 0; i < shader->texUnits; i++) {
+		for (size_t i = 0; i < shader->texUnits; i++)
 			buffers.push_back(uvBuffers[i]);
-		}
 	} else {
 		blog(LOG_ERROR, "This vertex shader requires at least %u "
 		                "texture buffers.",
@@ -78,22 +79,18 @@ void gs_vertex_buffer::InitBuffer(size_t elementSize, size_t numVerts,
 void gs_vertex_buffer::InitBuffers()
 {
 	InitBuffer(sizeof(vec3), vbData->num, vbData->points, vertexBuffer);
-
 	if (vbData->normals)
 		InitBuffer(sizeof(vec3), vbData->num, vbData->normals,
 				normalBuffer);
-
 	if (vbData->tangents)
 		InitBuffer(sizeof(vec3), vbData->num, vbData->tangents,
 				tangentBuffer);
-
 	if (vbData->colors)
 		InitBuffer(sizeof(uint32_t), vbData->num, vbData->colors,
 				colorBuffer);
-
 	for (struct gs_tvertarray *tverts = vbData->tvarray;
-			tverts != vbData->tvarray + vbData->num_tex;
-			tverts++) {
+	     tverts != vbData->tvarray + vbData->num_tex;
+	     tverts++) {
 		if (tverts->width != 2 && tverts->width != 4)
 			throw "Invalid texture vertex size specified";
 		if (!tverts->array)
@@ -104,7 +101,7 @@ void gs_vertex_buffer::InitBuffers()
 				tverts->array, buffer);
 
 		uvBuffers.push_back(buffer);
-		uvSizes.push_back(tverts->width * sizeof(float));
+		uvSizes.emplace_back(tverts->width * sizeof(float));
 	}
 }
 

@@ -286,6 +286,7 @@ struct gs_index_buffer : gs_obj {
 	MTLIndexType        indexType;
 	id<MTLBuffer>       indexBuffer;
 
+	void FlushBuffer();
 	void InitBuffer();
 
 	inline void Rebuild(id<MTLDevice> dev);
@@ -586,11 +587,13 @@ struct gs_swap_chain : gs_obj {
 			[nextDrawable release];
 			nextDrawable = nil;
 		}
-		[metalLayer release];
+		view.layer = nil;
 		view = nil;
+		[metalLayer release];
 	}
 
 	gs_swap_chain(gs_device *device, const gs_init_data *data);
+	virtual ~gs_swap_chain();
 };
 
 struct BlendState {
@@ -737,7 +740,7 @@ struct gs_device {
     
 	void InitDevice(uint32_t adapterIdx);
 	
-	void UpdateVertexDesc();
+	void LoadVertexDesc();
 	
 	void LoadSamplers(id<MTLRenderCommandEncoder> commandEncoder);
 	void LoadRasterState(id<MTLRenderCommandEncoder> commandEncoder);

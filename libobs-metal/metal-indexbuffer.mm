@@ -1,5 +1,12 @@
 #include "metal-subsystem.hpp"
 
+void gs_index_buffer::FlushBuffer()
+{
+	assert(isDynamic);
+	
+	memcpy(indexBuffer.contents, indices.get(), indexSize * num);
+}
+
 void gs_index_buffer::InitBuffer()
 {
 	NSUInteger         length  = indexSize * num;
