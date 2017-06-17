@@ -34,10 +34,6 @@ gs_vertex_shader::gs_vertex_shader(gs_device_t *device, const char *file,
 	hasTangents = info.tangents;
 	texUnits    = info.texUnits;
 	
-#ifdef _DEBUG
-	convProgram = outputString;
-#endif
-	
 	viewProj = gs_shader_get_param_by_name(this, "ViewProj");
 	world    = gs_shader_get_param_by_name(this, "World");
 }
@@ -53,10 +49,6 @@ gs_pixel_shader::gs_pixel_shader(gs_device_t *device, const char *file,
 	processor.BuildString(type, outputString);
 	processor.BuildParams(params);
 	BuildConstantBuffer();
-	
-#ifdef _DEBUG
-	convProgram = outputString;
-#endif
 
 	Compile(outputString.c_str(), library, function);
 }

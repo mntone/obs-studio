@@ -460,10 +460,6 @@ struct gs_shader : gs_obj {
 	std::vector<gs_shader_param> params;
 	id<MTLBuffer>                constants = nil;
 	size_t                       constantSize = 0;
-	
-#ifdef _DEBUG
-	std::string                  convProgram;
-#endif
 
 	inline void UpdateParam(uint8_t *data, gs_shader_param &param);
 	void UploadParams(id<MTLRenderCommandEncoder> commandEncoder);
@@ -708,6 +704,7 @@ struct gs_device {
 	id<MTLDevice>               device = nil;
 	id<MTLCommandQueue>         commandQueue = nil;
 	id<MTLCommandBuffer>        commandBuffer = nil;
+	id<MTLRenderPipelineState>  pipelineState = nil;
 	MTLRenderPipelineDescriptor *pipelineDesc = nil;
 	MTLRenderPassDescriptor     *passDesc = nil;
 	uint32_t                    devIdx = 0;
@@ -726,6 +723,7 @@ struct gs_device {
 	gs_vertex_buffer            *lastVertexBuffer = nullptr;
 	gs_vertex_shader            *lastVertexShader = nullptr;
 
+	bool                        piplineStateChanged = false;
 	BlendState                  blendState;
 	RasterState                 rasterState;
 	ZStencilState               zstencilState;
@@ -747,9 +745,10 @@ struct gs_device {
 	void LoadZStencilState(id<MTLRenderCommandEncoder> commandEncoder);
 	void UploadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder);
 	void UploadTextures(id<MTLRenderCommandEncoder> commandEncoder);
-	void Draw(id<MTLRenderCommandEncoder> commandEncoder,
+	void DrawPrimitives(id<MTLRenderCommandEncoder> commandEncoder,
 			gs_draw_mode drawMode,
 			uint32_t startVert, uint32_t numVerts);
+	void Draw(gs_draw_mode drawMode, uint32_t startVert, uint32_t numVerts);
 
 	inline void CopyTex(id<MTLTexture> dst,
 			uint32_t dst_x, uint32_t dst_y,
