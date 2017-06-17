@@ -240,14 +240,14 @@ struct gs_vertex_buffer : gs_obj {
 	std::vector<id<MTLBuffer>> uvBuffers;
 	std::vector<size_t>        uvSizes;
 
-	void FlushBuffer(id<MTLBuffer> buffer, void *array, size_t elementSize);
+	inline void FlushBuffer(id<MTLBuffer> buffer, void *array, size_t num);
 	void FlushBuffers();
 
 	void MakeBufferList(gs_vertex_shader *shader,
 			std::vector<id<MTLBuffer>> &buffers);
 
-	void InitBuffer(size_t elementSize, size_t numVerts, void *array,
-			id<MTLBuffer> &buffer);
+	inline void InitBuffer(size_t elementSize, void *array,
+			id<MTLBuffer> &buffer, const char *name);
 	void InitBuffers();
 
 	inline void Release()

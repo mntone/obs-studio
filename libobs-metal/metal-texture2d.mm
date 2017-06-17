@@ -27,17 +27,15 @@ void gs_texture_2d::BackupTexture(const uint8_t **data)
 
 void gs_texture_2d::UploadTexture(const uint8_t **data)
 {
-	if (!isDynamic)
-		return;
+	//assert(isDynamic);
 	
-	uint32_t rowSizeBytes = width  * gs_get_format_bpp(format);
-	uint32_t texSizeBytes  = height * rowSizeBytes / 8;
-	/*MTLRegion region = MTLRegionMake2D(0, 0, width, height);
-	[texture replaceRegion:region mipmapLevel:levels
-			withBytes:data bytesPerRow:rowSizeBytes];*/
-	memcpy(texture.buffer.contents, data, texSizeBytes);
-	
-	[texture.buffer didModifyRange:NSRange { 0, texSizeBytes }];
+	uint32_t rowSizeBytes = width * gs_get_format_bpp(format) / 8;
+	uint32_t texSizeBytes = height * rowSizeBytes;
+	MTLRegion region = MTLRegionMake2D(0, 0, width, height);
+	[texture replaceRegion:region mipmapLevel:0 slice:0
+			withBytes:this->data[0].data()
+			bytesPerRow:rowSizeBytes
+			bytesPerImage:texSizeBytes];
 }
 
 void gs_texture_2d::InitTexture()
@@ -51,8 +49,10 @@ void gs_texture_2d::InitTexture()
 
 inline void gs_texture_2d::Rebuild(id<MTLDevice> dev)
 {
-	if (isShared)
+	if (isShared) {
+		texture = nil;
 		return;
+	}
 	
 	if (texture != nil) {
 		[texture release];
@@ -101,17 +101,16 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, uint32_t width,
 	default:
 		break;
 	}
-	textureDesc.mipmapLevelCount = genMipmaps ? 0 : levels;
 	textureDesc.arrayLength      = type == GS_TEXTURE_CUBE ? 6 : 1;
-	textureDesc.cpuCacheMode     = isDynamic ?
+	/*textureDesc.cpuCacheMode     = isDynamic ?
 			MTLCPUCacheModeWriteCombined :
-			MTLCPUCacheModeDefaultCache;
-	textureDesc.storageMode      = isDynamic ?
-			MTLStorageModeManaged :
-			MTLStorageModePrivate;
-	textureDesc.usage            = isRenderTarget ?
-			MTLTextureUsageRenderTarget :
-			MTLTextureUsageShaderRead;
+			MTLCPUCacheModeDefaultCache;*/
+	textureDesc.storageMode      = /*isDynamic ?*/ MTLStorageModeManaged /*:
+			MTLStorageModePrivate*/;
+	textureDesc.usage            = MTLTextureUsageShaderRead;
+	
+	if (isRenderTarget)
+		textureDesc.usage |= MTLTextureUsageRenderTarget;
 	
 	InitTexture();
 	

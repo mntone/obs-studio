@@ -130,7 +130,7 @@ gs_sampler_state::gs_sampler_state(gs_device_t *device,
 	samplerDesc.minFilter       = ConvertGSMinFilter(info->filter);
 	samplerDesc.magFilter       = ConvertGSMagFilter(info->filter);
 	samplerDesc.mipFilter       = ConvertGSMipFilter(info->filter);
-	samplerDesc.maxAnisotropy   = info->max_anisotropy;
+	samplerDesc.maxAnisotropy   = std::max(info->max_anisotropy, 1);
 	samplerDesc.compareFunction = MTLCompareFunctionAlways;
 
 	if ((info->border_color & 0x000000FF) == 0)

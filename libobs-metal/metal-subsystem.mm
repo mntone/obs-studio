@@ -56,15 +56,6 @@ void gs_device::InitDevice(uint32_t deviceIdx)
 			featureSetFamily, featureSetVersion);
 }
 
-void gs_device::LoadVertexDesc()
-{
-	if (curVertexBuffer && curVertexShader) {
-		curVertexShader->UpdateDesc(curVertexBuffer->vbData->num);
-	
-		pipelineDesc.vertexDescriptor = curVertexShader->vertexDesc;
-	}
-}
-
 void gs_device::UploadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder)
 {
 	NSRange               range;
@@ -79,7 +70,6 @@ void gs_device::UploadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder)
 		buffers.resize(buffersToClear);
 	}
 	
-	//offsets.resize(buffers.size());
 	range.location = 0;
 	range.length   = buffers.size();
 	offsets.resize(buffers.size());
@@ -91,10 +81,9 @@ void gs_device::UploadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder)
 	lastVertexShader = curVertexShader;
 }
 
-
 void gs_device::UploadTextures(id<MTLRenderCommandEncoder> commandEncoder)
 {
-	for (size_t i = 0; i < GS_MAX_TEXTURES; ++i) {
+	for (size_t i = 0; i < GS_MAX_TEXTURES; i++) {
 		gs_texture_2d *tex2d = static_cast<gs_texture_2d*>(
 				curTextures[i]);
 		if (tex2d != nullptr) {
@@ -106,7 +95,7 @@ void gs_device::UploadTextures(id<MTLRenderCommandEncoder> commandEncoder)
 
 void gs_device::LoadSamplers(id<MTLRenderCommandEncoder> commandEncoder)
 {
-	for (size_t i = 0; i < GS_MAX_TEXTURES; ++i) {
+	for (size_t i = 0; i < GS_MAX_TEXTURES; i++) {
 		gs_sampler_state *s = static_cast<gs_sampler_state*>(
 				curSamplers[i]);
 		if (s != nullptr) {
@@ -587,7 +576,7 @@ void device_load_samplerstate(gs_device_t *device,
 void device_load_vertexshader(gs_device_t *device, gs_shader_t *vertshader)
 {
 	id<MTLFunction>     function  = nil;
-	MTLVertexDescriptor *vd       = nil;
+	MTLVertexDescriptor *vertDesc = nil;
 
 	if (device->curVertexShader == vertshader)
 		return;
@@ -602,12 +591,13 @@ void device_load_vertexshader(gs_device_t *device, gs_shader_t *vertshader)
 		}
 
 		function = vs->function;
-		vd       = vs->vertexDesc;
+		vertDesc = vs->vertexDesc;
 	}
 
 	device->curVertexShader = vs;
 	
 	device->pipelineDesc.vertexFunction = function;
+	device->pipelineDesc.vertexDescriptor = vertDesc;
 }
 
 static inline void clear_textures(gs_device_t *device)
@@ -876,12 +866,27 @@ void device_stage_texture(gs_device_t *device, gs_stagesurf_t *dst,
 
 void device_begin_scene(gs_device_t *device)
 {
-	device->commandBuffer = [device->commandQueue commandBuffer];
 }
 
 void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 		uint32_t start_vert, uint32_t num_verts)
 {
+	NSError *error = nil;
+	id<MTLRenderPipelineState> pipelineState = [device->device
+			newRenderPipelineStateWithDescriptor:
+			device->pipelineDesc error:&error];
+	if (pipelineState == nil) {
+		blog(LOG_ERROR, "device_draw (Metal): %s",
+				error.localizedDescription.UTF8String);
+		return;
+	}
+	
+	device->commandBuffer = [device->commandQueue commandBuffer];
+	id<MTLRenderCommandEncoder> commandEncoder = [device->commandBuffer
+			  renderCommandEncoderWithDescriptor:device->passDesc];
+	[commandEncoder setRenderPipelineState:pipelineState];
+	[pipelineState release];
+	
 	try {
 		if (!device->curVertexShader)
 			throw "No vertex shader specified";
@@ -895,28 +900,6 @@ void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 		if (!device->curSwapChain && !device->curRenderTarget)
 			throw "No render target or swap chain to render to";
 		
-		device->LoadVertexDesc();
-		
-	} catch (const char *error) {
-		blog(LOG_ERROR, "device_draw (Metal): %s", error);
-		return;
-	}
-	
-	NSError *error = nil;
-	id<MTLRenderPipelineState> pipelineState = [device->device
-			newRenderPipelineStateWithDescriptor:
-			device->pipelineDesc error:&error];
-	if (pipelineState == nil) {
-		blog(LOG_ERROR, "device_draw (Metal): %s",
-				error.localizedDescription.UTF8String);
-		return;
-	}
-	
-	id<MTLRenderCommandEncoder> commandEncoder = [device->commandBuffer
-			  renderCommandEncoderWithDescriptor:device->passDesc];
-	[commandEncoder setRenderPipelineState:pipelineState];
-	
-	try {
 		gs_effect_t *effect = gs_get_effect();
 		if (effect)
 			gs_effect_update_params(effect);
@@ -937,9 +920,12 @@ void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 	
 	[commandEncoder endEncoding];
 	[commandEncoder release];
-	[pipelineState release];
 	
-	device->pipelineDesc.vertexDescriptor = nil;
+	[device->commandBuffer commit];
+	[device->commandBuffer waitUntilCompleted];
+	[device->commandBuffer release];
+	device->commandBuffer = nil;
+	
 	device->passDesc.colorAttachments[0].loadAction = MTLLoadActionLoad;
 	device->passDesc.depthAttachment.loadAction     = MTLLoadActionLoad;
 	device->passDesc.stencilAttachment.loadAction   = MTLLoadActionLoad;
@@ -999,22 +985,20 @@ void device_clear(gs_device_t *device, uint32_t clear_flags,
 void device_present(gs_device_t *device)
 {
 	if (device->curSwapChain) {
+		device->commandBuffer = [device->commandQueue commandBuffer];
 		[device->commandBuffer presentDrawable:
 				device->curSwapChain->nextDrawable];
+		[device->commandBuffer commit];
+		[device->commandBuffer waitUntilCompleted];
+		[device->commandBuffer release];
+		device->commandBuffer = nil;
 	} else {
 		blog(LOG_WARNING, "device_present (Metal): No active swap");
 	}
-	
-	device_flush(device);
 }
 
 void device_flush(gs_device_t *device)
-{
-	[device->commandBuffer commit];
-	[device->commandBuffer waitUntilCompleted];
-	[device->commandBuffer release];
-	device->commandBuffer = nil;
-	
+{	
 	/* does nothing in Metal */
 	UNUSED_PARAMETER(device);
 }

@@ -6,52 +6,6 @@
 #include "metal-subsystem.hpp"
 #include "metal-shaderprocessor.hpp"
 
-static inline void UpdateDescLayout(MTLVertexBufferLayoutDescriptor *desc,
-		MTLVertexFormat format, size_t elementSize)
-{
-	switch ((NSUInteger)format)
-	{
-	case MTLVertexFormatUChar4Normalized:
-	case MTLVertexFormatFloat:
-		desc.stride = elementSize * 4;
-		break;
-	case MTLVertexFormatFloat2:
-		desc.stride = elementSize * 8;
-		break;
-	case MTLVertexFormatFloat3:
-	case MTLVertexFormatFloat4:
-		desc.stride = elementSize * 16;
-		break;
-	}
-}
-
-void gs_vertex_shader::UpdateDesc(size_t elementSize)
-{
-	size_t layoutIndex = 0, attrIndex = 0;
-	UpdateDescLayout(vertexDesc.layouts[layoutIndex++],
-			vertexDesc.attributes[attrIndex++].format, elementSize);
-	
-	if (hasNormals)
-		UpdateDescLayout(vertexDesc.layouts[layoutIndex++],
-				vertexDesc.attributes[attrIndex++].format,
-				elementSize);
-	
-	if (hasColors)
-		UpdateDescLayout(vertexDesc.layouts[layoutIndex++],
-				vertexDesc.attributes[attrIndex++].format,
-				 elementSize);
-	
-	if (hasTangents)
-		UpdateDescLayout(vertexDesc.layouts[layoutIndex++],
-				vertexDesc.attributes[attrIndex++].format,
-				elementSize);
-	
-	for (size_t i = 0; i < texUnits; i++)
-		UpdateDescLayout(vertexDesc.layouts[layoutIndex++],
-				vertexDesc.attributes[attrIndex++].format,
-				elementSize);
-}
-
 gs_vertex_shader::gs_vertex_shader(gs_device_t *device, const char *file,
 		const char *shaderString)
 	: gs_shader   (device, gs_type::gs_vertex_shader, GS_SHADER_VERTEX),
@@ -178,6 +132,8 @@ void gs_shader::BuildConstantBuffer()
 				options:options];
 		if (constants == nil)
 			throw "Failed to create constant buffer";
+		
+		constants.label = @"constants";
 	}
 
 	for (size_t i = 0; i < params.size(); i++)

@@ -5,7 +5,7 @@
 
 using namespace std;
 
-void gs_vertex_buffer::FlushBuffer(id<MTLBuffer> buffer, void *array,
+inline void gs_vertex_buffer::FlushBuffer(id<MTLBuffer> buffer, void *array,
 		size_t elementSize)
 {
 	memcpy(buffer.contents, array, elementSize * vbData->num);
@@ -63,31 +63,33 @@ void gs_vertex_buffer::MakeBufferList(gs_vertex_shader *shader,
 	}
 }
 
-void gs_vertex_buffer::InitBuffer(size_t elementSize, size_t numVerts,
-		void *array, id<MTLBuffer> &buffer)
+inline void gs_vertex_buffer::InitBuffer(size_t elementSize, void *array,
+		id<MTLBuffer> &buffer, const char *name)
 {
-	NSUInteger         length  = elementSize * numVerts;
+	NSUInteger         length  = elementSize * vbData->num;
 	MTLResourceOptions options = isDynamic ? MTLResourceStorageModeShared
-			: MTLResourceStorageModePrivate;
+			: MTLResourceStorageModeManaged;
 	
 	buffer = [device->device newBufferWithBytes:array
 			length:length options:options];
 	if (buffer == nil)
 		throw "Failed to create buffer";
+	
+	buffer.label = [[NSString alloc] initWithUTF8String:name];
 }
 
 void gs_vertex_buffer::InitBuffers()
 {
-	InitBuffer(sizeof(vec3), vbData->num, vbData->points, vertexBuffer);
+	InitBuffer(sizeof(vec3), vbData->points, vertexBuffer, "point");
 	if (vbData->normals)
-		InitBuffer(sizeof(vec3), vbData->num, vbData->normals,
-				normalBuffer);
+		InitBuffer(sizeof(vec3), vbData->normals, normalBuffer,
+				"normal");
 	if (vbData->tangents)
-		InitBuffer(sizeof(vec3), vbData->num, vbData->tangents,
-				tangentBuffer);
+		InitBuffer(sizeof(vec3), vbData->tangents, tangentBuffer,
+				"color");
 	if (vbData->colors)
-		InitBuffer(sizeof(uint32_t), vbData->num, vbData->colors,
-				colorBuffer);
+		InitBuffer(sizeof(uint32_t), vbData->colors, colorBuffer,
+				"tangent");
 	for (struct gs_tvertarray *tverts = vbData->tvarray;
 	     tverts != vbData->tvarray + vbData->num_tex;
 	     tverts++) {
@@ -97,8 +99,8 @@ void gs_vertex_buffer::InitBuffers()
 			throw "No texture vertices specified";
 
 		id<MTLBuffer> buffer;
-		InitBuffer(tverts->width * sizeof(float), vbData->num,
-				tverts->array, buffer);
+		InitBuffer(tverts->width * sizeof(float), tverts->array, buffer,
+				"texcoord");
 
 		uvBuffers.push_back(buffer);
 		uvSizes.emplace_back(tverts->width * sizeof(float));

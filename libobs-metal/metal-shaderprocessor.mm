@@ -7,33 +7,40 @@
 using namespace std;
 
 static inline void AddInputLayoutVar(shader_var *var,
-		MTLVertexAttributeDescriptor *vad)
+		MTLVertexAttributeDescriptor *vad,
+		MTLVertexBufferLayoutDescriptor *vbld)
 {
 	if (strcmp(var->mapping, "COLOR") == 0) {
 		vad.format = MTLVertexFormatUChar4Normalized;
+		vbld.stride = sizeof(vec4);
 
 	} else if (strcmp(var->mapping, "POSITION") == 0 ||
 	           strcmp(var->mapping, "NORMAL")   == 0 ||
 	           strcmp(var->mapping, "TANGENT")  == 0) {
 		vad.format = MTLVertexFormatFloat4;
+		vbld.stride = sizeof(vec4);
 		
 	} else if (astrcmp_n(var->mapping, "TEXCOORD", 8) == 0) {
 		/* type is always a 'float' type */
 		switch (var->type[5]) {
 		case 0:
 			vad.format = MTLVertexFormatFloat;
+			vbld.stride = sizeof(float);
 			break;
 		
 		case '2':
 			vad.format = MTLVertexFormatFloat2;
+			vbld.stride = sizeof(float) * 2;
 			break;
 				
 		case '3':
 			vad.format = MTLVertexFormatFloat3;
+			vbld.stride = sizeof(vec3);
 			break;
 				
 		case '4':
 			vad.format = MTLVertexFormatFloat4;
+			vbld.stride = sizeof(vec4);
 			break;
 		}
 	}
@@ -49,7 +56,8 @@ static inline void BuildVertexDescFromVars(shader_parser *parser, darray *vars,
 
 		if (var->mapping) {
 			vd.attributes[index].bufferIndex = index;
-			AddInputLayoutVar(var, vd.attributes[index++]);
+			AddInputLayoutVar(var, vd.attributes[index],
+					vd.layouts[index++]);
 		} else {
 			shader_struct *st = shader_parser_getstruct(parser,
 					var->type);
