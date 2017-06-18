@@ -1364,9 +1364,7 @@ void device_frustum(gs_device_t *device, float left, float right, float top,
 
 void device_projection_push(gs_device_t *device)
 {
-	mat4float mat;
-	memcpy(&mat, &device->curProjMatrix, sizeof(matrix4));
-	device->projStack.push_back(mat);
+	device->projStack.push_back(device->curProjMatrix);
 }
 
 void device_projection_pop(gs_device_t *device)
@@ -1374,8 +1372,7 @@ void device_projection_pop(gs_device_t *device)
 	if (!device->projStack.size())
 		return;
 	
-	const mat4float &mat = *device->projStack.end();
-	memcpy(&device->curProjMatrix, &mat, sizeof(matrix4));
+	device->curProjMatrix = *(device->projStack.end() - 1);
 	device->projStack.pop_back();
 }
 

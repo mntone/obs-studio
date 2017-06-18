@@ -11,8 +11,6 @@
 #include <graphics/graphics.h>
 #include <graphics/device-exports.h>
 
-#include "objc_ptr.hpp"
-
 #import <MetalKit/MetalKit.h>
 
 struct shader_var;
@@ -676,10 +674,6 @@ struct ZStencilState {
 	}
 };
 
-struct mat4float {
-	float mat[16];
-};
-
 struct gs_device {
 	id<MTLDevice>               device = nil;
 	id<MTLCommandQueue>         commandQueue = nil;
@@ -707,7 +701,7 @@ struct gs_device {
 	RasterState                 rasterState;
 	ZStencilState               zstencilState;
 
-	std::vector<mat4float>      projStack;
+	std::vector<matrix4>        projStack;
 
 	matrix4                     curProjMatrix;
 	matrix4                     curViewMatrix;
