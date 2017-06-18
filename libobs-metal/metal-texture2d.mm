@@ -27,8 +27,8 @@ void gs_texture_2d::BackupTexture(const uint8_t **data)
 
 void gs_texture_2d::UploadTexture()
 {
-	uint32_t rowSizeBytes = width * gs_get_format_bpp(format) / 8;
-	uint32_t texSizeBytes = height * rowSizeBytes;
+	const uint32_t rowSizeBytes = width * gs_get_format_bpp(format) / 8;
+	const uint32_t texSizeBytes = height * rowSizeBytes;
 	MTLRegion region = MTLRegionMake2D(0, 0, width, height);
 	[texture replaceRegion:region mipmapLevel:0 slice:0
 			withBytes:this->data[0].data()

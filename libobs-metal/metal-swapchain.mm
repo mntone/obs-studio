@@ -2,26 +2,26 @@
 
 #import <QuartzCore/QuartzCore.h>
 
+using namespace std;
+
 gs_texture_2d *gs_swap_chain::GetTarget()
 {
 	if (!nextTarget)
 		return NextTarget();
 	
-	return nextTarget;
+	return nextTarget.get();
 }
 
 gs_texture_2d *gs_swap_chain::NextTarget()
 {
-	if (nextTarget)
-		delete nextTarget;
-	
 	nextDrawable = metalLayer.nextDrawable;
 	if (nextDrawable != nil)
-		nextTarget = new gs_texture_2d(device, nextDrawable.texture);
+		nextTarget.reset(new gs_texture_2d(device,
+				nextDrawable.texture));
 	else
-		nextTarget = nullptr;
+		nextTarget.reset();
 	
-	return nextTarget;
+	return nextTarget.get();
 }
 
 void gs_swap_chain::Resize(uint32_t cx, uint32_t cy)
@@ -48,7 +48,7 @@ gs_swap_chain::gs_swap_chain(gs_device *device, const gs_init_data *data)
 		blog(LOG_WARNING, "device_stage_texture (Metal): "
 			          "pixel format is not matched (RGBA only)");
 	
-	metalLayer = [CAMetalLayer new];
+	metalLayer = [CAMetalLayer layer];
 	metalLayer.device = device->device;
 	metalLayer.drawableSize = CGSizeMake(initData.cx, initData.cy);
 	view.wantsLayer = YES;

@@ -11,6 +11,8 @@
 #include <graphics/graphics.h>
 #include <graphics/device-exports.h>
 
+#include <Availability.h>
+
 #import <MetalKit/MetalKit.h>
 
 struct shader_var;
@@ -72,7 +74,9 @@ static inline MTLPixelFormat ConvertGSZStencilFormat(gs_zstencil_format format)
 {
 	switch (format) {
 	case GS_ZS_NONE:     return MTLPixelFormatInvalid;
+#ifdef __MAC_10_12
 	case GS_Z16:         return MTLPixelFormatDepth16Unorm;
+#endif
 	case GS_Z24_S8:      return MTLPixelFormatDepth24Unorm_Stencil8;
 	case GS_Z32F:        return MTLPixelFormatDepth32Float;
 	case GS_Z32F_S8X24:  return MTLPixelFormatDepth32Float_Stencil8;
@@ -85,7 +89,9 @@ static inline gs_zstencil_format ConvertMTLPixelFormatDepth(
 		MTLPixelFormat format)
 {
 	switch ((NSUInteger)format) {
+#ifdef __MAC_10_12
 	case MTLPixelFormatDepth16Unorm:          return GS_Z16;
+#endif
 	case MTLPixelFormatDepth24Unorm_Stencil8: return GS_Z24_S8;
 	case MTLPixelFormatDepth32Float:          return GS_Z24_S8;
 	case MTLPixelFormatDepth32Float_Stencil8: return GS_Z32F_S8X24;
@@ -329,11 +335,6 @@ struct gs_texture_2d : gs_texture {
 		texture = nil;
 		textureDesc = nil;
 	}
-	
-	inline uint32_t bytesPerRow() const
-	{
-		return texture.buffer.length / height;
-	}
 
 	gs_texture_2d(gs_device_t *device, uint32_t width, uint32_t height,
 			gs_color_format colorFormat, uint32_t levels,
@@ -551,7 +552,7 @@ struct gs_swap_chain : gs_obj {
 	
 	gs_init_data        initData;
 	id<CAMetalDrawable> nextDrawable = nil;
-	gs_texture_2d       *nextTarget = nullptr;
+	std::unique_ptr<gs_texture_2d> nextTarget;
 	
 	gs_texture_2d *GetTarget();
 	gs_texture_2d *NextTarget();
@@ -561,10 +562,7 @@ struct gs_swap_chain : gs_obj {
 
 	inline void Release()
 	{
-		if (nextTarget != nullptr) {
-			delete nextTarget;
-			nextTarget = nullptr;
-		}
+		nextTarget.reset();
 		nextDrawable = nil;
 		view.layer = nil;
 		view = nil;

@@ -38,7 +38,7 @@ void gs_device::InitDevice(uint32_t deviceIdx)
 		throw "Failed to create MTLDevice";
 	
 	for (size_t i = 0; i < devices.count; i++) {
-		if (i == deviceIdx) {
+		if (i == devIdx) {
 			device = devices[i];
 			continue;
 		}
@@ -255,8 +255,8 @@ gs_device::gs_device(uint32_t adapterIdx)
 	InitDevice(adapterIdx);
 	
 	commandQueue = [device newCommandQueue];
-	passDesc = [MTLRenderPassDescriptor new];
-	pipelineDesc = [MTLRenderPipelineDescriptor new];
+	passDesc = [[MTLRenderPassDescriptor alloc] init];
+	pipelineDesc = [[MTLRenderPipelineDescriptor alloc] init];
 	
 	memset(curTextures, 0, sizeof(curTextures));
 	device_set_render_target(this, nullptr, nullptr);
@@ -282,14 +282,11 @@ static inline void EnumMetalAdapters(
 		void *param)
 {
 	uint32_t i = 0;
-	
-	@autoreleasepool {
-		NSArray *devices = MTLCopyAllDevices();
+	NSArray *devices = MTLCopyAllDevices();
     
-		for (id<MTLDevice> device in devices) {
-			if (!callback(param, [device name].UTF8String, i++))
-				break;
-		}
+	for (id<MTLDevice> device in devices) {
+		if (!callback(param, [device name].UTF8String, i++))
+			break;
 	}
 }
 
@@ -297,7 +294,9 @@ bool device_enum_adapters(
 		bool (*callback)(void *param, const char *name, uint32_t id),
 		void *param)
 {
-	EnumMetalAdapters(callback, param);
+	@autoreleasepool {
+		EnumMetalAdapters(callback, param);
+	}
 	return true;
 }
 
@@ -305,14 +304,11 @@ static inline void LogMetalAdapters()
 {
 	blog(LOG_INFO, "Available Video Adapters: ");
 	
-	@autoreleasepool {
-		NSArray *devices = MTLCopyAllDevices();
-    
-		for (size_t i = 0; i < devices.count; i++) {
-			id<MTLDevice> device = devices[i];
-			blog(LOG_INFO, "\tAdapter %zu: %s", i,
-					[device name].UTF8String);
-		}
+	NSArray *devices = MTLCopyAllDevices();
+	for (size_t i = 0; i < devices.count; i++) {
+		id<MTLDevice> device = devices[i];
+		blog(LOG_INFO, "\tAdapter %zu: %s", i,
+				[device name].UTF8String);
 	}
 }
 
@@ -324,9 +320,12 @@ int device_create(gs_device_t **p_device, uint32_t adapter)
 	try {
 		blog(LOG_INFO, "---------------------------------");
 		blog(LOG_INFO, "Initializing Metal...");
-		LogMetalAdapters();
-
-		device = new gs_device(adapter);
+		
+		@autoreleasepool {
+			LogMetalAdapters();
+			
+			device = new gs_device(adapter);
+		}
 
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_create (Metal): %s", error);
@@ -339,6 +338,8 @@ int device_create(gs_device_t **p_device, uint32_t adapter)
 
 void device_destroy(gs_device_t *device)
 {
+	assert(device != nullptr);
+	
 	delete device;
 }
 
@@ -687,7 +688,7 @@ static inline void clear_textures(gs_device_t *device)
 
 void device_load_pixelshader(gs_device_t *device, gs_shader_t *pixelshader)
 {
-	id<MTLFunction>      function  = nil;
+	id<MTLFunction> function  = nil;
 
 	if (device->curPixelShader == pixelshader)
 		return;
@@ -866,8 +867,8 @@ inline void gs_device::CopyTex(id<MTLTexture> dst,
 				tex2d->texture.buffer.contents,
 				tex2d->texture.buffer.length);
 	} else {
-		const uint32_t bytesPerRow   = tex2d->bytesPerRow();
-		const uint32_t bytesPerPixel = bytesPerRow / tex2d->width;
+		uint32_t bytesPerPixel = gs_get_format_bpp(tex2d->format) / 8;
+		uint32_t bytesPerRow = tex2d->width * bytesPerPixel;
 		
 		uint8_t *data;
 		MTLRegion dregion;
@@ -967,7 +968,9 @@ void device_begin_scene(gs_device_t *device)
 void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 		uint32_t start_vert, uint32_t num_verts)
 {
-	device->Draw(draw_mode, start_vert, num_verts);
+	@autoreleasepool {
+		device->Draw(draw_mode, start_vert, num_verts);
+	}
 }
 
 void device_end_scene(gs_device_t *device)
