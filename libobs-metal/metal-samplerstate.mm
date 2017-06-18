@@ -108,11 +108,6 @@ inline void gs_sampler_state::InitSampler()
 
 inline void gs_sampler_state::Rebuild(id<MTLDevice> dev)
 {
-	if (samplerState != nil) {
-		[samplerState release];
-		samplerState = nil;
-	}
-	
 	InitSampler();
 	
 	UNUSED_PARAMETER(dev);

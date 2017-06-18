@@ -11,6 +11,8 @@
 #include <graphics/graphics.h>
 #include <graphics/device-exports.h>
 
+#include "objc_ptr.hpp"
+
 #import <MetalKit/MetalKit.h>
 
 struct shader_var;
@@ -219,9 +221,9 @@ struct gs_obj {
 	gs_obj **prev_next;
 
 	inline gs_obj() :
-		device(nullptr),
-		next(nullptr),
-		prev_next(nullptr)
+		device    (nullptr),
+		next      (nullptr),
+		prev_next (nullptr)
 	{
 	}
 
@@ -246,28 +248,18 @@ struct gs_vertex_buffer : gs_obj {
 	void MakeBufferList(gs_vertex_shader *shader,
 			std::vector<id<MTLBuffer>> &buffers);
 
-	inline void InitBuffer(size_t elementSize, void *array,
-			id<MTLBuffer> &buffer, const char *name);
+	inline id<MTLBuffer> InitBuffer(size_t elementSize, void *array,
+			const char *name);
 	void InitBuffers();
 
 	inline void Release()
 	{
-		[vertexBuffer release];
-		if (normalBuffer != nil) {
-			[normalBuffer release];
-			normalBuffer = nil;
-		}
-		if (colorBuffer != nil) {
-			[colorBuffer release];
-			colorBuffer = nil;
-		}
-		if (tangentBuffer != nil) {
-			[tangentBuffer release];
-			tangentBuffer = nil;
-		}
-		for (auto uvBuffer : uvBuffers)
-			[uvBuffer release];
+		vertexBuffer = nil;
+		normalBuffer = nil;
+		colorBuffer  = nil;
+		tangentBuffer = nil;
 		uvBuffers.clear();
+		uvSizes.clear();
 	}
 
 	inline void Rebuild();
@@ -291,7 +283,7 @@ struct gs_index_buffer : gs_obj {
 
 	inline void Rebuild(id<MTLDevice> dev);
 
-	inline void Release() {[indexBuffer release];}
+	inline void Release() {indexBuffer = nil;}
 
 	gs_index_buffer(gs_device_t *device, enum gs_index_type type,
 			void *indices, size_t num, uint32_t flags);
@@ -329,17 +321,13 @@ struct gs_texture_2d : gs_texture {
 	std::vector<std::vector<uint8_t>> data;
 
 	void BackupTexture(const uint8_t **data);
-	void UploadTexture(const uint8_t **data);
+	void UploadTexture();
 	void InitTexture();
 	
 	inline void Rebuild(id<MTLDevice> dev);
 
 	inline void Release()
 	{
-		[texture release];
-		if (!isShared)
-			[textureDesc release];
-		
 		texture = nil;
 		textureDesc = nil;
 	}
@@ -355,6 +343,10 @@ struct gs_texture_2d : gs_texture {
 			gs_texture_type type);
 
 	gs_texture_2d(gs_device_t *device, id<MTLTexture> texture);
+	virtual ~gs_texture_2d()
+	{
+		Release();
+	}
 };
 
 struct gs_zstencil_buffer : gs_obj {
@@ -372,10 +364,6 @@ struct gs_zstencil_buffer : gs_obj {
 
 	inline void Release()
 	{
-		[texture release];
-		if (!isShared)
-			[textureDesc release];
-		
 		texture = nil;
 		textureDesc = nil;
 	}
@@ -399,8 +387,7 @@ struct gs_stage_surface : gs_obj {
 
 	inline void Release()
 	{
-		[texture release];
-		[textureDesc release];
+		texture = nil;
 	}
 
 	gs_stage_surface(gs_device_t *device, uint32_t width, uint32_t height,
@@ -419,8 +406,8 @@ struct gs_sampler_state : gs_obj {
 
 	inline void Release()
 	{
-		[samplerState release];
-		[samplerDesc release];
+		samplerState = nil;
+		samplerDesc = nil;
 	}
 
 	gs_sampler_state(gs_device_t *device, const gs_sampler_info *info);
@@ -454,19 +441,36 @@ struct ShaderError {
 };
 
 struct gs_shader : gs_obj {
+	static MTLCompileOptions     *mtlCompileOptions;
+	
 	gs_shader_type               type;
 	id<MTLLibrary>               library = nil;
 	id<MTLFunction>              function = nil;
 	std::vector<gs_shader_param> params;
+	
+	std::vector<id<MTLBuffer>>   oldConstants;
 	id<MTLBuffer>                constants = nil;
 	size_t                       constantSize = 0;
+	size_t                       constantActualSize = 0;
+	size_t                       constantSlot = 0;
+	size_t                       constantCapacity = 0;
 
 	inline void UpdateParam(uint8_t *data, gs_shader_param &param);
 	void UploadParams(id<MTLRenderCommandEncoder> commandEncoder);
 
 	void BuildConstantBuffer();
-	void Compile(const char *shaderStr, id<MTLLibrary> &library,
-			id<MTLFunction> &function);
+	void Compile(const char *shaderStr);
+	
+	void InitConstantBuffer();
+	size_t NextConstantBufferOffset();
+	void ResetState();
+	
+	inline void Release()
+	{
+		function = nil;
+		library = nil;
+		constants = nil;
+	}
 
 	inline gs_shader(gs_device_t *device, gs_type obj_type,
 			gs_shader_type type)
@@ -475,8 +479,6 @@ struct gs_shader : gs_obj {
 		  constantSize (0)
 	{
 	}
-
-	virtual ~gs_shader() {}
 };
 
 struct ShaderBufferInfo {
@@ -499,14 +501,6 @@ struct gs_vertex_shader : gs_shader {
 	void UpdateDesc(size_t elementSize);
 
 	inline void Rebuild(id<MTLDevice> dev);
-
-	inline void Release()
-	{
-		[function release];
-		[library release];
-		[constants release];
-		[vertexDesc release];
-	}
 
 	inline uint32_t NumBuffersExpected() const
 	{
@@ -539,13 +533,6 @@ struct gs_pixel_shader : gs_shader {
 
 	inline void Rebuild(id<MTLDevice> dev);
 
-	inline void Release()
-	{
-		[function release];
-		[library release];
-		[constants release];
-	}
-
 	inline void GetSamplerStates(MTLSamplerDescriptor **states)
 	{
 		size_t i;
@@ -568,6 +555,7 @@ struct gs_swap_chain : gs_obj {
 	id<CAMetalDrawable> nextDrawable = nil;
 	gs_texture_2d       *nextTarget = nullptr;
 	
+	gs_texture_2d *GetTarget();
 	gs_texture_2d *NextTarget();
 	void Resize(uint32_t cx, uint32_t cy);
 
@@ -579,13 +567,10 @@ struct gs_swap_chain : gs_obj {
 			delete nextTarget;
 			nextTarget = nullptr;
 		}
-		if (nextDrawable != nil) {
-			[nextDrawable release];
-			nextDrawable = nil;
-		}
+		nextDrawable = nil;
 		view.layer = nil;
 		view = nil;
-		[metalLayer release];
+		metalLayer = nil;
 	}
 
 	gs_swap_chain(gs_device *device, const gs_init_data *data);
@@ -689,11 +674,6 @@ struct ZStencilState {
 	{
 		memcpy(this, &state, sizeof(ZStencilState));
 	}
-	
-	~ZStencilState()
-	{
-		[dsd release];
-	}
 };
 
 struct mat4float {
@@ -713,7 +693,6 @@ struct gs_device {
 	int                         curRenderSide = 0;
 	gs_zstencil_buffer          *curZStencilBuffer = nullptr;
 	gs_texture                  *curTextures[GS_MAX_TEXTURES];
-	gs_sampler_state            *curSamplers[GS_MAX_TEXTURES];
 	gs_vertex_buffer            *curVertexBuffer = nullptr;
 	gs_index_buffer             *curIndexBuffer = nullptr;
 	gs_vertex_shader            *curVertexShader = nullptr;
@@ -757,8 +736,8 @@ struct gs_device {
 
 	void UpdateViewProjMatrix();
 
+	void ResetState();
 	void RebuildDevice();
 
 	gs_device(uint32_t adapterIdx);
-	~gs_device();
 };

@@ -6,6 +6,10 @@
 #include "metal-subsystem.hpp"
 #include "metal-shaderprocessor.hpp"
 
+using namespace std;
+
+MTLCompileOptions *gs_shader::mtlCompileOptions = nil;
+
 gs_vertex_shader::gs_vertex_shader(gs_device_t *device, const char *file,
 		const char *shaderString)
 	: gs_shader   (device, gs_type::gs_vertex_shader, GS_SHADER_VERTEX),
@@ -16,7 +20,7 @@ gs_vertex_shader::gs_vertex_shader(gs_device_t *device, const char *file,
 {
 	ShaderProcessor    processor(device);
 	ShaderBufferInfo   info;
-	std::string        outputString;
+	string             outputString;
 	
 	vertexDesc = [MTLVertexDescriptor new];
 
@@ -27,7 +31,7 @@ gs_vertex_shader::gs_vertex_shader(gs_device_t *device, const char *file,
 	processor.BuildVertexDesc(vertexDesc);
 	BuildConstantBuffer();
 
-	Compile(outputString.c_str(), library, function);
+	Compile(outputString.c_str());
 
 	hasNormals  = info.normals;
 	hasColors   = info.colors;
@@ -42,15 +46,15 @@ gs_pixel_shader::gs_pixel_shader(gs_device_t *device, const char *file,
 		const char *shaderString)
 	: gs_shader(device, gs_type::gs_pixel_shader, GS_SHADER_PIXEL)
 {
-	ShaderProcessor    processor(device);
-	std::string        outputString;
+	ShaderProcessor processor(device);
+	string          outputString;
 	
 	processor.Process(shaderString, file);
 	processor.BuildString(type, outputString);
 	processor.BuildParams(params);
 	BuildConstantBuffer();
 
-	Compile(outputString.c_str(), library, function);
+	Compile(outputString.c_str());
 }
 
 /*
@@ -114,12 +118,26 @@ void gs_shader::BuildConstantBuffer()
 		constantSize += size;
 	}
 
+	for (size_t i = 0; i < params.size(); i++)
+		gs_shader_set_default(&params[i]);
+	
+	InitConstantBuffer();
+}
+
+
+void gs_shader::InitConstantBuffer()
+{
+	if (constantCapacity == 0)
+		constantCapacity = 4;
+	
 	if (constantSize) {
-		NSUInteger length = (constantSize + 15) & ~15;
+		constantActualSize = (constantSize + 255) & ~255;
+		
+		NSUInteger length = constantActualSize * constantCapacity;
 		MTLResourceOptions options =
 				MTLResourceCPUCacheModeWriteCombined |
 				MTLResourceStorageModeShared;
-
+		
 		constants = [device->device newBufferWithLength:length
 				options:options];
 		if (constants == nil)
@@ -127,28 +145,42 @@ void gs_shader::BuildConstantBuffer()
 		
 		constants.label = @"constants";
 	}
-
-	for (size_t i = 0; i < params.size(); i++)
-		gs_shader_set_default(&params[i]);
 }
 
-void gs_shader::Compile(const char *shaderString, id<MTLLibrary> &library,
-		id<MTLFunction> &function)
+size_t gs_shader::NextConstantBufferOffset()
 {
-	NSString          *nsShaderString;
-	NSError           *errors  = nil;
-	MTLCompileOptions *options = nil;
+	if (constantSlot >= constantCapacity) {
+		constantCapacity *= 2;
+		
+		oldConstants.push_back(constants);
+		
+		InitConstantBuffer();
+	}
+	
+	return constantActualSize * constantSlot++;
+}
 
+void gs_shader::ResetState()
+{
+	oldConstants.clear();
+	
+	constantSlot = 0;
+}
+
+void gs_shader::Compile(const char *shaderString)
+{
 	if (!shaderString)
 		throw "No shader string specified";
 	
-	nsShaderString = [NSString stringWithUTF8String:shaderString];
-
-	options = [MTLCompileOptions new];
-	options.languageVersion = MTLLanguageVersion1_1;
+	if (mtlCompileOptions == nil) {
+		mtlCompileOptions = [MTLCompileOptions new];
+		mtlCompileOptions.languageVersion = MTLLanguageVersion1_1;
+	}
 	
+	NSString *nsShaderString = [NSString stringWithUTF8String:shaderString];
+	NSError *errors = nil;
 	library = [device->device newLibraryWithSource:nsShaderString
-			options:options error:&errors];
+			options:mtlCompileOptions error:&errors];
 	if (library == nil) {
 		blog(LOG_DEBUG, "Converted shader program:\n%s\n------\n",
 			shaderString);
@@ -170,11 +202,11 @@ inline void gs_shader::UpdateParam(uint8_t *data, gs_shader_param &param)
 		if (!param.curValue.size())
 			throw "Not all shader parameters were set";
 		
-		if (param.changed) {
-			memcpy(data, param.curValue.data(),
+		//if (param.changed) {
+			memcpy(data + param.pos, param.curValue.data(),
 					param.curValue.size());
-			param.changed = false;
-		}
+		//	param.changed = false;
+		//}
 
 	} else if (param.curValue.size() == sizeof(gs_texture_t*)) {
 		gs_texture_t *tex;
@@ -193,35 +225,45 @@ inline void gs_shader::UpdateParam(uint8_t *data, gs_shader_param &param)
 void gs_shader::UploadParams(id<MTLRenderCommandEncoder> commandEncoder)
 {
 	uint8_t *data;
+	size_t offset;
 	
-	data = (uint8_t *)constants.contents;
+	offset = NextConstantBufferOffset();
+	data = (uint8_t *)constants.contents + offset;
 	
 	for (size_t i = 0; i < params.size(); i++)
 		UpdateParam(data, params[i]);
 	
 	if (type == GS_SHADER_VERTEX)
-		[commandEncoder setVertexBuffer:constants offset:0 atIndex:30];
+		[commandEncoder setVertexBuffer:constants
+				offset:offset atIndex:30];
 	else if (type == GS_SHADER_PIXEL)
 		[commandEncoder setFragmentBuffer:constants
-				offset:0 atIndex:30];
+				offset:offset atIndex:30];
 	else
 		throw "This is unknown shader type";
 }
 
 void gs_shader_destroy(gs_shader_t *shader)
 {
-	if (shader != nullptr && shader->device->lastVertexShader == shader)
+	assert(shader != nullptr);
+	
+	if (shader->device->lastVertexShader == shader)
 		shader->device->lastVertexShader = nullptr;
+	
 	delete shader;
 }
 
 int gs_shader_get_num_params(const gs_shader_t *shader)
 {
+	assert(shader != nullptr);
+	
 	return (int)shader->params.size();
 }
 
 gs_sparam_t *gs_shader_get_param_by_idx(gs_shader_t *shader, uint32_t param)
 {
+	assert(shader != nullptr);
+	
 	return &shader->params[param];
 }
 
@@ -238,6 +280,8 @@ gs_sparam_t *gs_shader_get_param_by_name(gs_shader_t *shader, const char *name)
 
 gs_sparam_t *gs_shader_get_viewproj_matrix(const gs_shader_t *shader)
 {
+	assert(shader != nullptr);
+	
 	if (shader->type != GS_SHADER_VERTEX)
 		return nullptr;
 
@@ -246,6 +290,8 @@ gs_sparam_t *gs_shader_get_viewproj_matrix(const gs_shader_t *shader)
 
 gs_sparam_t *gs_shader_get_world_matrix(const gs_shader_t *shader)
 {
+	assert(shader != nullptr);
+	
 	if (shader->type != GS_SHADER_VERTEX)
 		return nullptr;
 
@@ -266,6 +312,7 @@ static inline void shader_setval_inline(gs_shader_param *param,
 		const void *data, size_t size)
 {
 	assert(param);
+	
 	if (!param)
 		return;
 

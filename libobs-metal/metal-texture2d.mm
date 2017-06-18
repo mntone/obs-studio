@@ -25,10 +25,8 @@ void gs_texture_2d::BackupTexture(const uint8_t **data)
 	}
 }
 
-void gs_texture_2d::UploadTexture(const uint8_t **data)
+void gs_texture_2d::UploadTexture()
 {
-	//assert(isDynamic);
-	
 	uint32_t rowSizeBytes = width * gs_get_format_bpp(format) / 8;
 	uint32_t texSizeBytes = height * rowSizeBytes;
 	MTLRegion region = MTLRegionMake2D(0, 0, width, height);
@@ -52,11 +50,6 @@ inline void gs_texture_2d::Rebuild(id<MTLDevice> dev)
 	if (isShared) {
 		texture = nil;
 		return;
-	}
-	
-	if (texture != nil) {
-		[texture release];
-		texture = nil;
 	}
 	
 	InitTexture();
@@ -102,11 +95,8 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, uint32_t width,
 		break;
 	}
 	textureDesc.arrayLength      = type == GS_TEXTURE_CUBE ? 6 : 1;
-	/*textureDesc.cpuCacheMode     = isDynamic ?
-			MTLCPUCacheModeWriteCombined :
-			MTLCPUCacheModeDefaultCache;*/
-	textureDesc.storageMode      = /*isDynamic ?*/ MTLStorageModeManaged /*:
-			MTLStorageModePrivate*/;
+	textureDesc.cpuCacheMode     = MTLCPUCacheModeWriteCombined;
+	textureDesc.storageMode      = MTLStorageModeManaged;
 	textureDesc.usage            = MTLTextureUsageShaderRead;
 	
 	if (isRenderTarget)
@@ -116,7 +106,7 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, uint32_t width,
 	
 	if (data) {
 		BackupTexture(data);
-		UploadTexture(data);
+		UploadTexture();
 	}
 }
 
@@ -133,6 +123,4 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, id<MTLTexture> texture)
 	  isShared        (true),
 	  mtlPixelFormat  (texture.pixelFormat),
 	  texture         (texture)
-{
-	[texture retain];
-}
+{}

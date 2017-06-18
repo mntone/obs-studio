@@ -14,11 +14,6 @@ inline void gs_zstencil_buffer::Rebuild(id<MTLDevice> dev)
 	if (isShared)
 		return;
 	
-	if (texture != nil) {
-		[texture release];
-		texture = nil;
-	}
-	
 	InitBuffer();
 	
 	UNUSED_PARAMETER(dev);
@@ -51,6 +46,4 @@ gs_zstencil_buffer::gs_zstencil_buffer(gs_device_t *device,
 	  isShared       (true),
 	  mtlPixelFormat (texture.pixelFormat),
 	  texture        (texture)
-{
-	[texture retain];
-}
+{}

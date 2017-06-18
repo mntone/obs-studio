@@ -43,7 +43,8 @@ add_library(libobs-metal MODULE
 set_target_properties(libobs-metal
 	PROPERTIES
 		OUTPUT_NAME libobs-metal
-		PREFIX "")
+		PREFIX ""
+		XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC YES)
 target_link_libraries(libobs-metal
 	PRIVATE
 		${libobs-metal_PLATFORM_DEPS}

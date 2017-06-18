@@ -10,22 +10,22 @@ void gs_index_buffer::FlushBuffer()
 void gs_index_buffer::InitBuffer()
 {
 	NSUInteger         length  = indexSize * num;
-	MTLResourceOptions options = isDynamic ? MTLResourceStorageModeShared
-			: MTLResourceStorageModePrivate;
-    
+	MTLResourceOptions options = MTLResourceCPUCacheModeWriteCombined |
+			(isDynamic ? MTLResourceStorageModeShared :
+			MTLResourceStorageModeManaged);
+	
 	indexBuffer = [device->device newBufferWithBytes:&indices
 			length:length options:options];
 	if (indexBuffer == nil)
 		throw "Failed to create buffer";
+	
+#ifdef _DEBUG
+	indexBuffer.label = @"index";
+#endif
 }
 
 inline void gs_index_buffer::Rebuild(id<MTLDevice> dev)
 {
-	if (indexBuffer != nil) {
-		[indexBuffer release];
-		indexBuffer = nil;
-	}
-	
 	InitBuffer();
 	
 	UNUSED_PARAMETER(dev);

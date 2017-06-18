@@ -9,11 +9,6 @@ inline void gs_stage_surface::InitTexture()
 
 inline void gs_stage_surface::Rebuild(id<MTLDevice> dev)
 {
-	if (texture != nil) {
-		[texture release];
-		texture = nil;
-	}
-	
 	InitTexture();
 	
 	UNUSED_PARAMETER(dev);

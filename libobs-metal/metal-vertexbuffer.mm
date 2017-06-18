@@ -63,32 +63,37 @@ void gs_vertex_buffer::MakeBufferList(gs_vertex_shader *shader,
 	}
 }
 
-inline void gs_vertex_buffer::InitBuffer(size_t elementSize, void *array,
-		id<MTLBuffer> &buffer, const char *name)
+inline id<MTLBuffer> gs_vertex_buffer::InitBuffer(size_t elementSize,
+		void *array, const char *name)
 {
 	NSUInteger         length  = elementSize * vbData->num;
-	MTLResourceOptions options = isDynamic ? MTLResourceStorageModeShared
-			: MTLResourceStorageModeManaged;
+	MTLResourceOptions options = MTLResourceCPUCacheModeWriteCombined |
+			(isDynamic ? MTLResourceStorageModeShared :
+			MTLResourceStorageModeManaged);
 	
-	buffer = [device->device newBufferWithBytes:array
+	id<MTLBuffer> buffer = [device->device newBufferWithBytes:array
 			length:length options:options];
 	if (buffer == nil)
 		throw "Failed to create buffer";
 	
+#ifdef _DEBUG
 	buffer.label = [[NSString alloc] initWithUTF8String:name];
+#endif
+	
+	return buffer;
 }
 
 void gs_vertex_buffer::InitBuffers()
 {
-	InitBuffer(sizeof(vec3), vbData->points, vertexBuffer, "point");
+	vertexBuffer = InitBuffer(sizeof(vec3), vbData->points, "point");
 	if (vbData->normals)
-		InitBuffer(sizeof(vec3), vbData->normals, normalBuffer,
+		normalBuffer = InitBuffer(sizeof(vec3), vbData->normals,
 				"normal");
 	if (vbData->tangents)
-		InitBuffer(sizeof(vec3), vbData->tangents, tangentBuffer,
+		tangentBuffer = InitBuffer(sizeof(vec3), vbData->tangents,
 				"color");
 	if (vbData->colors)
-		InitBuffer(sizeof(uint32_t), vbData->colors, colorBuffer,
+		colorBuffer = InitBuffer(sizeof(uint32_t), vbData->colors,
 				"tangent");
 	for (struct gs_tvertarray *tverts = vbData->tvarray;
 	     tverts != vbData->tvarray + vbData->num_tex;
@@ -98,35 +103,15 @@ void gs_vertex_buffer::InitBuffers()
 		if (!tverts->array)
 			throw "No texture vertices specified";
 
-		id<MTLBuffer> buffer;
-		InitBuffer(tverts->width * sizeof(float), tverts->array, buffer,
-				"texcoord");
-
-		uvBuffers.push_back(buffer);
+		id<MTLBuffer> buffer = InitBuffer(tverts->width * sizeof(float),
+				tverts->array, "texcoord");
+		uvBuffers.emplace_back(buffer);
 		uvSizes.emplace_back(tverts->width * sizeof(float));
 	}
 }
 
 inline void gs_vertex_buffer::Rebuild()
 {
-	[vertexBuffer release];
-	if (normalBuffer != nil) {
-		[normalBuffer release];
-		normalBuffer = nil;
-	}
-	if (colorBuffer != nil) {
-		[colorBuffer release];
-		colorBuffer = nil;
-	}
-	if (tangentBuffer != nil) {
-		[tangentBuffer release];
-		tangentBuffer = nil;
-	}
-	for (auto uvBuffer : uvBuffers)
-		[uvBuffer release];
-	uvBuffers.clear();
-	uvSizes.clear();
-	
 	InitBuffers();
 }
 
