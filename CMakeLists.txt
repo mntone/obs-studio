@@ -110,7 +110,7 @@ if(NOT INSTALLER_RUN)
 		add_subdirectory(libobs-d3d11)
 	endif()
 
-	if(APPLE)
+	if(CMAKE_SYSTEM_VERSION VERSION_GREATER 10.11 AND APPLE)
 		add_subdirectory(libobs-metal)
 	endif()
 

@@ -294,9 +294,7 @@ bool device_enum_adapters(
 		bool (*callback)(void *param, const char *name, uint32_t id),
 		void *param)
 {
-	@autoreleasepool {
-		EnumMetalAdapters(callback, param);
-	}
+	EnumMetalAdapters(callback, param);
 	return true;
 }
 
@@ -320,12 +318,9 @@ int device_create(gs_device_t **p_device, uint32_t adapter)
 	try {
 		blog(LOG_INFO, "---------------------------------");
 		blog(LOG_INFO, "Initializing Metal...");
-		
-		@autoreleasepool {
-			LogMetalAdapters();
+		LogMetalAdapters();
 			
-			device = new gs_device(adapter);
-		}
+		device = new gs_device(adapter);
 
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_create (Metal): %s", error);
@@ -968,6 +963,10 @@ void device_begin_scene(gs_device_t *device)
 void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 		uint32_t start_vert, uint32_t num_verts)
 {
+	/*
+	 * Do not remove autorelease pool.
+	 * Add MTLRenderCommandEncoder to autorelease pool.
+	 */
 	@autoreleasepool {
 		device->Draw(draw_mode, start_vert, num_verts);
 	}
