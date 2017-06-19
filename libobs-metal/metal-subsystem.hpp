@@ -80,6 +80,8 @@ static inline MTLPixelFormat ConvertGSZStencilFormat(gs_zstencil_format format)
 	case GS_Z24_S8:      return MTLPixelFormatDepth24Unorm_Stencil8;
 	case GS_Z32F:        return MTLPixelFormatDepth32Float;
 	case GS_Z32F_S8X24:  return MTLPixelFormatDepth32Float_Stencil8;
+	default:
+		break;
 	}
 
 	return MTLPixelFormatInvalid;
@@ -95,6 +97,8 @@ static inline gs_zstencil_format ConvertMTLPixelFormatDepth(
 	case MTLPixelFormatDepth24Unorm_Stencil8: return GS_Z24_S8;
 	case MTLPixelFormatDepth32Float:          return GS_Z24_S8;
 	case MTLPixelFormatDepth32Float_Stencil8: return GS_Z32F_S8X24;
+	default:
+		break;
 	}
 	
 	return GS_ZS_NONE;

@@ -128,12 +128,14 @@ gs_sampler_state::gs_sampler_state(gs_device_t *device,
 	samplerDesc.maxAnisotropy   = std::max(info->max_anisotropy, 1);
 	samplerDesc.compareFunction = MTLCompareFunctionAlways;
 
+#ifdef __MAC_10_12
 	if ((info->border_color & 0x000000FF) == 0)
 		samplerDesc.borderColor = MTLSamplerBorderColorTransparentBlack;
 	else if (info->border_color == 0xFFFFFFFF)
 		samplerDesc.borderColor = MTLSamplerBorderColorOpaqueWhite;
 	else
 		samplerDesc.borderColor = MTLSamplerBorderColorOpaqueBlack;
-
+#endif
+	
 	InitSampler();
 }
