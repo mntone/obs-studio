@@ -69,6 +69,8 @@ void gs_device::UploadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder)
 	
 	if (curVertexBuffer && curVertexShader) {
 		curVertexBuffer->MakeBufferList(curVertexShader, buffers);
+		if (curVertexBuffer->isDynamic)
+			curVertexBuffer->Release();
 	} else {
 		size_t buffersToClear = curVertexShader ?
 				curVertexShader->NumBuffersExpected() : 0;
@@ -148,6 +150,8 @@ void gs_device::DrawPrimitives(id<MTLRenderCommandEncoder> commandEncoder,
 				indexType:curIndexBuffer->indexType
 				indexBuffer:curIndexBuffer->indexBuffer
 				indexBufferOffset:0];
+		if (curIndexBuffer->isDynamic)
+			curIndexBuffer->indexBuffer = nil;
 	} else {
 		if (numVerts == 0)
 			numVerts = static_cast<uint32_t>(
@@ -221,7 +225,36 @@ void gs_device::Draw(gs_draw_mode drawMode, uint32_t startVert,
 	passDesc.stencilAttachment.loadAction   = MTLLoadActionLoad;
 }
 
-void gs_device::ResetState()
+static inline id<MTLBuffer> CreateBuffer(id<MTLDevice> device,
+		void *data, size_t length)
+{
+	MTLResourceOptions options = MTLResourceCPUCacheModeWriteCombined |
+			MTLResourceStorageModeShared;
+	id<MTLBuffer> buffer = [device newBufferWithBytes:data
+			length:length options:options];
+	if (buffer == nil)
+		throw "Failed to create buffer";
+	return buffer;
+}
+
+id<MTLBuffer> gs_device::GetBuffer(void *data, size_t length)
+{
+	auto target = find_if(unusedBufferPool.begin(), unusedBufferPool.end(),
+		[length](id<MTLBuffer> b) { return b.length >= length; });
+	if (target == unusedBufferPool.end()) {
+		id<MTLBuffer> newBuffer = CreateBuffer(device, data, length);
+		bufferPool.push_back(newBuffer);
+		return newBuffer;
+	}
+	
+	id<MTLBuffer> targetBuffer = *target;
+	unusedBufferPool.erase(target);
+	bufferPool.push_back(targetBuffer);
+	memcpy(targetBuffer.contents, data, length);
+	return targetBuffer;
+}
+
+void gs_device::ReleaseResources()
 {
 	gs_obj *obj = first_obj;
 	while (obj) {
@@ -236,6 +269,10 @@ void gs_device::ResetState()
 			
 		obj = obj->next;
 	}
+	
+	unusedBufferPool.insert(unusedBufferPool.end(),
+			bufferPool.begin(), bufferPool.end());
+	bufferPool.clear();
 }
 
 gs_device::gs_device(uint32_t adapterIdx)
@@ -447,6 +484,7 @@ gs_texture_t *device_texture_create(gs_device_t *device, uint32_t width,
 	try {
 		texture = new gs_texture_2d(device, width, height, color_format,
 				levels, data, flags, GS_TEXTURE_2D);
+		
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_texture_create (Metal): %s", error);
 	}
@@ -1049,14 +1087,10 @@ void device_present(gs_device_t *device)
 		blog(LOG_WARNING, "device_present (Metal): No active swap");
 	}
 	
-	[device->commandBuffer commit];
-	[device->commandBuffer waitUntilCompleted];
-	device->commandBuffer = nil;
+	device_flush(device);
 	
 	if (device->curSwapChain)
 		device->curSwapChain->NextTarget();
-	
-	device->ResetState();
 }
 
 void device_flush(gs_device_t *device)
@@ -1065,7 +1099,7 @@ void device_flush(gs_device_t *device)
 	[device->commandBuffer waitUntilCompleted];
 	device->commandBuffer = nil;
 	
-	device->ResetState();
+	device->ReleaseResources();
 }
 
 void device_set_cull_mode(gs_device_t *device, enum gs_cull_mode mode)
@@ -1621,7 +1655,8 @@ void gs_vertexbuffer_flush(gs_vertbuffer_t *vertbuffer)
 		return;
 	}
 
-	vertbuffer->FlushBuffers();
+	vertbuffer->PrepareBuffers();
+	//vertbuffer->FlushBuffers();
 }
 
 struct gs_vb_data *gs_vertexbuffer_get_data(const gs_vertbuffer_t *vertbuffer)
@@ -1647,7 +1682,8 @@ void gs_indexbuffer_flush(gs_indexbuffer_t *indexbuffer)
 		return;
 	}
 	
-	indexbuffer->FlushBuffer();
+	indexbuffer->PrepareBuffer();
+	//indexbuffer->FlushBuffer();
 }
 
 void *gs_indexbuffer_get_data(const gs_indexbuffer_t *indexbuffer)

@@ -54,8 +54,3 @@ gs_swap_chain::gs_swap_chain(gs_device *device, const gs_init_data *data)
 	view.wantsLayer = YES;
 	view.layer = metalLayer;
 }
-
-gs_swap_chain::~gs_swap_chain()
-{
-	Release();
-}

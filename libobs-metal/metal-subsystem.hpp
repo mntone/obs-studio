@@ -246,9 +246,12 @@ struct gs_vertex_buffer : gs_obj {
 	id<MTLBuffer>              colorBuffer   = nil;
 	id<MTLBuffer>              tangentBuffer = nil;
 	std::vector<id<MTLBuffer>> uvBuffers;
-	std::vector<size_t>        uvSizes;
+	
+	inline id<MTLBuffer> PrepareBuffer(void *array, size_t elementSize);
+	void PrepareBuffers();
 
-	inline void FlushBuffer(id<MTLBuffer> buffer, void *array, size_t num);
+	inline void FlushBuffer(id<MTLBuffer> buffer,
+			void *array, size_t elementSize);
 	void FlushBuffers();
 
 	void MakeBufferList(gs_vertex_shader *shader,
@@ -265,7 +268,6 @@ struct gs_vertex_buffer : gs_obj {
 		colorBuffer  = nil;
 		tangentBuffer = nil;
 		uvBuffers.clear();
-		uvSizes.clear();
 	}
 
 	inline void Rebuild();
@@ -284,10 +286,11 @@ struct gs_index_buffer : gs_obj {
 	MTLIndexType        indexType;
 	id<MTLBuffer>       indexBuffer;
 
+	void PrepareBuffer();
 	void FlushBuffer();
 	void InitBuffer();
 
-	inline void Rebuild(id<MTLDevice> dev);
+	void Rebuild(id<MTLDevice> dev);
 
 	inline void Release() {indexBuffer = nil;}
 
@@ -330,12 +333,11 @@ struct gs_texture_2d : gs_texture {
 	void UploadTexture();
 	void InitTexture();
 	
-	inline void Rebuild(id<MTLDevice> dev);
+	void Rebuild(id<MTLDevice> dev);
 
 	inline void Release()
 	{
 		texture = nil;
-		textureDesc = nil;
 	}
 
 	gs_texture_2d(gs_device_t *device, uint32_t width, uint32_t height,
@@ -567,7 +569,6 @@ struct gs_swap_chain : gs_obj {
 	}
 
 	gs_swap_chain(gs_device *device, const gs_init_data *data);
-	virtual ~gs_swap_chain();
 };
 
 struct BlendState {
@@ -703,7 +704,10 @@ struct gs_device {
 	matrix4                     curViewProjMatrix;
 
 	gs_obj                      *first_obj = nullptr;
-    
+	
+	std::vector<id<MTLBuffer>>  bufferPool;
+	std::vector<id<MTLBuffer>>  unusedBufferPool;
+	
 	void InitDevice(uint32_t adapterIdx);
 	
 	void LoadVertexDesc();
@@ -725,7 +729,8 @@ struct gs_device {
 
 	void UpdateViewProjMatrix();
 
-	void ResetState();
+	id<MTLBuffer> GetBuffer(void *data, size_t length);
+	void ReleaseResources();
 	void RebuildDevice();
 
 	gs_device(uint32_t adapterIdx);

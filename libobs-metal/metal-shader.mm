@@ -173,7 +173,7 @@ void gs_shader::Compile(const char *shaderString)
 		throw "No shader string specified";
 	
 	if (mtlCompileOptions == nil) {
-		mtlCompileOptions = [MTLCompileOptions new];
+		mtlCompileOptions = [[MTLCompileOptions alloc] init];
 		mtlCompileOptions.languageVersion = MTLLanguageVersion1_1;
 	}
 	
@@ -183,7 +183,7 @@ void gs_shader::Compile(const char *shaderString)
 			options:mtlCompileOptions error:&errors];
 	if (library == nil) {
 		blog(LOG_DEBUG, "Converted shader program:\n%s\n------\n",
-			shaderString);
+				shaderString);
 		
 		if (errors != nil)
 			throw ShaderError(errors);

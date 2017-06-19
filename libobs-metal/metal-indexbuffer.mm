@@ -1,5 +1,12 @@
 #include "metal-subsystem.hpp"
 
+void gs_index_buffer::PrepareBuffer()
+{
+	assert(isDynamic);
+	
+	indexBuffer = device->GetBuffer(indices.get(), indexSize * num);
+}
+
 void gs_index_buffer::FlushBuffer()
 {
 	assert(isDynamic);
@@ -26,7 +33,8 @@ void gs_index_buffer::InitBuffer()
 
 void gs_index_buffer::Rebuild(id<MTLDevice> dev)
 {
-	InitBuffer();
+	if (!isDynamic)
+		InitBuffer();
 	
 	UNUSED_PARAMETER(dev);
 }
@@ -50,5 +58,6 @@ gs_index_buffer::gs_index_buffer(gs_device_t *device, enum gs_index_type type,
 		break;
 	}
 
-	InitBuffer();
+	if (!isDynamic)
+		InitBuffer();
 }

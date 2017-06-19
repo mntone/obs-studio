@@ -5,6 +5,34 @@
 
 using namespace std;
 
+inline id<MTLBuffer> gs_vertex_buffer::PrepareBuffer(
+		void *array, size_t elementSize)
+{
+	return device->GetBuffer(array, elementSize * vbData->num);
+}
+
+void gs_vertex_buffer::PrepareBuffers()
+{
+	assert(isDynamic);
+	
+	vertexBuffer = PrepareBuffer(vbData->points, sizeof(vec3));
+	
+	if (vbData->normals)
+		normalBuffer = PrepareBuffer(vbData->normals, sizeof(vec3));
+	
+	if (vbData->tangents)
+		tangentBuffer = PrepareBuffer(vbData->tangents, sizeof(vec3));
+	
+	if (vbData->colors)
+		colorBuffer = PrepareBuffer(vbData->colors, sizeof(uint32_t));
+	
+	for (size_t i = 0; i < vbData->num_tex; i++) {
+		gs_tvertarray &tv = vbData->tvarray[i];
+		uvBuffers.push_back(PrepareBuffer(tv.array,
+				tv.width * sizeof(float)));
+	}
+}
+
 inline void gs_vertex_buffer::FlushBuffer(id<MTLBuffer> buffer, void *array,
 		size_t elementSize)
 {
@@ -17,13 +45,13 @@ void gs_vertex_buffer::FlushBuffers()
 	
 	FlushBuffer(vertexBuffer, vbData->points, sizeof(vec3));
 	
-	if (normalBuffer != nil)
+	if (normalBuffer)
 		FlushBuffer(normalBuffer, vbData->normals, sizeof(vec3));
 	
-	if (tangentBuffer != nil)
+	if (tangentBuffer)
 		FlushBuffer(tangentBuffer, vbData->tangents, sizeof(vec3));
 	
-	if (colorBuffer != nil)
+	if (colorBuffer)
 		FlushBuffer(colorBuffer, vbData->colors, sizeof(uint32_t));
 	
 	for (size_t i = 0; i < uvBuffers.size(); i++) {
@@ -106,13 +134,13 @@ void gs_vertex_buffer::InitBuffers()
 		id<MTLBuffer> buffer = InitBuffer(tverts->width * sizeof(float),
 				tverts->array, "texcoord");
 		uvBuffers.emplace_back(buffer);
-		uvSizes.emplace_back(tverts->width * sizeof(float));
 	}
 }
 
 inline void gs_vertex_buffer::Rebuild()
 {
-	InitBuffers();
+	if (!isDynamic)
+		InitBuffers();
 }
 
 gs_vertex_buffer::gs_vertex_buffer(gs_device_t *device, struct gs_vb_data *data,
@@ -126,5 +154,6 @@ gs_vertex_buffer::gs_vertex_buffer(gs_device_t *device, struct gs_vb_data *data,
 	if (!data->points)
 		throw "No points specified for vertex buffer";
 
-	InitBuffers();
+	if (!isDynamic)
+		InitBuffers();
 }
