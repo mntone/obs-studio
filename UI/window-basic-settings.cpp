@@ -48,6 +48,10 @@
 
 #include <util/platform.h>
 
+#ifdef __APPLE__
+#include <util/mac/mac-version.h>
+#endif
+
 using namespace std;
 
 // Used for QVariant in codec comboboxes
@@ -441,15 +445,25 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 	ui->advAudioGroupBox = nullptr;
 	ui->enableAutoUpdates = nullptr;
 #endif
-#if !defined(_WIN32) && !(defined(__APPLE__) && defined(__MAC_10_11))
-	delete ui->rendererLabel;
-	delete ui->renderer;
-	delete ui->adapterLabel;
-	delete ui->adapter;
-	ui->rendererLabel = nullptr;
-	ui->renderer = nullptr;
-	ui->adapterLabel = nullptr;
-	ui->adapter = nullptr;
+	
+#if defined(__APPLE__) && defined(__MAC_10_11)
+	struct mac_version_info ver;
+	get_mac_ver(&ver);
+	
+	if (ver.identifier < OSX_EL_CAPITAN) {
+#endif
+#ifndef _WIN32
+		delete ui->rendererLabel;
+		delete ui->renderer;
+		delete ui->adapterLabel;
+		delete ui->adapter;
+		ui->rendererLabel = nullptr;
+		ui->renderer = nullptr;
+		ui->adapterLabel = nullptr;
+		ui->adapter = nullptr;
+#endif
+#if defined(__APPLE__) && defined(__MAC_10_11)
+	}
 #endif
 
 #ifdef _WIN32
@@ -1076,6 +1090,13 @@ void OBSBasicSettings::LoadStream1Settings()
 void OBSBasicSettings::LoadRendererList()
 {
 #if defined(_WIN32) || (defined(__APPLE__) && defined(__MAC_10_11))
+#if defined(__APPLE__)
+	struct mac_version_info ver;
+	get_mac_ver(&ver);
+	
+	if (ver.identifier < OSX_EL_CAPITAN) return;
+#endif
+	
 	const char *renderer = config_get_string(GetGlobalConfig(), "Video",
 			"Renderer");
 
@@ -1083,7 +1104,8 @@ void OBSBasicSettings::LoadRendererList()
 	ui->renderer->addItem(QT_UTF8("Direct3D 11"));
 #endif
 #if defined(__APPLE__)
-	ui->renderer->addItem(QT_UTF8("Metal"));
+	if (ver.identifier >= OSX_EL_CAPITAN)
+		ui->renderer->addItem(QT_UTF8("Metal"));
 #endif
 	if (opt_allow_opengl || strcmp(renderer, "OpenGL") == 0)
 		ui->renderer->addItem(QT_UTF8("OpenGL"));

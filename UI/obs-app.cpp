@@ -52,6 +52,10 @@
 #include <signal.h>
 #endif
 
+#ifdef __APPLE__
+#include <util/mac/mac-version.h>
+#endif
+
 #include <iostream>
 
 using namespace std;
@@ -909,7 +913,11 @@ const char *OBSApp::GetRenderModule() const
 #if defined(_WIN32)
 	return (astrcmpi(renderer, "Direct3D 11") == 0) ? DL_D3D11 : DL_OPENGL;
 #elif defined(__APPLE__) && defined(__MAC_10_11)
-	return (astrcmpi(renderer, "Metal") == 0) ? DL_METAL : DL_OPENGL;
+	struct mac_version_info ver;
+	get_mac_ver(&ver);
+	
+	return (ver.identifier >= OSX_EL_CAPITAN &&
+		astrcmpi(renderer, "Metal") == 0) ? DL_METAL : DL_OPENGL;
 #else
 	return DL_OPENGL;
 #endif

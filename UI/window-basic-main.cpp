@@ -2646,12 +2646,6 @@ bool OBSBasic::Active() const
 	return outputHandler->Active();
 }
 
-#if defined(_WIN32) || defined(__APPLE__)
-#define IS_WIN32_OR_DARWIN 1
-#else
-#define IS_WIN32_OR_DARWIN 0
-#endif
-
 static inline int AttemptToResetVideo(struct obs_video_info *ovi)
 {
 	return obs_reset_video(ovi);
@@ -2744,7 +2738,8 @@ int OBSBasic::ResetVideo()
 	}
 
 	ret = AttemptToResetVideo(&ovi);
-	if (IS_WIN32_OR_DARWIN && ret != OBS_VIDEO_SUCCESS) {
+#if defined(_WIN32) || (defined(__APPLE__) && defined(__MAC_10_11))
+	if (ret != OBS_VIDEO_SUCCESS) {
 		if (ret == OBS_VIDEO_CURRENTLY_ACTIVE) {
 			blog(LOG_WARNING, "Tried to reset when "
 			                  "already active");
@@ -2762,6 +2757,9 @@ int OBSBasic::ResetVideo()
 			ret = AttemptToResetVideo(&ovi);
 		}
 	} else if (ret == OBS_VIDEO_SUCCESS) {
+#else
+	if (ret == OBS_VIDEO_SUCCESS) {
+#endif
 		ResizePreview(ovi.base_width, ovi.base_height);
 		if (program)
 			ResizeProgram(ovi.base_width, ovi.base_height);
