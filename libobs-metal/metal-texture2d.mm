@@ -45,7 +45,7 @@ void gs_texture_2d::InitTexture()
 		throw "Failed to create 2D texture";
 }
 
-inline void gs_texture_2d::Rebuild(id<MTLDevice> dev)
+void gs_texture_2d::Rebuild(id<MTLDevice> dev)
 {
 	if (isShared) {
 		texture = nil;

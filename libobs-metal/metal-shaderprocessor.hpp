@@ -14,7 +14,7 @@ struct ShaderProcessor {
 	void BuildVertexDesc(MTLVertexDescriptor *vertexDesc);
 	void BuildParamInfo(ShaderBufferInfo &info);
 	void BuildParams(std::vector<gs_shader_param> &params);
-	void BuildString(gs_shader_type type, std::string &outputString);
+	std::string BuildString(gs_shader_type type);
 	void Process(const char *shader_string, const char *file);
 
 	inline ShaderProcessor(gs_device_t *device) : device(device)

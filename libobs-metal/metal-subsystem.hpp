@@ -489,7 +489,7 @@ struct ShaderBufferInfo {
 struct gs_vertex_shader : gs_shader {
 	gs_shader_param *world, *viewProj;
 	
-	MTLVertexDescriptor *vertexDesc = nil;
+	MTLVertexDescriptor *vertexDesc;
 
 	bool     hasNormals;
 	bool     hasColors;

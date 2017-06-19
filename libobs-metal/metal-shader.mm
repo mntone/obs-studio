@@ -22,10 +22,10 @@ gs_vertex_shader::gs_vertex_shader(gs_device_t *device, const char *file,
 	ShaderBufferInfo   info;
 	string             outputString;
 	
-	vertexDesc = [MTLVertexDescriptor new];
+	vertexDesc = [[MTLVertexDescriptor alloc] init];
 
 	processor.Process(shaderString, file);
-	processor.BuildString(type, outputString);
+	outputString = processor.BuildString(type);
 	processor.BuildParams(params);
 	processor.BuildParamInfo(info);
 	processor.BuildVertexDesc(vertexDesc);
@@ -50,7 +50,7 @@ gs_pixel_shader::gs_pixel_shader(gs_device_t *device, const char *file,
 	string          outputString;
 	
 	processor.Process(shaderString, file);
-	processor.BuildString(type, outputString);
+	outputString = processor.BuildString(type);
 	processor.BuildParams(params);
 	BuildConstantBuffer();
 

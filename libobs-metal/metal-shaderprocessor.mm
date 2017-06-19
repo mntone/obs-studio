@@ -929,9 +929,9 @@ string ShaderBuilder::Build()
 	return output.str();
 }
 
-void ShaderProcessor::BuildString(gs_shader_type type, string &outputString)
+string ShaderProcessor::BuildString(gs_shader_type type)
 {
-	outputString = ShaderBuilder(type, &parser).Build();
+	return ShaderBuilder(type, &parser).Build();
 }
 
 void ShaderProcessor::Process(const char *shader_string, const char *file)
