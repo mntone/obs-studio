@@ -436,14 +436,16 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 	delete ui->monitoringDeviceLabel;
 	delete ui->advAudioGroupBox;
 	delete ui->enableAutoUpdates;
-	delete ui->rendererLabel;
-	delete ui->renderer;
-	delete ui->adapterLabel;
-	delete ui->adapter;
 	ui->monitoringDevice = nullptr;
 	ui->monitoringDeviceLabel = nullptr;
 	ui->advAudioGroupBox = nullptr;
 	ui->enableAutoUpdates = nullptr;
+#endif
+#if !defined(_WIN32) && !(defined(__APPLE__) && defined(__MAC_10_11))
+	delete ui->rendererLabel;
+	delete ui->renderer;
+	delete ui->adapterLabel;
+	delete ui->adapter;
 	ui->rendererLabel = nullptr;
 	ui->renderer = nullptr;
 	ui->adapterLabel = nullptr;
@@ -1073,14 +1075,14 @@ void OBSBasicSettings::LoadStream1Settings()
 
 void OBSBasicSettings::LoadRendererList()
 {
-#if defined(_WIN32) || defined(__APPLE__)
+#if defined(_WIN32) || (defined(__APPLE__) && defined(__MAC_10_11))
 	const char *renderer = config_get_string(GetGlobalConfig(), "Video",
 			"Renderer");
 
 #ifdef _WIN32
 	ui->renderer->addItem(QT_UTF8("Direct3D 11"));
 #endif
-#ifdef __APPLE__
+#if defined(__APPLE__)
 	ui->renderer->addItem(QT_UTF8("Metal"));
 #endif
 	if (opt_allow_opengl || strcmp(renderer, "OpenGL") == 0)

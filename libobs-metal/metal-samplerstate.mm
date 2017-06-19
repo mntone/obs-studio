@@ -118,7 +118,7 @@ gs_sampler_state::gs_sampler_state(gs_device_t *device,
 	: gs_obj (device, gs_type::gs_sampler_state),
 	  info   (*info)
 {
-	samplerDesc = [MTLSamplerDescriptor new];
+	samplerDesc = [[MTLSamplerDescriptor alloc] init];
 	samplerDesc.rAddressMode    = ConvertGSAddressMode(info->address_u);
 	samplerDesc.sAddressMode    = ConvertGSAddressMode(info->address_v);
 	samplerDesc.tAddressMode    = ConvertGSAddressMode(info->address_w);

@@ -2646,10 +2646,10 @@ bool OBSBasic::Active() const
 	return outputHandler->Active();
 }
 
-#ifdef _WIN32
-#define IS_WIN32 1
+#if defined(_WIN32) || defined(__APPLE__)
+#define IS_WIN32_OR_DARWIN 1
 #else
-#define IS_WIN32 0
+#define IS_WIN32_OR_DARWIN 0
 #endif
 
 static inline int AttemptToResetVideo(struct obs_video_info *ovi)
@@ -2744,7 +2744,7 @@ int OBSBasic::ResetVideo()
 	}
 
 	ret = AttemptToResetVideo(&ovi);
-	if (ret != OBS_VIDEO_SUCCESS) {
+	if (IS_WIN32_OR_DARWIN && ret != OBS_VIDEO_SUCCESS) {
 		if (ret == OBS_VIDEO_CURRENTLY_ACTIVE) {
 			blog(LOG_WARNING, "Tried to reset when "
 			                  "already active");

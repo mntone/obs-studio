@@ -11,8 +11,6 @@
 #include <graphics/graphics.h>
 #include <graphics/device-exports.h>
 
-#include <Availability.h>
-
 #import <MetalKit/MetalKit.h>
 
 struct shader_var;
@@ -346,10 +344,6 @@ struct gs_texture_2d : gs_texture {
 			gs_texture_type type);
 
 	gs_texture_2d(gs_device_t *device, id<MTLTexture> texture);
-	virtual ~gs_texture_2d()
-	{
-		Release();
-	}
 };
 
 struct gs_zstencil_buffer : gs_obj {
@@ -368,7 +362,6 @@ struct gs_zstencil_buffer : gs_obj {
 	inline void Release()
 	{
 		texture = nil;
-		textureDesc = nil;
 	}
 
 	gs_zstencil_buffer(gs_device_t *device, uint32_t width,

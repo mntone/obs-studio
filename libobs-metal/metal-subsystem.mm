@@ -457,6 +457,7 @@ gs_texture_t *device_cubetexture_create(gs_device_t *device, uint32_t size,
 	try {
 		texture = new gs_texture_2d(device, size, size, color_format,
 				levels, data, flags, GS_TEXTURE_CUBE);
+		
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_cubetexture_create (Metal): %s", error);
 	}
