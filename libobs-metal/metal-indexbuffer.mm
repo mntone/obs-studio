@@ -24,7 +24,7 @@ void gs_index_buffer::InitBuffer()
 #endif
 }
 
-inline void gs_index_buffer::Rebuild(id<MTLDevice> dev)
+void gs_index_buffer::Rebuild(id<MTLDevice> dev)
 {
 	InitBuffer();
 	

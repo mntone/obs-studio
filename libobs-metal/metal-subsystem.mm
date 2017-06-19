@@ -104,16 +104,8 @@ void gs_device::LoadRasterState(id<MTLRenderCommandEncoder> commandEncoder)
 	/* use CCW to convert to a right-handed coordinate system */
 	[commandEncoder setFrontFacingWinding:MTLWindingCounterClockwise];
 	[commandEncoder setCullMode:rasterState.mtlCullMode];
-#if 0
-	/* This is default value. Not to set. */
-	[commandEncoder setDepthClipMode:MTLDepthClipModeClip];
-#endif
 	if (rasterState.scissorEnabled)
 		[commandEncoder setScissorRect:rasterState.mtlScissorRect];
-#if 0
-	/* This is default value. Not to set. */
-	[commandEncodet setTriangleFillMode:MTLTriangleFillModeFill];
-#endif
 }
 
 void gs_device::LoadZStencilState(id<MTLRenderCommandEncoder> commandEncoder)
@@ -300,6 +292,12 @@ bool device_enum_adapters(
 	return true;
 }
 
+static inline void CheckMetalSupport()
+{
+	if (NSProtocolFromString(@"MTLDevice") == nil)
+		throw "This device doesn't support Metal.";
+}
+
 static inline void LogMetalAdapters()
 {
 	blog(LOG_INFO, "Available Video Adapters: ");
@@ -321,6 +319,8 @@ int device_create(gs_device_t **p_device, uint32_t adapter)
 	
 	gs_device *device = nullptr;
 	try {
+		CheckMetalSupport();
+		
 		blog(LOG_INFO, "---------------------------------");
 		blog(LOG_INFO, "Initializing Metal...");
 		LogMetalAdapters();

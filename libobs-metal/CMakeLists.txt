@@ -1,5 +1,9 @@
 project(libobs-metal)
 
+find_library(IOSURF IOSurface)
+include_directories(${IOSURF})
+mark_as_advanced(${IOSURF})
+
 find_library(QUARTZCORE QuartzCore)
 mark_as_advanced(QUARTZCORE)
 include_directories(${QUARTZCORE})
@@ -13,9 +17,12 @@ mark_as_advanced(METALKIT)
 include_directories(${METALKIT})
 
 set(libobs-metal_PLATFORM_DEPS
-	${QUARTZCORE}
-	${METAL}
-	${METALKIT})
+	${IOSURF}
+	${QUARTZCORE})
+
+set(libobs-metal_PLATFORM_DEPS_WEAK
+	Metal
+	MetalKit)
 
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/libobs")
 
@@ -50,5 +57,10 @@ target_link_libraries(libobs-metal
 		${libobs-metal_PLATFORM_DEPS}
 	PUBLIC
 		libobs)
+foreach(FRAMEWORK ${libobs-metal_PLATFORM_DEPS_WEAK})
+	target_link_libraries(libobs-metal
+		PRIVATE
+			"-weak_framework ${FRAMEWORK}")
+endforeach()
 
 install_obs_core(libobs-metal)
