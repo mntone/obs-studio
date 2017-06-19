@@ -24,6 +24,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 include(ObsHelpers)
 include(ObsCpack)
 include(GNUInstallDirs)
+include(MacOSVersion)
 
 if(MSVC AND NOT EXISTS "${CMAKE_BINARY_DIR}/ALL_BUILD.vcxproj.user")
 	file(GENERATE
@@ -110,7 +111,7 @@ if(NOT INSTALLER_RUN)
 		add_subdirectory(libobs-d3d11)
 	endif()
 
-	if(CMAKE_SYSTEM_VERSION VERSION_GREATER 10.11 AND APPLE)
+	if(MACOS_VERSION VERSION_GREATER 10.11)
 		add_subdirectory(libobs-metal)
 	endif()
 
