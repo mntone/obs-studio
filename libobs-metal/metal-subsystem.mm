@@ -34,7 +34,7 @@ void gs_device::InitDevice(uint32_t deviceIdx)
 	
 	devIdx  = deviceIdx;
 	devices = MTLCopyAllDevices();
-	if (devices.count == 0)
+	if (devices == nil)
 		throw "Failed to create MTLDevice";
 	
 	for (size_t i = 0; i < devices.count; i++) {
@@ -283,7 +283,9 @@ static inline void EnumMetalAdapters(
 {
 	uint32_t i = 0;
 	NSArray *devices = MTLCopyAllDevices();
-    
+	if (devices == nil)
+		return;
+	
 	for (id<MTLDevice> device in devices) {
 		if (!callback(param, [device name].UTF8String, i++))
 			break;
@@ -303,6 +305,9 @@ static inline void LogMetalAdapters()
 	blog(LOG_INFO, "Available Video Adapters: ");
 	
 	NSArray *devices = MTLCopyAllDevices();
+	if (devices == nil)
+		return;
+	
 	for (size_t i = 0; i < devices.count; i++) {
 		id<MTLDevice> device = devices[i];
 		blog(LOG_INFO, "\tAdapter %zu: %s", i,
