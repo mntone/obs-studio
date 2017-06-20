@@ -115,6 +115,7 @@ gs_swapchain_t *device_swapchain_create(gs_device_t *device,
 	gs_swap_chain *swap = nullptr;
 	try {
 		swap = new gs_swap_chain(device, data);
+		
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_swapchain_create (Metal): %s", error);
 	}
@@ -857,8 +858,14 @@ void device_present(gs_device_t *device)
 	
 	device->ReleaseResources();
 	
+	if (device->curStageSurface) {
+		device->curStageSurface->DownloadTexture();
+		device->curStageSurface = nullptr;
+	}
+	
 	if (device->curSwapChain)
 		device->curSwapChain->NextTarget();
+		
 }
 
 void device_flush(gs_device_t *device)
@@ -867,6 +874,11 @@ void device_flush(gs_device_t *device)
 		[device->commandBuffer commit];
 		[device->commandBuffer waitUntilCompleted];
 		device->commandBuffer = nil;
+		
+		if (device->curStageSurface) {
+			device->curStageSurface->DownloadTexture();
+			device->curStageSurface = nullptr;
+		}
 		
 		device->ReleaseResources();
 	}
@@ -1417,12 +1429,21 @@ bool gs_stagesurface_map(gs_stagesurf_t *stagesurf, uint8_t **data,
 {
 	assert(stagesurf != nullptr);
 	assert(stagesurf->obj_type == gs_type::gs_stage_surface);
+	assert(stagesurf->device->commandBuffer != nil);
 	
-	if (stagesurf->texture.buffer == nil)
-		return false;
+	@autoreleasepool {
+		id<MTLBlitCommandEncoder> commandEncoder =
+				[stagesurf->device->commandBuffer
+				blitCommandEncoder];
+		[commandEncoder synchronizeTexture:stagesurf->texture
+				slice:0 level:0];
+		[commandEncoder endEncoding];
+	}
 	
-	*data     = (uint8_t *)stagesurf->texture.buffer.contents;
-	*linesize = stagesurf->texture.bufferBytesPerRow;
+	*data     = (uint8_t *)stagesurf->data.data();
+	*linesize = stagesurf->bytePerRow;
+	
+	stagesurf->device->curStageSurface = stagesurf;
 	return true;
 }
 

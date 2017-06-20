@@ -387,12 +387,15 @@ struct gs_zstencil_buffer : gs_obj {
 };
 
 struct gs_stage_surface : gs_obj {
-	const uint32_t        width = 0, height = 0;
+	const uint32_t        width = 0, height = 0, bytePerRow = 0;
 	const gs_color_format format = GS_UNKNOWN;
 	
-	MTLTextureDescriptor  *textureDesc = nil;
-	id<MTLTexture>        texture = nil;
+	MTLTextureDescriptor  *textureDesc;
+	id<MTLTexture>        texture;
 	
+	std::vector<uint8_t>  data;
+	
+	void DownloadTexture();
 	inline void InitTexture();
 	
 	inline void Rebuild(id<MTLDevice> dev);
@@ -695,6 +698,7 @@ struct gs_device {
 	gs_vertex_shader            *curVertexShader = nullptr;
 	gs_pixel_shader             *curPixelShader = nullptr;
 	gs_swap_chain               *curSwapChain = nullptr;
+	gs_stage_surface            *curStageSurface = nullptr;
 	
 	gs_vertex_buffer            *lastVertexBuffer = nullptr;
 	gs_vertex_shader            *lastVertexShader = nullptr;
