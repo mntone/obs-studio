@@ -252,20 +252,6 @@ id<MTLBuffer> gs_device::GetBuffer(void *data, size_t length)
 
 void gs_device::ReleaseResources()
 {
-	gs_obj *obj = first_obj;
-	while (obj) {
-		switch (obj->obj_type) {
-		case gs_type::gs_vertex_shader:
-		case gs_type::gs_pixel_shader:
-			((gs_shader*)obj)->ResetState();
-			break;
-		default:
-			break;
-		}
-			
-		obj = obj->next;
-	}
-	
 	unusedBufferPool.insert(unusedBufferPool.end(),
 			bufferPool.begin(), bufferPool.end());
 	bufferPool.clear();

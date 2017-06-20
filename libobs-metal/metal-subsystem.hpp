@@ -13,14 +13,11 @@
 
 #ifdef __OBJC__
 #import <MetalKit/MetalKit.h>
-#endif
 
 struct shader_var;
-struct shader_sampler;
 struct gs_vertex_shader;
 
 
-#ifdef __OBJC__
 static inline MTLPixelFormat ConvertGSTextureFormat(gs_color_format format)
 {
 	switch (format) {
@@ -68,6 +65,13 @@ static inline gs_color_format ConvertMTLTextureFormat(MTLPixelFormat format)
 	case MTLPixelFormatBC3_RGBA:      return GS_DXT5;
 	}
 
+	return GS_UNKNOWN;
+}
+
+static inline gs_color_format ConvertOSTypePixelFormat(OSType format)
+{
+	if (format == 'BGRA') return GS_BGRA;
+	if (format == 'w30r') return GS_R10G10B10A2;
 	return GS_UNKNOWN;
 }
 
@@ -210,7 +214,6 @@ static inline MTLScissorRect ConvertGSRectToMTLScissorRect(gs_rect rect)
 	ret.height = rect.cy;
 	return ret;
 }
-#endif
 
 enum class gs_type {
 	gs_vertex_buffer,
@@ -241,7 +244,6 @@ struct gs_obj {
 	virtual ~gs_obj();
 };
 
-#ifdef __OBJC__
 struct gs_vertex_buffer : gs_obj {
 	const bool                 isDynamic;
 	const std::unique_ptr<gs_vb_data, decltype(&gs_vbdata_destroy)> vbData;
@@ -327,15 +329,20 @@ struct gs_texture_2d : gs_texture {
 	const bool           isDynamic      = false;
 	const bool           genMipmaps     = false;
 	const bool           isShared       = false;
+	const bool           isIOSurfaceCompatible = false;
 	const MTLPixelFormat mtlPixelFormat = MTLPixelFormatInvalid;
 	
 	MTLTextureDescriptor *textureDesc = nil;
 	id<MTLTexture>       texture = nil;
 	
 	std::vector<std::vector<uint8_t>> data;
+	
+	IOSurfaceRef ioSurface = nil;
 
 	void BackupTexture(const uint8_t **data);
 	void UploadTexture();
+	void SynchronizeTexture();
+	void InitTextureWithIOSurface();
 	void InitTexture();
 	
 	void Rebuild(id<MTLDevice> dev);
@@ -351,6 +358,8 @@ struct gs_texture_2d : gs_texture {
 			gs_texture_type type);
 
 	gs_texture_2d(gs_device_t *device, id<MTLTexture> texture);
+	
+	gs_texture_2d(gs_device_t *device, IOSurfaceRef iosurf);
 };
 
 struct gs_zstencil_buffer : gs_obj {
@@ -445,16 +454,14 @@ struct ShaderError {
 
 struct gs_shader : gs_obj {
 	gs_shader_type               type;
-	id<MTLLibrary>               library = nil;
-	id<MTLFunction>              function = nil;
+	std::string                  source;
+	id<MTLLibrary>               library;
+	id<MTLFunction>              function;
 	std::vector<gs_shader_param> params;
 	
-	std::vector<id<MTLBuffer>>   oldConstants;
-	id<MTLBuffer>                constants = nil;
 	size_t                       constantSize = 0;
-	size_t                       constantActualSize = 0;
-	size_t                       constantSlot = 0;
-	size_t                       constantCapacity = 0;
+	
+	std::vector<uint8_t>         data;
 
 	inline void UpdateParam(uint8_t *data, gs_shader_param &param);
 	void UploadParams(id<MTLRenderCommandEncoder> commandEncoder);
@@ -462,15 +469,10 @@ struct gs_shader : gs_obj {
 	void BuildConstantBuffer();
 	void Compile(std::string shaderStr);
 	
-	void InitConstantBuffer();
-	size_t NextConstantBufferOffset();
-	void ResetState();
-	
 	inline void Release()
 	{
 		function = nil;
 		library = nil;
-		constants = nil;
 	}
 
 	inline gs_shader(gs_device_t *device, gs_type obj_type,
@@ -741,3 +743,6 @@ struct gs_device {
 	gs_device(uint32_t adapterIdx);
 };
 #endif
+
+extern "C" gs_texture_t *device_texture_create_from_iosurface(
+		gs_device_t *device, void *iosurf);

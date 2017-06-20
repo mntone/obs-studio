@@ -19,20 +19,19 @@ gs_vertex_shader::gs_vertex_shader(gs_device_t *device, const char *file,
 	  texUnits    (0)
 {
 	ShaderProcessor     processor;
-	string              outputString;
 	ShaderBufferInfo    info;
 	MTLVertexDescriptor *vertdesc;
 	
 	vertdesc = [[MTLVertexDescriptor alloc] init];
 
 	processor.Process(shaderString, file);
-	outputString = processor.BuildString(type);
+	source = processor.BuildString(type);
 	processor.BuildParams(params);
 	processor.BuildParamInfo(info);
 	processor.BuildVertexDesc(vertdesc);
 	BuildConstantBuffer();
 
-	Compile(outputString);
+	Compile(source);
 
 	hasNormals  = info.normals;
 	hasColors   = info.colors;
@@ -50,14 +49,13 @@ gs_pixel_shader::gs_pixel_shader(gs_device_t *device, const char *file,
 	: gs_shader(device, gs_type::gs_pixel_shader, GS_SHADER_PIXEL)
 {
 	ShaderProcessor processor;
-	string          outputString;
 	
 	processor.Process(shaderString, file);
-	outputString = processor.BuildString(type);
+	source = processor.BuildString(type);
 	processor.BuildParams(params);
 	BuildConstantBuffer();
 
-	Compile(outputString);
+	Compile(source);
 }
 
 void gs_shader::BuildConstantBuffer()
@@ -101,50 +99,7 @@ void gs_shader::BuildConstantBuffer()
 	for (size_t i = 0; i < params.size(); i++)
 		gs_shader_set_default(&params[i]);
 	
-	InitConstantBuffer();
-}
-
-
-void gs_shader::InitConstantBuffer()
-{
-	if (constantCapacity == 0)
-		constantCapacity = 4;
-	
-	if (constantSize) {
-		constantActualSize = (constantSize + 255) & ~255;
-		
-		NSUInteger length = constantActualSize * constantCapacity;
-		MTLResourceOptions options =
-				MTLResourceCPUCacheModeWriteCombined |
-				MTLResourceStorageModeShared;
-		
-		constants = [device->device newBufferWithLength:length
-				options:options];
-		if (constants == nil)
-			throw "Failed to create constant buffer";
-		
-		constants.label = @"constants";
-	}
-}
-
-size_t gs_shader::NextConstantBufferOffset()
-{
-	if (constantSlot >= constantCapacity) {
-		constantCapacity *= 2;
-		
-		oldConstants.push_back(constants);
-		
-		InitConstantBuffer();
-	}
-	
-	return constantActualSize * constantSlot++;
-}
-
-void gs_shader::ResetState()
-{
-	oldConstants.clear();
-	
-	constantSlot = 0;
+	data.resize(constantSize);
 }
 
 void gs_shader::Compile(string shaderString)
@@ -185,11 +140,11 @@ inline void gs_shader::UpdateParam(uint8_t *data, gs_shader_param &param)
 		if (!param.curValue.size())
 			throw "Not all shader parameters were set";
 		
-		//if (param.changed) {
+		if (param.changed) {
 			memcpy(data + param.pos, param.curValue.data(),
 					param.curValue.size());
-		//	param.changed = false;
-		//}
+			param.changed = false;
+		}
 
 	} else if (param.curValue.size() == sizeof(gs_texture_t*)) {
 		gs_texture_t *tex;
@@ -207,21 +162,16 @@ inline void gs_shader::UpdateParam(uint8_t *data, gs_shader_param &param)
 
 void gs_shader::UploadParams(id<MTLRenderCommandEncoder> commandEncoder)
 {
-	uint8_t *data;
-	size_t offset;
-	
-	offset = NextConstantBufferOffset();
-	data = (uint8_t *)constants.contents + offset;
+	uint8_t *ptr = data.data();
 	
 	for (size_t i = 0; i < params.size(); i++)
-		UpdateParam(data, params[i]);
+		UpdateParam(ptr, params[i]);
 	
+	id<MTLBuffer> cnt = device->GetBuffer(ptr, data.size());
 	if (type == GS_SHADER_VERTEX)
-		[commandEncoder setVertexBuffer:constants
-				offset:offset atIndex:30];
+		[commandEncoder setVertexBuffer:cnt offset:0 atIndex:30];
 	else if (type == GS_SHADER_PIXEL)
-		[commandEncoder setFragmentBuffer:constants
-				offset:offset atIndex:30];
+		[commandEncoder setFragmentBuffer:cnt offset:0 atIndex:30];
 	else
 		throw "This is unknown shader type";
 }
@@ -229,6 +179,8 @@ void gs_shader::UploadParams(id<MTLRenderCommandEncoder> commandEncoder)
 void gs_shader_destroy(gs_shader_t *shader)
 {
 	assert(shader != nullptr);
+	assert(shader->obj_type == gs_type::gs_vertex_shader ||
+	       shader->obj_type == gs_type::gs_pixel_shader);
 	
 	if (shader->device->lastVertexShader == shader)
 		shader->device->lastVertexShader = nullptr;
@@ -239,6 +191,8 @@ void gs_shader_destroy(gs_shader_t *shader)
 int gs_shader_get_num_params(const gs_shader_t *shader)
 {
 	assert(shader != nullptr);
+	assert(shader->obj_type == gs_type::gs_vertex_shader ||
+	       shader->obj_type == gs_type::gs_pixel_shader);
 	
 	return (int)shader->params.size();
 }
@@ -246,6 +200,8 @@ int gs_shader_get_num_params(const gs_shader_t *shader)
 gs_sparam_t *gs_shader_get_param_by_idx(gs_shader_t *shader, uint32_t param)
 {
 	assert(shader != nullptr);
+	assert(shader->obj_type == gs_type::gs_vertex_shader ||
+	       shader->obj_type == gs_type::gs_pixel_shader);
 	
 	return &shader->params[param];
 }
@@ -264,6 +220,8 @@ gs_sparam_t *gs_shader_get_param_by_name(gs_shader_t *shader, const char *name)
 gs_sparam_t *gs_shader_get_viewproj_matrix(const gs_shader_t *shader)
 {
 	assert(shader != nullptr);
+	assert(shader->obj_type == gs_type::gs_vertex_shader ||
+	       shader->obj_type == gs_type::gs_pixel_shader);
 	
 	if (shader->type != GS_SHADER_VERTEX)
 		return nullptr;
@@ -274,6 +232,8 @@ gs_sparam_t *gs_shader_get_viewproj_matrix(const gs_shader_t *shader)
 gs_sparam_t *gs_shader_get_world_matrix(const gs_shader_t *shader)
 {
 	assert(shader != nullptr);
+	assert(shader->obj_type == gs_type::gs_vertex_shader ||
+	       shader->obj_type == gs_type::gs_pixel_shader);
 	
 	if (shader->type != GS_SHADER_VERTEX)
 		return nullptr;

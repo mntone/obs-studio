@@ -242,6 +242,51 @@ gs_texture_t *device_voltexture_create(gs_device_t *device, uint32_t width,
 	return NULL;
 }
 
+gs_texture_t *device_texture_create_from_iosurface(gs_device_t *device,
+		void *iosurf)
+{
+	gs_texture *texture = nullptr;
+	try {
+		IOSurfaceRef ref = (IOSurfaceRef)iosurf;
+		texture = new gs_texture_2d(device, ref);
+		
+	} catch (const char *error) {
+		blog(LOG_ERROR, "device_texture_create_from_iosurface (Metal): "
+		                "%s", error);
+	}
+	
+	return texture;
+}
+
+bool gs_texture_rebind_iosurface(gs_texture_t *texture, void *iosurf)
+{
+	assert(texture != nullptr);
+	
+	if (texture->type != GS_TEXTURE_2D) {
+		blog(LOG_ERROR, "gs_texture_rebind_iosurface (Metal): "
+		                "texture is not a 2D texture");
+		return false;
+	}
+	
+	IOSurfaceRef ref = (IOSurfaceRef)iosurf;
+	OSType format = IOSurfaceGetPixelFormat(ref);
+	gs_color_format gsformat = ConvertOSTypePixelFormat(format);
+	
+	gs_texture_2d *tex2d = static_cast<gs_texture_2d*>(texture);
+	if (tex2d->format != gsformat) {
+		blog(LOG_ERROR, "gs_texture_rebind_iosurface (Metal): "
+		                "pixel format is not matched");
+		return false;
+	}
+	
+	if (tex2d->ioSurface != ref) {
+		tex2d->ioSurface = ref;
+		tex2d->Rebuild(texture->device->device);
+	}
+	tex2d->SynchronizeTexture();
+	return true;
+}
+
 gs_zstencil_t *device_zstencil_create(gs_device_t *device, uint32_t width,
 		uint32_t height, enum gs_zstencil_format format)
 {
@@ -616,27 +661,27 @@ inline void gs_device::CopyTex(id<MTLTexture> dst,
 		throw "Source texture must be a 2D texture";
 
 	gs_texture_2d *tex2d = static_cast<gs_texture_2d*>(src);
-	if (dst_x == 0 && dst_y == 0 &&
-	    src_x == 0 && src_y == 0 &&
-	    src_w == 0 && src_h == 0) {
-		memcpy(dst.buffer.contents,
-				tex2d->texture.buffer.contents,
-				tex2d->texture.buffer.length);
-	} else {
-		uint32_t bytesPerPixel = gs_get_format_bpp(tex2d->format) / 8;
-		uint32_t bytesPerRow = tex2d->width * bytesPerPixel;
-		
-		uint8_t *data;
-		MTLRegion dregion;
-		
-		data = (uint8_t *)tex2d->texture.buffer.contents +
-				bytesPerRow * src_y + bytesPerPixel * src_x;
-		dregion = MTLRegionMake2D(dst_x, dst_y,
-				src_w > 0 ? src_w : tex2d->width - 1,
-				src_h > 0 ? src_h : tex2d->height - 1);
-		
-		[dst replaceRegion:dregion mipmapLevel:0
-				withBytes:data bytesPerRow:bytesPerRow];
+	if (src_w == 0)
+		src_w = tex2d->width;
+	if (src_h == 0)
+		src_h = tex2d->height;
+	
+	@autoreleasepool {
+		id<MTLBlitCommandEncoder> commandEncoder =
+				[commandBuffer blitCommandEncoder];
+		MTLOrigin sourceOrigin      = MTLOriginMake(src_x, src_y, 0);
+		MTLSize   sourceSize        = MTLSizeMake(src_w, src_h, 1);
+		MTLOrigin destinationOrigin = MTLOriginMake(dst_x, dst_y, 0);
+		[commandEncoder copyFromTexture:tex2d->texture
+				sourceSlice:0
+				sourceLevel:0
+				sourceOrigin:sourceOrigin
+				sourceSize:sourceSize
+				toTexture:dst
+				destinationSlice:0
+				destinationLevel:0
+				destinationOrigin:destinationOrigin];
+		[commandEncoder endEncoding];
 	}
 }
 
@@ -772,6 +817,8 @@ void device_load_swapchain(gs_device_t *device, gs_swapchain_t *swapchain)
 void device_clear(gs_device_t *device, uint32_t clear_flags,
 		const struct vec4 *color, float depth, uint8_t stencil)
 {
+	assert(device != nullptr);
+	
 	if (clear_flags & GS_CLEAR_COLOR) {
 		MTLRenderPassColorAttachmentDescriptor *colorAttachment =
 				device->passDesc.colorAttachments[0];
@@ -804,7 +851,11 @@ void device_present(gs_device_t *device)
 		blog(LOG_WARNING, "device_present (Metal): No active swap");
 	}
 	
-	device_flush(device);
+	[device->commandBuffer commit];
+	[device->commandBuffer waitUntilCompleted];
+	device->commandBuffer = nil;
+	
+	device->ReleaseResources();
 	
 	if (device->curSwapChain)
 		device->curSwapChain->NextTarget();
@@ -812,15 +863,19 @@ void device_present(gs_device_t *device)
 
 void device_flush(gs_device_t *device)
 {
-	[device->commandBuffer commit];
-	[device->commandBuffer waitUntilCompleted];
-	device->commandBuffer = nil;
-	
-	device->ReleaseResources();
+	if (device->commandBuffer != nil) {
+		[device->commandBuffer commit];
+		[device->commandBuffer waitUntilCompleted];
+		device->commandBuffer = nil;
+		
+		device->ReleaseResources();
+	}
 }
 
 void device_set_cull_mode(gs_device_t *device, enum gs_cull_mode mode)
 {
+	assert(device != nullptr);
+	
 	if (device->rasterState.cullMode == mode)
 		return;
 
@@ -831,11 +886,15 @@ void device_set_cull_mode(gs_device_t *device, enum gs_cull_mode mode)
 
 enum gs_cull_mode device_get_cull_mode(const gs_device_t *device)
 {
+	assert(device != nullptr);
+	
 	return device->rasterState.cullMode;
 }
 
 void device_enable_blending(gs_device_t *device, bool enable)
 {
+	assert(device != nullptr);
+	
 	if (device->blendState.blendEnabled == enable)
 		return;
 
@@ -849,6 +908,8 @@ void device_enable_blending(gs_device_t *device, bool enable)
 
 void device_enable_depth_test(gs_device_t *device, bool enable)
 {
+	assert(device != nullptr);
+	
 	if (device->zstencilState.depthEnabled == enable)
 		return;
 
@@ -857,6 +918,8 @@ void device_enable_depth_test(gs_device_t *device, bool enable)
 
 void device_enable_stencil_test(gs_device_t *device, bool enable)
 {
+	assert(device != nullptr);
+	
 	ZStencilState &state = device->zstencilState;
 	
 	if (state.stencilEnabled == enable)
@@ -870,6 +933,8 @@ void device_enable_stencil_test(gs_device_t *device, bool enable)
 
 void device_enable_stencil_write(gs_device_t *device, bool enable)
 {
+	assert(device != nullptr);
+	
 	ZStencilState &state = device->zstencilState;
 	
 	if (state.stencilWriteEnabled == enable)
@@ -884,6 +949,8 @@ void device_enable_stencil_write(gs_device_t *device, bool enable)
 void device_enable_color(gs_device_t *device, bool red, bool green,
 		bool blue, bool alpha)
 {
+	assert(device != nullptr);
+	
 	BlendState &state = device->blendState;
 	
 	if (state.redEnabled   == red   &&
@@ -911,6 +978,8 @@ void device_enable_color(gs_device_t *device, bool red, bool green,
 void device_blend_function(gs_device_t *device, enum gs_blend_type src,
 		enum gs_blend_type dest)
 {
+	assert(device != nullptr);
+	
 	BlendState &state = device->blendState;
 	
 	if (state.srcFactorC == src && state.destFactorC == dest &&
@@ -936,6 +1005,8 @@ void device_blend_function_separate(gs_device_t *device,
 		enum gs_blend_type src_c, enum gs_blend_type dest_c,
 		enum gs_blend_type src_a, enum gs_blend_type dest_a)
 {
+	assert(device != nullptr);
+	
 	BlendState &state = device->blendState;
 	
 	if (state.srcFactorC == src_c && state.destFactorC == dest_c &&
@@ -959,6 +1030,8 @@ void device_blend_function_separate(gs_device_t *device,
 
 void device_depth_function(gs_device_t *device, enum gs_depth_test test)
 {
+	assert(device != nullptr);
+	
 	if (device->zstencilState.depthFunc == test)
 		return;
 
@@ -983,7 +1056,9 @@ static inline void update_stencilside_test(
 void device_stencil_function(gs_device_t *device, enum gs_stencil_side side,
 		enum gs_depth_test test)
 {
-	int sideVal = (int)side;
+	assert(device != nullptr);
+	
+	int sideVal = static_cast<int>(side);
 
 	if (sideVal & GS_STENCIL_FRONT)
 		update_stencilside_test(
@@ -1018,7 +1093,9 @@ void device_stencil_op(gs_device_t *device, enum gs_stencil_side side,
 		enum gs_stencil_op_type fail, enum gs_stencil_op_type zfail,
 		enum gs_stencil_op_type zpass)
 {
-	int sideVal = (int)side;
+	assert(device != nullptr);
+	
+	int sideVal = static_cast<int>(side);
 
 	if (sideVal & GS_STENCIL_FRONT)
 		update_stencilside_op(
@@ -1035,6 +1112,8 @@ void device_stencil_op(gs_device_t *device, enum gs_stencil_side side,
 void device_set_viewport(gs_device_t *device, int x, int y, int width,
 		int height)
 {
+	assert(device != nullptr);
+	
 	RasterState &state = device->rasterState;
 	
 	if (state.viewport.x == x &&
@@ -1053,11 +1132,15 @@ void device_set_viewport(gs_device_t *device, int x, int y, int width,
 
 void device_get_viewport(const gs_device_t *device, struct gs_rect *rect)
 {
+	assert(device != nullptr);
+	
 	memcpy(rect, &device->rasterState.viewport, sizeof(gs_rect));
 }
 
 void device_set_scissor_rect(gs_device_t *device, const struct gs_rect *rect)
 {
+	assert(device != nullptr);
+	
 	if (rect != nullptr) {
 		device->rasterState.scissorEnabled = true;
 		device->rasterState.scissorRect    = *rect;
@@ -1071,63 +1154,71 @@ void device_set_scissor_rect(gs_device_t *device, const struct gs_rect *rect)
 void device_ortho(gs_device_t *device, float left, float right, float top,
 		float bottom, float zNear, float zFar)
 {
-	matrix4 *dst = &device->curProjMatrix;
+	assert(device != nullptr);
+	
+	matrix4 &dst = device->curProjMatrix;
 
 	float rml = right - left;
 	float bmt = bottom - top;
 	float fmn = zFar - zNear;
 
-	vec4_zero(&dst->x);
-	vec4_zero(&dst->y);
-	vec4_zero(&dst->z);
-	vec4_zero(&dst->t);
+	vec4_zero(&dst.x);
+	vec4_zero(&dst.y);
+	vec4_zero(&dst.z);
+	vec4_zero(&dst.t);
 
-	dst->x.x =           2.0f /  rml;
-	dst->t.x = (left + right) / -rml;
+	dst.x.x =           2.0f /  rml;
+	dst.t.x = (left + right) / -rml;
 
-	dst->y.y =           2.0f / -bmt;
-	dst->t.y = (bottom + top) /  bmt;
+	dst.y.y =           2.0f / -bmt;
+	dst.t.y = (bottom + top) /  bmt;
 
-	dst->z.z =           1.0f /  fmn;
-	dst->t.z =          zNear / -fmn;
+	dst.z.z =           1.0f /  fmn;
+	dst.t.z =          zNear / -fmn;
 
-	dst->t.w = 1.0f;
+	dst.t.w = 1.0f;
 }
 
 void device_frustum(gs_device_t *device, float left, float right, float top,
 		float bottom, float zNear, float zFar)
 {
-	matrix4 *dst = &device->curProjMatrix;
+	assert(device != nullptr);
+	
+	matrix4 &dst = device->curProjMatrix;
 
 	float rml    = right - left;
 	float bmt    = bottom - top;
 	float fmn    = zFar - zNear;
 	float nearx2 = 2.0f * zNear;
 
-	vec4_zero(&dst->x);
-	vec4_zero(&dst->y);
-	vec4_zero(&dst->z);
-	vec4_zero(&dst->t);
+	vec4_zero(&dst.x);
+	vec4_zero(&dst.y);
+	vec4_zero(&dst.z);
+	vec4_zero(&dst.t);
 
-	dst->x.x =         nearx2 /  rml;
-	dst->z.x = (left + right) / -rml;
+	dst.x.x =         nearx2 /  rml;
+	dst.z.x = (left + right) / -rml;
 
-	dst->y.y =         nearx2 / -bmt;
-	dst->z.y = (bottom + top) /  bmt;
+	dst.y.y =         nearx2 / -bmt;
+	dst.z.y = (bottom + top) /  bmt;
 
-	dst->z.z =           zFar /  fmn;
-	dst->t.z = (zNear * zFar) / -fmn;
+	dst.z.z =           zFar /  fmn;
+	dst.t.z = (zNear * zFar) / -fmn;
 
-	dst->z.w = 1.0f;
+	dst.z.w = 1.0f;
 }
 
 void device_projection_push(gs_device_t *device)
 {
+	assert(device != nullptr);
+	
 	device->projStack.push_back(device->curProjMatrix);
 }
 
 void device_projection_pop(gs_device_t *device)
 {
+	assert(device != nullptr);
+	
 	if (!device->projStack.size())
 		return;
 	
@@ -1138,6 +1229,7 @@ void device_projection_pop(gs_device_t *device)
 void gs_swapchain_destroy(gs_swapchain_t *swapchain)
 {
 	assert(swapchain != nullptr);
+	assert(swapchain->obj_type == gs_type::gs_swap_chain);
 	
 	if (swapchain->device->curSwapChain == swapchain)
 		device_load_swapchain(swapchain->device, nullptr);
@@ -1290,6 +1382,7 @@ enum gs_color_format gs_voltexture_get_color_format(const gs_texture_t *voltex)
 void gs_stagesurface_destroy(gs_stagesurf_t *stagesurf)
 {
 	assert(stagesurf != nullptr);
+	assert(stagesurf->obj_type == gs_type::gs_stage_surface);
 	
 	delete stagesurf;
 }
@@ -1297,6 +1390,7 @@ void gs_stagesurface_destroy(gs_stagesurf_t *stagesurf)
 uint32_t gs_stagesurface_get_width(const gs_stagesurf_t *stagesurf)
 {
 	assert(stagesurf != nullptr);
+	assert(stagesurf->obj_type == gs_type::gs_stage_surface);
 	
 	return stagesurf->width;
 }
@@ -1304,6 +1398,7 @@ uint32_t gs_stagesurface_get_width(const gs_stagesurf_t *stagesurf)
 uint32_t gs_stagesurface_get_height(const gs_stagesurf_t *stagesurf)
 {
 	assert(stagesurf != nullptr);
+	assert(stagesurf->obj_type == gs_type::gs_stage_surface);
 	
 	return stagesurf->height;
 }
@@ -1312,6 +1407,7 @@ enum gs_color_format gs_stagesurface_get_color_format(
 		const gs_stagesurf_t *stagesurf)
 {
 	assert(stagesurf != nullptr);
+	assert(stagesurf->obj_type == gs_type::gs_stage_surface);
 	
 	return stagesurf->format;
 }
@@ -1320,6 +1416,7 @@ bool gs_stagesurface_map(gs_stagesurf_t *stagesurf, uint8_t **data,
 		uint32_t *linesize)
 {
 	assert(stagesurf != nullptr);
+	assert(stagesurf->obj_type == gs_type::gs_stage_surface);
 	
 	if (stagesurf->texture.buffer == nil)
 		return false;
@@ -1339,6 +1436,7 @@ void gs_stagesurface_unmap(gs_stagesurf_t *stagesurf)
 void gs_zstencil_destroy(gs_zstencil_t *zstencil)
 {
 	assert(zstencil != nullptr);
+	assert(zstencil->obj_type == gs_type::gs_zstencil_buffer);
 	
 	delete zstencil;
 }
@@ -1347,6 +1445,7 @@ void gs_zstencil_destroy(gs_zstencil_t *zstencil)
 void gs_samplerstate_destroy(gs_samplerstate_t *samplerstate)
 {
 	assert(samplerstate != nullptr);
+	assert(samplerstate->obj_type == gs_type::gs_sampler_state);
 
 	delete samplerstate;
 }
@@ -1355,6 +1454,7 @@ void gs_samplerstate_destroy(gs_samplerstate_t *samplerstate)
 void gs_vertexbuffer_destroy(gs_vertbuffer_t *vertbuffer)
 {
 	assert(vertbuffer != nullptr);
+	assert(vertbuffer->obj_type == gs_type::gs_vertex_buffer);
 	
 	if (vertbuffer->device->lastVertexBuffer == vertbuffer)
 		vertbuffer->device->lastVertexBuffer = nullptr;
@@ -1365,6 +1465,7 @@ void gs_vertexbuffer_destroy(gs_vertbuffer_t *vertbuffer)
 void gs_vertexbuffer_flush(gs_vertbuffer_t *vertbuffer)
 {
 	assert(vertbuffer != nullptr);
+	assert(vertbuffer->obj_type == gs_type::gs_vertex_buffer);
 	
 	if (!vertbuffer->isDynamic) {
 		blog(LOG_ERROR, "gs_vertexbuffer_flush: vertex buffer is not "
@@ -1379,6 +1480,7 @@ void gs_vertexbuffer_flush(gs_vertbuffer_t *vertbuffer)
 struct gs_vb_data *gs_vertexbuffer_get_data(const gs_vertbuffer_t *vertbuffer)
 {
 	assert(vertbuffer != nullptr);
+	assert(vertbuffer->obj_type == gs_type::gs_vertex_buffer);
 	
 	return vertbuffer->vbData.get();
 }
@@ -1387,12 +1489,16 @@ struct gs_vb_data *gs_vertexbuffer_get_data(const gs_vertbuffer_t *vertbuffer)
 void gs_indexbuffer_destroy(gs_indexbuffer_t *indexbuffer)
 {
 	assert(indexbuffer != nullptr);
+	assert(indexbuffer->obj_type == gs_type::gs_index_buffer);
 	
 	delete indexbuffer;
 }
 
 void gs_indexbuffer_flush(gs_indexbuffer_t *indexbuffer)
 {
+	assert(indexbuffer != nullptr);
+	assert(indexbuffer->obj_type == gs_type::gs_index_buffer);
+	
 	if (!indexbuffer->isDynamic) {
 		blog(LOG_ERROR, "gs_indexbuffer_flush: index buffer is not "
 		                "dynamic");
@@ -1406,6 +1512,7 @@ void gs_indexbuffer_flush(gs_indexbuffer_t *indexbuffer)
 void *gs_indexbuffer_get_data(const gs_indexbuffer_t *indexbuffer)
 {
 	assert(indexbuffer != nullptr);
+	assert(indexbuffer->obj_type == gs_type::gs_index_buffer);
 	
 	return indexbuffer->indices.get();
 }
@@ -1413,6 +1520,7 @@ void *gs_indexbuffer_get_data(const gs_indexbuffer_t *indexbuffer)
 size_t gs_indexbuffer_get_num_indices(const gs_indexbuffer_t *indexbuffer)
 {
 	assert(indexbuffer != nullptr);
+	assert(indexbuffer->obj_type == gs_type::gs_index_buffer);
 	
 	return indexbuffer->num;
 }
@@ -1420,6 +1528,7 @@ size_t gs_indexbuffer_get_num_indices(const gs_indexbuffer_t *indexbuffer)
 enum gs_index_type gs_indexbuffer_get_type(const gs_indexbuffer_t *indexbuffer)
 {
 	assert(indexbuffer != nullptr);
+	assert(indexbuffer->obj_type == gs_type::gs_index_buffer);
 	
 	return indexbuffer->type;
 }

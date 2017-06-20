@@ -8,13 +8,13 @@ void gs_texture_2d::BackupTexture(const uint8_t **data)
 
 	uint32_t w = width;
 	uint32_t h = height;
-	uint32_t bbp = gs_get_format_bpp(format);
+	uint32_t bpp = gs_get_format_bpp(format);
 
 	for (uint32_t i = 0; i < levels; i++) {
 		if (!data[i])
 			break;
 
-		uint32_t texSize = bbp * w * h / 8;
+		uint32_t texSize = bpp * w * h / 8;
 		this->data[i].resize(texSize);
 
 		auto &subData = this->data[i];
@@ -27,13 +27,44 @@ void gs_texture_2d::BackupTexture(const uint8_t **data)
 
 void gs_texture_2d::UploadTexture()
 {
-	const uint32_t rowSizeBytes = width * gs_get_format_bpp(format) / 8;
-	const uint32_t texSizeBytes = height * rowSizeBytes;
-	MTLRegion region = MTLRegionMake2D(0, 0, width, height);
-	[texture replaceRegion:region mipmapLevel:0 slice:0
-			withBytes:this->data[0].data()
-			bytesPerRow:rowSizeBytes
-			bytesPerImage:texSizeBytes];
+	assert(!isIOSurfaceCompatible);
+	
+	const uint32_t bpp = gs_get_format_bpp(format) / 8;
+	uint32_t w = width;
+	uint32_t h = height;
+	
+	for (uint32_t i = 0; i < levels; i++) {
+		if (i >= data.size())
+			break;
+		
+		const uint32_t rowSizeBytes = w * bpp;
+		const uint32_t texSizeBytes = h * rowSizeBytes;
+		MTLRegion region = MTLRegionMake2D(0, 0, w, h);
+		[texture replaceRegion:region mipmapLevel:i slice:0
+				withBytes:data[i].data()
+				bytesPerRow:rowSizeBytes
+				bytesPerImage:texSizeBytes];
+		
+		w /= 2;
+		h /= 2;
+	}
+}
+
+void gs_texture_2d::SynchronizeTexture()
+{
+	id<MTLBlitCommandEncoder> blitCE =
+			[device->commandBuffer blitCommandEncoder];
+	[blitCE synchronizeTexture:texture slice:0 level:0];
+}
+
+void gs_texture_2d::InitTextureWithIOSurface()
+{
+	assert(isIOSurfaceCompatible);
+	
+	texture = [device->device newTextureWithDescriptor:textureDesc
+			iosurface:ioSurface plane:0];
+	if (texture == nil)
+		throw "Failed to create 2D texture with IOSurface";
 }
 
 void gs_texture_2d::InitTexture()
@@ -52,7 +83,10 @@ void gs_texture_2d::Rebuild(id<MTLDevice> dev)
 		return;
 	}
 	
-	InitTexture();
+	if (isIOSurfaceCompatible)
+		InitTextureWithIOSurface();
+	else
+		InitTexture();
 	
 	UNUSED_PARAMETER(dev);
 }
@@ -124,3 +158,28 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, id<MTLTexture> texture)
 	  mtlPixelFormat  (texture.pixelFormat),
 	  texture         (texture)
 {}
+
+gs_texture_2d::gs_texture_2d(gs_device_t *device, IOSurfaceRef iosurf)
+	: gs_texture      (device, gs_type::gs_texture_2d,
+			   GS_TEXTURE_2D,
+			   1,
+			   ConvertOSTypePixelFormat(IOSurfaceGetPixelFormat(
+					iosurf))),
+	  width           (IOSurfaceGetWidth(iosurf)),
+	  height          (IOSurfaceGetHeight(iosurf)),
+	  isRenderTarget  (false),
+	  isDynamic       (false),
+	  genMipmaps      (false),
+	  isShared        (false),
+	  isIOSurfaceCompatible (true),
+	  mtlPixelFormat  (ConvertGSTextureFormat(format)),
+	  ioSurface       (iosurf)
+{
+	textureDesc = [MTLTextureDescriptor
+			texture2DDescriptorWithPixelFormat:mtlPixelFormat
+			width:width height:height mipmapped:NO];
+	textureDesc.storageMode = MTLStorageModeManaged;
+	textureDesc.usage       = MTLTextureUsageShaderRead;
+	
+	InitTextureWithIOSurface();
+}
