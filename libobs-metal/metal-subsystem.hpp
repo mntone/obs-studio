@@ -11,13 +11,16 @@
 #include <graphics/graphics.h>
 #include <graphics/device-exports.h>
 
+#ifdef __OBJC__
 #import <MetalKit/MetalKit.h>
+#endif
 
 struct shader_var;
 struct shader_sampler;
 struct gs_vertex_shader;
 
 
+#ifdef __OBJC__
 static inline MTLPixelFormat ConvertGSTextureFormat(gs_color_format format)
 {
 	switch (format) {
@@ -207,6 +210,7 @@ static inline MTLScissorRect ConvertGSRectToMTLScissorRect(gs_rect rect)
 	ret.height = rect.cy;
 	return ret;
 }
+#endif
 
 enum class gs_type {
 	gs_vertex_buffer,
@@ -237,6 +241,7 @@ struct gs_obj {
 	virtual ~gs_obj();
 };
 
+#ifdef __OBJC__
 struct gs_vertex_buffer : gs_obj {
 	const bool                 isDynamic;
 	const std::unique_ptr<gs_vb_data, decltype(&gs_vbdata_destroy)> vbData;
@@ -430,17 +435,15 @@ struct gs_shader_param {
 };
 
 struct ShaderError {
-	NSError *error;
+	std::string error;
 
 	inline ShaderError(NSError *error)
-		: error (error)
+		: error (error.localizedDescription.UTF8String)
 	{
 	}
 };
 
 struct gs_shader : gs_obj {
-	static MTLCompileOptions     *mtlCompileOptions;
-	
 	gs_shader_type               type;
 	id<MTLLibrary>               library = nil;
 	id<MTLFunction>              function = nil;
@@ -457,7 +460,7 @@ struct gs_shader : gs_obj {
 	void UploadParams(id<MTLRenderCommandEncoder> commandEncoder);
 
 	void BuildConstantBuffer();
-	void Compile(const char *shaderStr);
+	void Compile(std::string shaderStr);
 	
 	void InitConstantBuffer();
 	size_t NextConstantBufferOffset();
@@ -478,6 +481,7 @@ struct gs_shader : gs_obj {
 	{
 	}
 };
+#endif
 
 struct ShaderBufferInfo {
 	bool     normals  = false;
@@ -486,10 +490,11 @@ struct ShaderBufferInfo {
 	uint32_t texUnits = 0;
 };
 
+#ifdef __OBJC__
 struct gs_vertex_shader : gs_shader {
 	gs_shader_param *world, *viewProj;
 	
-	MTLVertexDescriptor *vertexDesc;
+	MTLVertexDescriptor *vertexDesc = nil;
 
 	bool     hasNormals;
 	bool     hasColors;
@@ -735,3 +740,4 @@ struct gs_device {
 
 	gs_device(uint32_t adapterIdx);
 };
+#endif

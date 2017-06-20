@@ -8,7 +8,7 @@
 
 using namespace std;
 
-MTLCompileOptions *gs_shader::mtlCompileOptions = nil;
+static MTLCompileOptions *mtlCompileOptions = nil;
 
 gs_vertex_shader::gs_vertex_shader(gs_device_t *device, const char *file,
 		const char *shaderString)
@@ -18,35 +18,38 @@ gs_vertex_shader::gs_vertex_shader(gs_device_t *device, const char *file,
 	  hasTangents (false),
 	  texUnits    (0)
 {
-	ShaderProcessor    processor(device);
-	ShaderBufferInfo   info;
-	string             outputString;
+	ShaderProcessor     processor;
+	string              outputString;
+	ShaderBufferInfo    info;
+	MTLVertexDescriptor *vertdesc;
 	
-	vertexDesc = [[MTLVertexDescriptor alloc] init];
+	vertdesc = [[MTLVertexDescriptor alloc] init];
 
 	processor.Process(shaderString, file);
 	outputString = processor.BuildString(type);
 	processor.BuildParams(params);
 	processor.BuildParamInfo(info);
-	processor.BuildVertexDesc(vertexDesc);
+	processor.BuildVertexDesc(vertdesc);
 	BuildConstantBuffer();
 
-	Compile(outputString.c_str());
+	Compile(outputString);
 
 	hasNormals  = info.normals;
 	hasColors   = info.colors;
 	hasTangents = info.tangents;
 	texUnits    = info.texUnits;
 	
-	viewProj = gs_shader_get_param_by_name(this, "ViewProj");
-	world    = gs_shader_get_param_by_name(this, "World");
+	vertexDesc  = vertdesc;
+	
+	viewProj    = gs_shader_get_param_by_name(this, "ViewProj");
+	world       = gs_shader_get_param_by_name(this, "World");
 }
 
 gs_pixel_shader::gs_pixel_shader(gs_device_t *device, const char *file,
 		const char *shaderString)
 	: gs_shader(device, gs_type::gs_pixel_shader, GS_SHADER_PIXEL)
 {
-	ShaderProcessor processor(device);
+	ShaderProcessor processor;
 	string          outputString;
 	
 	processor.Process(shaderString, file);
@@ -54,31 +57,8 @@ gs_pixel_shader::gs_pixel_shader(gs_device_t *device, const char *file,
 	processor.BuildParams(params);
 	BuildConstantBuffer();
 
-	Compile(outputString.c_str());
+	Compile(outputString);
 }
-
-/*
- * Shader compilers will pack constants in to single registers when possible.
- * For example:
- *
- *   uniform float3 test1;
- *   uniform float  test2;
- *
- * will inhabit a single constant register (c0.xyz for 'test1', and c0.w for
- * 'test2')
- *
- * However, if two constants cannot inhabit the same register, the second one
- * must begin at a new register, for example:
- *
- *   uniform float2 test1;
- *   uniform float3 test2;
- *
- * 'test1' will inhabit register constant c0.xy.  However, because there's no
- * room for 'test2, it must use a new register constant entirely (c1.xyz).
- *
- * So if we want to calculate the position of the constants in the constant
- * buffer, we must take this in to account.
- */
 
 void gs_shader::BuildConstantBuffer()
 {
@@ -167,23 +147,23 @@ void gs_shader::ResetState()
 	constantSlot = 0;
 }
 
-void gs_shader::Compile(const char *shaderString)
+void gs_shader::Compile(string shaderString)
 {
-	if (!shaderString)
-		throw "No shader string specified";
-	
 	if (mtlCompileOptions == nil) {
 		mtlCompileOptions = [[MTLCompileOptions alloc] init];
 		mtlCompileOptions.languageVersion = MTLLanguageVersion1_1;
 	}
 	
-	NSString *nsShaderString = [NSString stringWithUTF8String:shaderString];
-	NSError *errors = nil;
-	library = [device->device newLibraryWithSource:nsShaderString
+	NSString *nsShaderString = [[NSString alloc]
+			initWithBytesNoCopy:(void*)shaderString.data()
+			length:shaderString.length()
+			encoding:NSUTF8StringEncoding freeWhenDone:NO];
+	NSError *errors;
+	id<MTLLibrary> lib = [device->device newLibraryWithSource:nsShaderString
 			options:mtlCompileOptions error:&errors];
-	if (library == nil) {
+	if (lib == nil) {
 		blog(LOG_DEBUG, "Converted shader program:\n%s\n------\n",
-				shaderString);
+				shaderString.c_str());
 		
 		if (errors != nil)
 			throw ShaderError(errors);
@@ -191,9 +171,12 @@ void gs_shader::Compile(const char *shaderString)
 			throw "Failed to compile shader";
 	}
 	
-	function = [library newFunctionWithName:@"_main"];
-	if (function == nil)
+	id<MTLFunction> func = [lib newFunctionWithName:@"_main"];
+	if (func == nil)
 		throw "Failed to create function";
+	
+	library  = lib;
+	function = func;
 }
 
 inline void gs_shader::UpdateParam(uint8_t *data, gs_shader_param &param)

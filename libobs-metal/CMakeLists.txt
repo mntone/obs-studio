@@ -29,9 +29,11 @@ include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/libobs")
 add_definitions(-DLIBOBS_EXPORTS)
 
 set(libobs-metal_SOURCES
+	metal-device.mm
 	metal-indexbuffer.mm
 	metal-samplerstate.mm
 	metal-shader.mm
+	metal-shaderbuilder.cpp
 	metal-shaderprocessor.mm
 	metal-stagesurf.mm
 	metal-subsystem.mm
@@ -52,6 +54,13 @@ set_target_properties(libobs-metal
 		OUTPUT_NAME libobs-metal
 		PREFIX ""
 		XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC YES)
+target_compile_options(libobs-metal
+	PUBLIC
+		-msse
+		-msse2
+		-msse3
+		-msse4.1
+		-msse4.2)
 target_link_libraries(libobs-metal
 	PRIVATE
 		${libobs-metal_PLATFORM_DEPS}
