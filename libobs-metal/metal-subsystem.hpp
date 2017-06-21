@@ -356,7 +356,6 @@ struct gs_texture_2d : gs_texture {
 struct gs_zstencil_buffer : gs_obj {
 	const uint32_t           width = 0, height = 0;
 	const gs_zstencil_format format = GS_ZS_NONE;
-	const MTLPixelFormat     mtlPixelFormat = MTLPixelFormatInvalid;
 	
 	MTLTextureDescriptor     *textureDesc;
 	id<MTLTexture>           texture;
@@ -367,7 +366,7 @@ struct gs_zstencil_buffer : gs_obj {
 	inline void Rebuild() {InitBuffer();}
 
 	gs_zstencil_buffer(gs_device_t *device, uint32_t width,
-			   uint32_t height, gs_zstencil_format format);
+			uint32_t height, gs_zstencil_format format);
 };
 
 struct gs_stage_surface : gs_obj {
