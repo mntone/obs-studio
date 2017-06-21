@@ -597,7 +597,7 @@ void device_set_render_target(gs_device_t *device, gs_texture_t *tex,
 	if (zstencil) {
 		device->passDesc.depthAttachment.texture = zstencil->texture;
 		device->pipelineDesc.depthAttachmentPixelFormat =
-				zstencil->mtlPixelFormat;
+				zstencil->textureDesc.pixelFormat;
 	} else
 		device->passDesc.depthAttachment.texture = nil;
 	
@@ -646,7 +646,7 @@ void device_set_cube_render_target(gs_device_t *device, gs_texture_t *tex,
 	if (zstencil) {
 		device->passDesc.depthAttachment.texture = zstencil->texture;
 		device->pipelineDesc.depthAttachmentPixelFormat =
-				zstencil->mtlPixelFormat;
+				zstencil->textureDesc.pixelFormat;
 	} else
 		device->passDesc.depthAttachment.texture = nil;
 	
