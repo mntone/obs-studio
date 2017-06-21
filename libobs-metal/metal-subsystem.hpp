@@ -361,7 +361,7 @@ struct gs_zstencil_buffer : gs_obj {
 	MTLTextureDescriptor     *textureDesc;
 	id<MTLTexture>           texture;
 	
-	inline void InitBuffer();
+	void InitBuffer();
 	
 	inline void Release() {texture = nil;}
 	inline void Rebuild() {InitBuffer();}
@@ -380,7 +380,7 @@ struct gs_stage_surface : gs_obj {
 	std::vector<uint8_t>  data;
 	
 	void DownloadTexture();
-	inline void InitTexture();
+	void InitTexture();
 	
 	inline void Release() {texture = nil;}
 	inline void Rebuild() {InitTexture();};
@@ -395,7 +395,7 @@ struct gs_sampler_state : gs_obj {
 	MTLSamplerDescriptor  *samplerDesc;
 	id<MTLSamplerState>   samplerState;
 	
-	inline void InitSampler();
+	void InitSampler();
 	
 	inline void Release() {samplerState = nil;}
 	inline void Rebuild() {InitSampler();}

@@ -1,6 +1,6 @@
 #include "metal-subsystem.hpp"
 
-inline void gs_zstencil_buffer::InitBuffer()
+void gs_zstencil_buffer::InitBuffer()
 {
 	assert(!isShared);
 	

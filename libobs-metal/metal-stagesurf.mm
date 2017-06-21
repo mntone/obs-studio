@@ -7,7 +7,7 @@ void gs_stage_surface::DownloadTexture()
 		fromRegion:from mipmapLevel:0];
 }
 
-inline void gs_stage_surface::InitTexture()
+void gs_stage_surface::InitTexture()
 {
 	texture = [device->device newTextureWithDescriptor:textureDesc];
 	if (texture == nil)

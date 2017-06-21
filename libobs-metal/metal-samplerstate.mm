@@ -105,7 +105,7 @@ static inline MTLSamplerMipFilter ConvertGSMipFilter(gs_sample_filter filter)
 	return MTLSamplerMipFilterNearest;
 }
 
-inline void gs_sampler_state::InitSampler()
+void gs_sampler_state::InitSampler()
 {
 	samplerState = [device->device
 			newSamplerStateWithDescriptor:samplerDesc];
