@@ -1,63 +1,71 @@
 #include "metal-subsystem.hpp"
 
+static inline MTLIndexType ConvertGSIndexType(gs_index_type type)
+{
+	switch (type) {
+		case GS_UNSIGNED_SHORT: return MTLIndexTypeUInt16;
+		case GS_UNSIGNED_LONG:  return MTLIndexTypeUInt32;
+	}
+	
+	throw "Cannot initialize index buffer";
+}
+
+static inline size_t ConvertGSIndexTypeToSize(gs_index_type type)
+{
+	switch (type) {
+		case GS_UNSIGNED_SHORT: return 2;
+		case GS_UNSIGNED_LONG:  return 4;
+	}
+	
+	throw "Cannot initialize index buffer";
+}
+
 void gs_index_buffer::PrepareBuffer()
 {
 	assert(isDynamic);
 	
-	indexBuffer = device->GetBuffer(indices.get(), indexSize * num);
+	indexBuffer = device->GetBuffer(indices.get(), len);
 }
 
 void gs_index_buffer::FlushBuffer()
 {
 	assert(isDynamic);
 	
-	memcpy(indexBuffer.contents, indices.get(), indexSize * num);
+	memcpy(indexBuffer.contents, indices.get(), len);
 }
 
 void gs_index_buffer::InitBuffer()
 {
-	NSUInteger         length  = indexSize * num;
+	NSUInteger         length  = len;
 	MTLResourceOptions options = MTLResourceCPUCacheModeWriteCombined |
-			(isDynamic ? MTLResourceStorageModeShared :
-			MTLResourceStorageModeManaged);
+			MTLResourceStorageModeShared;
 	
 	indexBuffer = [device->device newBufferWithBytes:&indices
 			length:length options:options];
 	if (indexBuffer == nil)
-		throw "Failed to create buffer";
+		throw "Failed to create index buffer";
 	
 #ifdef _DEBUG
 	indexBuffer.label = @"index";
 #endif
 }
 
-void gs_index_buffer::Rebuild(id<MTLDevice> dev)
+void gs_index_buffer::Rebuild()
 {
 	if (!isDynamic)
 		InitBuffer();
-	
-	UNUSED_PARAMETER(dev);
 }
 
 gs_index_buffer::gs_index_buffer(gs_device_t *device, enum gs_index_type type,
 		void *indices, size_t num, uint32_t flags)
 	: gs_obj    (device, gs_type::gs_index_buffer),
 	  type      (type),
+	  isDynamic ((flags & GS_DYNAMIC) != 0),
 	  indices   (indices, bfree),
 	  num       (num),
-	  isDynamic ((flags & GS_DYNAMIC) != 0)
+	  len       (ConvertGSIndexTypeToSize(type) * num),
+	  indexType (ConvertGSIndexType(type))
 {
-	switch (type) {
-	case GS_UNSIGNED_SHORT:
-		indexSize = 2;
-		indexType = MTLIndexTypeUInt16;
-		break;
-	case GS_UNSIGNED_LONG:
-		indexSize = 4;
-		indexType = MTLIndexTypeUInt32;
-		break;
-	}
-
 	if (!isDynamic)
 		InitBuffer();
 }

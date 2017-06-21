@@ -76,7 +76,7 @@ void gs_texture_2d::InitTexture()
 		throw "Failed to create 2D texture";
 }
 
-void gs_texture_2d::Rebuild(id<MTLDevice> dev)
+void gs_texture_2d::Rebuild()
 {
 	if (isShared) {
 		texture = nil;
@@ -87,8 +87,6 @@ void gs_texture_2d::Rebuild(id<MTLDevice> dev)
 		InitTextureWithIOSurface();
 	else
 		InitTexture();
-	
-	UNUSED_PARAMETER(dev);
 }
 
 gs_texture_2d::gs_texture_2d(gs_device_t *device, uint32_t width,

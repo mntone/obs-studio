@@ -282,7 +282,7 @@ bool gs_texture_rebind_iosurface(gs_texture_t *texture, void *iosurf)
 	
 	if (tex2d->ioSurface != ref) {
 		tex2d->ioSurface = ref;
-		tex2d->Rebuild(texture->device->device);
+		tex2d->Rebuild();
 	}
 	tex2d->SynchronizeTexture();
 	return true;

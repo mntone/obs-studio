@@ -137,7 +137,7 @@ void gs_vertex_buffer::InitBuffers()
 	}
 }
 
-inline void gs_vertex_buffer::Rebuild()
+void gs_vertex_buffer::Rebuild()
 {
 	if (!isDynamic)
 		InitBuffers();

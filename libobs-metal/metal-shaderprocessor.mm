@@ -117,8 +117,8 @@ void ShaderProcessor::BuildParamInfo(ShaderBufferInfo &info)
 gs_shader_param::gs_shader_param(shader_var &var, uint32_t &texCounter)
 	: name       (var.name),
 	  type       (get_shader_param_type(var.type)),
-	  textureID  (texCounter),
 	  arrayCount (var.array_count),
+	  textureID  (texCounter),
 	  changed    (false)
 {
 	defaultValue.resize(var.default_val.num);

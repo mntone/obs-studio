@@ -38,6 +38,11 @@ void gs_swap_chain::Resize(uint32_t cx, uint32_t cy)
 	metalLayer.drawableSize = CGSizeMake(cx, cy);
 }
 
+void gs_swap_chain::Rebuild()
+{
+	metalLayer.device = device->device;
+}
+
 gs_swap_chain::gs_swap_chain(gs_device *device, const gs_init_data *data)
 	: gs_obj     (device, gs_type::gs_swap_chain),
 	  numBuffers (data->num_backbuffers),

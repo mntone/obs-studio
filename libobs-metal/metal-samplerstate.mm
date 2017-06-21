@@ -2,7 +2,8 @@
 
 #include "metal-subsystem.hpp"
 
-using namespace std;
+using std::min;
+using std::max;
 
 static inline MTLSamplerAddressMode ConvertGSAddressMode(gs_address_mode mode)
 {
@@ -110,13 +111,6 @@ inline void gs_sampler_state::InitSampler()
 			newSamplerStateWithDescriptor:samplerDesc];
 	if (samplerState == nil)
 		throw "Failed to create sampler state";
-}
-
-inline void gs_sampler_state::Rebuild(id<MTLDevice> dev)
-{
-	InitSampler();
-	
-	UNUSED_PARAMETER(dev);
 }
 
 gs_sampler_state::gs_sampler_state(gs_device_t *device,
