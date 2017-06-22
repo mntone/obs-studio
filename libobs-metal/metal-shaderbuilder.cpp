@@ -8,6 +8,10 @@
 
 using namespace std;
 
+#define METAL_VERSION_1_1      ((1 << 16) | 1)
+#define METAL_VERSION_1_2      ((1 << 16) | 2)
+#define COMPILE_METAL_VERSION  METAL_VERSION_1_1
+
 constexpr const char *UNIFORM_DATA_NAME = "UniformData";
 
 enum class ShaderTextureCallType
@@ -250,7 +254,11 @@ inline void ShaderBuilder::WriteSamplerFilter(enum gs_sample_filter filter,
 inline void ShaderBuilder::WriteSamplerAddress(enum gs_address_mode address,
 		const char key, bool &first)
 {
+#if COMPILE_METAL_VERSION >= METAL_VERSION_1_2
 	if (address != GS_ADDRESS_CLAMP) {
+#else
+	if (address != GS_ADDRESS_CLAMP && address != GS_ADDRESS_BORDER) {
+#endif
 		WriteSamplerParamDelimitter(first);
 		
 		output << "\t" << key << "_address::";
@@ -262,13 +270,14 @@ inline void ShaderBuilder::WriteSamplerAddress(enum gs_address_mode address,
 		case GS_ADDRESS_MIRROR:
 			output << "mirrored_repeat";
 			break;
+#if COMPILE_METAL_VERSION >= METAL_VERSION_1_2
 		case GS_ADDRESS_BORDER:
 			output << "clamp_to_border";
 			break;
+#endif
 		case GS_ADDRESS_MIRRORONCE:
 			throw "GS_ADDRESS_MIRRORONCE is not supported in Metal";
 		default:
-		case GS_ADDRESS_CLAMP:
 			throw "Unknown error";
 		}
 	}
