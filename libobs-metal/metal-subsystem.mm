@@ -134,19 +134,21 @@ void device_resize(gs_device_t *device, uint32_t cx, uint32_t cy)
 
 	try {
 		id<MTLTexture> renderTarget = nil;
-		id<MTLTexture> depthTarget = nil;
+		id<MTLTexture> zstencilTarget = nil;
 
 		device->passDesc.colorAttachments[0].texture = nil;
 		device->passDesc.depthAttachment.texture     = nil;
+		device->passDesc.stencilAttachment.texture   = nil;
 		device->curSwapChain->Resize(cx, cy);
 
 		if (device->curRenderTarget)
 			renderTarget = device->curRenderTarget->texture;
 		if (device->curZStencilBuffer)
-			depthTarget  = device->curZStencilBuffer->texture;
+			zstencilTarget  = device->curZStencilBuffer->texture;
 		
 		device->passDesc.colorAttachments[0].texture = renderTarget;
-		device->passDesc.depthAttachment.texture     = depthTarget;
+		device->passDesc.depthAttachment.texture     = zstencilTarget;
+		device->passDesc.stencilAttachment.texture   = zstencilTarget;
 
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_resize (Metal): %s", error);
@@ -595,11 +597,16 @@ void device_set_render_target(gs_device_t *device, gs_texture_t *tex,
 		device->passDesc.colorAttachments[0].texture = nil;
 	
 	if (zstencil) {
-		device->passDesc.depthAttachment.texture = zstencil->texture;
+		device->passDesc.depthAttachment.texture   = zstencil->texture;
+		device->passDesc.stencilAttachment.texture = zstencil->texture;
 		device->pipelineDesc.depthAttachmentPixelFormat =
 				zstencil->textureDesc.pixelFormat;
-	} else
-		device->passDesc.depthAttachment.texture = nil;
+		device->pipelineDesc.stencilAttachmentPixelFormat =
+				zstencil->textureDesc.pixelFormat;
+	} else {
+		device->passDesc.depthAttachment.texture   = nil;
+		device->passDesc.stencilAttachment.texture = nil;
+	}
 	
 	device->piplineStateChanged = true;
 }
@@ -644,11 +651,16 @@ void device_set_cube_render_target(gs_device_t *device, gs_texture_t *tex,
 		device->passDesc.colorAttachments[0].texture = nil;
 	
 	if (zstencil) {
-		device->passDesc.depthAttachment.texture = zstencil->texture;
+		device->passDesc.depthAttachment.texture   = zstencil->texture;
+		device->passDesc.stencilAttachment.texture = zstencil->texture;
 		device->pipelineDesc.depthAttachmentPixelFormat =
 				zstencil->textureDesc.pixelFormat;
-	} else
-		device->passDesc.depthAttachment.texture = nil;
+		device->pipelineDesc.stencilAttachmentPixelFormat =
+				zstencil->textureDesc.pixelFormat;
+	} else {
+		device->passDesc.depthAttachment.texture   = nil;
+		device->passDesc.stencilAttachment.texture = nil;
+	}
 	
 	device->piplineStateChanged = true;
 }
@@ -658,9 +670,6 @@ inline void gs_device::CopyTex(id<MTLTexture> dst,
 		gs_texture_t *src, uint32_t src_x, uint32_t src_y,
 		uint32_t src_w, uint32_t src_h)
 {
-	if (src->type != GS_TEXTURE_2D)
-		throw "Source texture must be a 2D texture";
-
 	gs_texture_2d *tex2d = static_cast<gs_texture_2d*>(src);
 	if (src_w == 0)
 		src_w = tex2d->width;
@@ -799,6 +808,7 @@ void device_load_swapchain(gs_device_t *device, gs_swapchain_t *swapchain)
 		device->passDesc.colorAttachments[0].texture =
 				device->curSwapChain->nextDrawable.texture;
 		device->passDesc.depthAttachment.texture     = nil;
+		device->passDesc.stencilAttachment.texture   = nil;
 		
 		device->pipelineDesc.colorAttachments[0].pixelFormat =
 				device->curSwapChain->metalLayer.pixelFormat;
@@ -810,6 +820,7 @@ void device_load_swapchain(gs_device_t *device, gs_swapchain_t *swapchain)
 		
 		device->passDesc.colorAttachments[0].texture = nil;
 		device->passDesc.depthAttachment.texture     = nil;
+		device->passDesc.stencilAttachment.texture   = nil;
 	}
 	
 	device->piplineStateChanged = true;

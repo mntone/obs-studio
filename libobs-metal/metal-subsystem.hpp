@@ -75,40 +75,6 @@ static inline gs_color_format ConvertOSTypePixelFormat(OSType format)
 	return GS_UNKNOWN;
 }
 
-static inline MTLPixelFormat ConvertGSZStencilFormat(gs_zstencil_format format)
-{
-	switch (format) {
-	case GS_ZS_NONE:     return MTLPixelFormatInvalid;
-#ifdef __MAC_10_12
-	case GS_Z16:         return MTLPixelFormatDepth16Unorm;
-#endif
-	case GS_Z24_S8:      return MTLPixelFormatDepth24Unorm_Stencil8;
-	case GS_Z32F:        return MTLPixelFormatDepth32Float;
-	case GS_Z32F_S8X24:  return MTLPixelFormatDepth32Float_Stencil8;
-	default:
-		break;
-	}
-
-	return MTLPixelFormatInvalid;
-}
-
-static inline gs_zstencil_format ConvertMTLPixelFormatDepth(
-		MTLPixelFormat format)
-{
-	switch ((NSUInteger)format) {
-#ifdef __MAC_10_12
-	case MTLPixelFormatDepth16Unorm:          return GS_Z16;
-#endif
-	case MTLPixelFormatDepth24Unorm_Stencil8: return GS_Z24_S8;
-	case MTLPixelFormatDepth32Float:          return GS_Z24_S8;
-	case MTLPixelFormatDepth32Float_Stencil8: return GS_Z32F_S8X24;
-	default:
-		break;
-	}
-	
-	return GS_ZS_NONE;
-}
-
 static inline MTLCompareFunction ConvertGSDepthTest(gs_depth_test test)
 {
 	switch (test) {
@@ -647,6 +613,8 @@ struct ZStencilState {
 };
 
 struct gs_device {
+	uint16_t                    featureSetFamily = 0;
+	uint16_t                    featureSetVersion = 0;
 	id<MTLDevice>               device = nil;
 	id<MTLCommandQueue>         commandQueue = nil;
 	id<MTLCommandBuffer>        commandBuffer = nil;

@@ -43,7 +43,6 @@ void gs_device::InitDevice(uint32_t deviceIdx)
 	blog(LOG_INFO, "Loading up Metal on adapter %s (%" PRIu32 ")",
 			[device name].UTF8String, deviceIdx);
 	
-	uint32_t featureSetFamily = 0, featureSetVersion = 0;
 	if ([device supportsFeatureSet:MTLFeatureSet_OSX_GPUFamily1_v2]) {
 		featureSetFamily  = 1;
 		featureSetVersion = 2;
