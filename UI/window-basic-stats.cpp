@@ -57,13 +57,13 @@ OBSBasicStats::OBSBasicStats(QWidget *parent)
 
 	cpuUsage = new QLabel(this);
 	hddSpace = new QLabel(this);
-#ifdef _WIN32
+#ifndef __FreeBSD__
 	memUsage = new QLabel(this);
 #endif
 
 	newStat("CPUUsage", cpuUsage, 0);
 	newStat("HDDSpaceAvailable", hddSpace, 0);
-#ifdef _WIN32
+#ifndef __FreeBSD__
 	newStat("MemoryUsage", memUsage, 0);
 #endif
 
@@ -291,8 +291,8 @@ void OBSBasicStats::Update()
 
 	/* ------------------ */
 
-#ifdef _WIN32
-	num = (long double)CurrentMemoryUsage() / (1024.0l * 1024.0l);
+#ifndef __FreeBSD__
+	num = (long double)os_get_proc_resident_size() / (1024.0l * 1024.0l);
 
 	str = QString::number(num, 'f', 1) + QStringLiteral(" MB");
 	memUsage->setText(str);

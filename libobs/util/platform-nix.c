@@ -33,6 +33,7 @@
 #if !defined(__APPLE__)
 #include <sys/times.h>
 #include <sys/wait.h>
+#include <sys/resource.h>
 #include <spawn.h>
 #endif
 
@@ -678,6 +679,77 @@ int os_get_logical_cores(void)
 		os_get_cores_internal();
 	return logical_cores;
 }
+
+uint64_t os_get_sys_free_size(void) {return 0;}
+
+#ifdef __FreeBSD__
+bool os_get_proc_memory_usage(os_proc_memory_usage_t *usage) {return false;}
+
+uint64_t os_get_proc_resident_size(void) {return 0;}
+
+uint64_t os_get_proc_virtual_size(void) {return 0;}
+#else
+typedef struct {
+	unsigned long virtual_size;
+	unsigned long resident_size;
+	unsigned long share_pages;
+	unsigned long text;
+	unsigned long library;
+	unsigned long data;
+	unsigned long dirty_pages;
+} statm_t;
+
+static inline bool os_get_proc_memory_usage_internal(statm_t *statm)
+{
+	const char *statm_path = "/proc/self/statm";
+
+	FILE *f = fopen(statm_path,"r");
+	if (!f)
+		return false;
+
+	if (fscanf(f, "%ld %ld %ld %ld %ld %ld %ld",
+	    &statm->virtual_size,
+	    &statm->resident_size,
+	    &statm->share_pages,
+	    &statm->text,
+	    &statm->library,
+	    &statm->data,
+	    &statm->dirty_pages) != 7) {
+		fclose(f);
+		return false;
+	}
+
+	fclose(f);
+	return true;
+}
+
+bool os_get_proc_memory_usage(os_proc_memory_usage_t *usage)
+{
+	statm_t statm = {};
+	if (!os_get_proc_memory_usage_internal(&statm))
+		return false;
+
+	usage->resident_size = statm.resident_size;
+	usage->virtual_size  = statm.virtual_size;
+	return true;
+}
+
+uint64_t os_get_proc_resident_size(void)
+{
+	statm_t statm = {};
+	if (!os_get_proc_memory_usage_internal(&statm))
+		return 0;
+	return (uint64_t)statm.resident_size;
+}
+
+uint64_t os_get_proc_virtual_size(void)
+{
+	statm_t statm = {};
+	if (!os_get_proc_memory_usage_internal(&statm))
+		return 0;
+	return (uint64_t)statm.virtual_size;
+}
+#endif
 #endif
 
 uint64_t os_get_free_disk_space(const char *dir)
