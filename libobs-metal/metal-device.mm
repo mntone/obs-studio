@@ -56,6 +56,40 @@ void gs_device::InitDevice(uint32_t deviceIdx)
 			featureSetFamily, featureSetVersion);
 }
 
+void gs_device::SetClear()
+{
+	ClearState state = clearStates.top().second;
+	
+	if (state.flags & GS_CLEAR_COLOR) {
+		MTLRenderPassColorAttachmentDescriptor *colorAttachment =
+				passDesc.colorAttachments[0];
+		colorAttachment.loadAction = MTLLoadActionClear;
+		colorAttachment.clearColor = MTLClearColorMake(
+				state.color.x, state.color.y, state.color.z,
+				state.color.w);
+	}
+	
+	if (state.flags & GS_CLEAR_DEPTH) {
+		MTLRenderPassDepthAttachmentDescriptor *depthAttachment =
+				passDesc.depthAttachment;
+		depthAttachment.loadAction = MTLLoadActionClear;
+		depthAttachment.clearDepth = state.depth;
+	}
+	
+	if (state.flags & GS_CLEAR_STENCIL) {
+		MTLRenderPassStencilAttachmentDescriptor *stencilAttachment =
+				passDesc.stencilAttachment;
+		stencilAttachment.loadAction   = MTLLoadActionClear;
+		stencilAttachment.clearStencil = state.stencil;
+	}
+	
+	clearStates.pop();
+	if (clearStates.size())
+		preserveClearTarget = clearStates.top().first;
+	else
+		preserveClearTarget = nullptr;
+}
+
 void gs_device::UploadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder)
 {
 	NSRange               range;
@@ -173,6 +207,13 @@ void gs_device::Draw(gs_draw_mode drawMode, uint32_t startVert,
 		piplineStateChanged = false;
 	}
 	
+	if (preserveClearTarget != curRenderTarget) {
+		passDesc.colorAttachments[0].loadAction = MTLLoadActionLoad;
+		passDesc.depthAttachment.loadAction     = MTLLoadActionLoad;
+		passDesc.stencilAttachment.loadAction   = MTLLoadActionLoad;
+	} else
+		SetClear();
+	
 	try {
 		if (!curVertexShader)
 			throw "No vertex shader specified";
@@ -214,10 +255,6 @@ void gs_device::Draw(gs_draw_mode drawMode, uint32_t startVert,
 	}
 	
 	[commandEncoder endEncoding];
-	
-	passDesc.colorAttachments[0].loadAction = MTLLoadActionLoad;
-	passDesc.depthAttachment.loadAction     = MTLLoadActionLoad;
-	passDesc.stencilAttachment.loadAction   = MTLLoadActionLoad;
 }
 
 static inline id<MTLBuffer> CreateBuffer(id<MTLDevice> device,

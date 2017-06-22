@@ -3,6 +3,7 @@
 #include <util/AlignedNew.hpp>
 
 #include <vector>
+#include <stack>
 #include <string>
 #include <memory>
 
@@ -513,6 +514,21 @@ struct gs_swap_chain : gs_obj {
 	gs_swap_chain(gs_device *device, const gs_init_data *data);
 };
 
+struct ClearState {
+	uint32_t    flags;
+	struct vec4 color;
+	float       depth;
+	uint8_t     stencil;
+	
+	inline ClearState()
+		: flags   (0),
+		  color   ({}),
+		  depth   (0.0f),
+		  stencil (0)
+	{
+	}
+};
+
 struct BlendState {
 	bool          blendEnabled;
 	gs_blend_type srcFactorC;
@@ -636,6 +652,9 @@ struct gs_device {
 	
 	gs_vertex_buffer            *lastVertexBuffer = nullptr;
 	gs_vertex_shader            *lastVertexShader = nullptr;
+	
+	gs_texture_2d               *preserveClearTarget = nullptr;
+	std::stack<std::pair<gs_texture_2d *, ClearState>> clearStates;
 
 	bool                        piplineStateChanged = false;
 	BlendState                  blendState;
@@ -656,6 +675,7 @@ struct gs_device {
 	void InitDevice(uint32_t adapterIdx);
 	
 	/* Create Draw Command */
+	void SetClear();
 	void LoadSamplers(id<MTLRenderCommandEncoder> commandEncoder);
 	void LoadRasterState(id<MTLRenderCommandEncoder> commandEncoder);
 	void LoadZStencilState(id<MTLRenderCommandEncoder> commandEncoder);

@@ -811,29 +811,14 @@ void device_load_swapchain(gs_device_t *device, gs_swapchain_t *swapchain)
 void device_clear(gs_device_t *device, uint32_t clear_flags,
 		const struct vec4 *color, float depth, uint8_t stencil)
 {
-	assert(device != nullptr);
+	device->preserveClearTarget = device->curRenderTarget;
 	
-	if (clear_flags & GS_CLEAR_COLOR) {
-		MTLRenderPassColorAttachmentDescriptor *colorAttachment =
-				device->passDesc.colorAttachments[0];
-		colorAttachment.loadAction = MTLLoadActionClear;
-		colorAttachment.clearColor = MTLClearColorMake(
-				color->x, color->y, color->z, color->w);
-	}
-
-	if (clear_flags & GS_CLEAR_DEPTH) {
-		MTLRenderPassDepthAttachmentDescriptor *depthAttachment =
-				device->passDesc.depthAttachment;
-		depthAttachment.loadAction = MTLLoadActionClear;
-		depthAttachment.clearDepth = depth;
-	}
-	
-	if (clear_flags & GS_CLEAR_STENCIL) {
-		MTLRenderPassStencilAttachmentDescriptor *stencilAttachment =
-				device->passDesc.stencilAttachment;
-		stencilAttachment.loadAction   = MTLLoadActionClear;
-		stencilAttachment.clearStencil = stencil;
-	}
+	ClearState state;
+	state.flags   = clear_flags;
+	state.color   = *color;
+	state.depth   = depth;
+	state.stencil = stencil;
+	device->clearStates.push(make_pair(device->curRenderTarget, state));
 }
 
 void device_present(gs_device_t *device)
