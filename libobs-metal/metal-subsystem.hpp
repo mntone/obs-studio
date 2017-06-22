@@ -661,7 +661,7 @@ struct gs_device {
 	RasterState                 rasterState;
 	ZStencilState               zstencilState;
 
-	std::vector<matrix4>        projStack;
+	std::stack<matrix4>         projStack;
 
 	matrix4                     curProjMatrix;
 	matrix4                     curViewMatrix;

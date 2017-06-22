@@ -1166,7 +1166,7 @@ void device_frustum(gs_device_t *device, float left, float right, float top,
 
 void device_projection_push(gs_device_t *device)
 {
-	device->projStack.push_back(device->curProjMatrix);
+	device->projStack.push(device->curProjMatrix);
 }
 
 void device_projection_pop(gs_device_t *device)
@@ -1174,8 +1174,8 @@ void device_projection_pop(gs_device_t *device)
 	if (!device->projStack.size())
 		return;
 
-	device->curProjMatrix = *(device->projStack.end() - 1);
-	device->projStack.pop_back();
+	device->curProjMatrix = device->projStack.top();
+	device->projStack.pop();
 }
 
 void gs_swapchain_destroy(gs_swapchain_t *swapchain)
