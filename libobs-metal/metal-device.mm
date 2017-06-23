@@ -255,26 +255,36 @@ static inline id<MTLBuffer> CreateBuffer(id<MTLDevice> device,
 
 id<MTLBuffer> gs_device::GetBuffer(void *data, size_t length)
 {
+	lock_guard<mutex> lock(mutexObj);
 	auto target = find_if(unusedBufferPool.begin(), unusedBufferPool.end(),
 		[length](id<MTLBuffer> b) { return b.length >= length; });
 	if (target == unusedBufferPool.end()) {
 		id<MTLBuffer> newBuffer = CreateBuffer(device, data, length);
-		bufferPool.push_back(newBuffer);
+		curBufferPool.push_back(newBuffer);
 		return newBuffer;
 	}
 	
 	id<MTLBuffer> targetBuffer = *target;
 	unusedBufferPool.erase(target);
-	bufferPool.push_back(targetBuffer);
+	curBufferPool.push_back(targetBuffer);
 	memcpy(targetBuffer.contents, data, length);
 	return targetBuffer;
 }
 
+void gs_device::PushResources()
+{
+	lock_guard<mutex> lock(mutexObj);
+	bufferPools.push(curBufferPool);
+	curBufferPool.clear();
+}
+
 void gs_device::ReleaseResources()
 {
+	lock_guard<mutex> lock(mutexObj);
+	auto& pool = bufferPools.front();
 	unusedBufferPool.insert(unusedBufferPool.end(),
-			bufferPool.begin(), bufferPool.end());
-	bufferPool.clear();
+			pool.begin(), pool.end());
+	bufferPools.pop();
 }
 
 gs_device::gs_device(uint32_t adapterIdx)

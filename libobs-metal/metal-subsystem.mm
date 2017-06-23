@@ -827,7 +827,7 @@ void device_clear(gs_device_t *device, uint32_t clear_flags,
 	state.color   = *color;
 	state.depth   = depth;
 	state.stencil = stencil;
-	device->clearStates.push(make_pair(device->curRenderTarget, state));
+	device->clearStates.emplace(device->curRenderTarget, state);
 }
 
 void device_present(gs_device_t *device)
@@ -838,18 +838,20 @@ void device_present(gs_device_t *device)
 	} else {
 		blog(LOG_WARNING, "device_present (Metal): No active swap");
 	}
-	
+
+	device->PushResources();
+
+	[device->commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> b) {
+		device->ReleaseResources();
+	}];
 	[device->commandBuffer commit];
-	[device->commandBuffer waitUntilCompleted];
 	device->commandBuffer = nil;
-	
-	device->ReleaseResources();
-	
+
 	if (device->curStageSurface) {
 		device->curStageSurface->DownloadTexture();
 		device->curStageSurface = nullptr;
 	}
-	
+
 	if (device->curSwapChain)
 		device->curSwapChain->NextTarget();
 		
@@ -858,16 +860,19 @@ void device_present(gs_device_t *device)
 void device_flush(gs_device_t *device)
 {
 	if (device->commandBuffer != nil) {
+		device->PushResources();
+
+		[device->commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> b) {
+			device->ReleaseResources();
+		}];
 		[device->commandBuffer commit];
 		[device->commandBuffer waitUntilCompleted];
 		device->commandBuffer = nil;
-		
+
 		if (device->curStageSurface) {
 			device->curStageSurface->DownloadTexture();
 			device->curStageSurface = nullptr;
 		}
-		
-		device->ReleaseResources();
 	}
 }
 

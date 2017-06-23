@@ -4,7 +4,9 @@
 
 #include <vector>
 #include <stack>
+#include <queue>
 #include <string>
+#include <mutex>
 #include <memory>
 
 #include <util/base.h>
@@ -672,7 +674,9 @@ struct gs_device {
 
 	gs_obj                      *first_obj = nullptr;
 	
-	std::vector<id<MTLBuffer>>  bufferPool;
+	std::mutex                  mutexObj;
+	std::vector<id<MTLBuffer>>  curBufferPool;
+	std::queue<std::vector<id<MTLBuffer>>> bufferPools;
 	std::vector<id<MTLBuffer>>  unusedBufferPool;
 	
 	void InitDevice(uint32_t adapterIdx);
@@ -692,6 +696,7 @@ struct gs_device {
 	
 	/* Buffer Management */
 	id<MTLBuffer> GetBuffer(void *data, size_t length);
+	void PushResources();
 	void ReleaseResources();
 	
 	/* Other */

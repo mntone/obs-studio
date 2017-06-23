@@ -167,6 +167,9 @@ void gs_shader::UploadParams(id<MTLRenderCommandEncoder> commandEncoder)
 	for (size_t i = 0; i < params.size(); i++)
 		UpdateParam(ptr, params[i]);
 	
+	if (!constantSize)
+		return;
+	
 	id<MTLBuffer> cnt = device->GetBuffer(ptr, data.size());
 #if _DEBUG
 	cnt.label = @"constants";
