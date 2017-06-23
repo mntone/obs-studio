@@ -96,16 +96,44 @@ static inline const char *GetType(const string &type)
 		return "texturecube<float>";
 	else if (type == "texture_rect")
 		throw "texture_rect is not supported in Metal";
-	else if (type == "min10float")
-		throw "min10float is not supported in Metal";
-	else if (type == "double")
-		throw "double is not supported in Metal";
-	else if (type == "min16int")
-		return "short";
-	else if (type == "min16uint")
-		return "ushort";
-	else if (type == "min12int")
-		throw "min12int is not supported in Metal";
+	else if (type.compare(0, 4, "half") == 0) {
+		switch (*(type.end() - 1)) {
+			case '2': return "float2";
+			case '3': return "float3";
+			case '4': return "float4";
+			case 'f': return "float";
+		}
+		throw "Unknown type";
+	} else if (type.compare(0, 10, "min16float") == 0) {
+		switch (*(type.end() - 1)) {
+			case '2': return "half2";
+			case '3': return "half3";
+			case '4': return "half4";
+			case 'f': return "half";
+		}
+		throw "Unknown type";
+	} else if (type.compare(0, 10, "min10float") == 0)
+		throw "min10float* is not supported in Metal";
+	else if (type.compare(0, 6, "double") == 0)
+		throw "double* is not supported in Metal";
+	else if (type.compare(0, 8, "min16int") == 0) {
+		switch (*(type.end() - 1)) {
+			case '2': return "short2";
+			case '3': return "short3";
+			case '4': return "short4";
+			case 't': return "short";
+		}
+		throw "Unknown type";
+	} else if (type.compare(0, 9, "min16uint") == 0) {
+		switch (*(type.end() - 1)) {
+			case '2': return "ushort2";
+			case '3': return "ushort3";
+			case '4': return "ushort4";
+			case 't': return "ushort";
+		}
+		throw "Unknown type";
+	} else if (type.compare(0, 8, "min12int") == 0)
+		throw "min12int* is not supported in Metal";
 	
 	return nullptr;
 }
@@ -131,8 +159,8 @@ inline bool ShaderBuilder::WriteTypeToken(struct cf_token *token)
 inline void ShaderBuilder::WriteInclude()
 {
 	output << "#include <metal_stdlib>" << endl
-	        << "using namespace metal;" << endl
-	        << endl;
+	       << "using namespace metal;" << endl
+	       << endl;
 }
 
 inline void ShaderBuilder::WriteVariable(const shader_var *var)
