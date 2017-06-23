@@ -174,27 +174,6 @@ void gs_device::DrawPrimitives(id<MTLRenderCommandEncoder> commandEncoder,
 void gs_device::Draw(gs_draw_mode drawMode, uint32_t startVert,
 		uint32_t numVerts)
 {
-	if (pipelineState == nil || piplineStateChanged) {
-		NSError *error = nil;
-		pipelineState = [device newRenderPipelineStateWithDescriptor:
-				pipelineDesc error:&error];
-		
-		if (pipelineState == nil) {
-			blog(LOG_ERROR, "device_draw (Metal): %s",
-					error.localizedDescription.UTF8String);
-			return;
-		}
-		
-		piplineStateChanged = false;
-	}
-	
-	if (preserveClearTarget != curRenderTarget) {
-		passDesc.colorAttachments[0].loadAction = MTLLoadActionLoad;
-		passDesc.depthAttachment.loadAction     = MTLLoadActionLoad;
-		passDesc.stencilAttachment.loadAction   = MTLLoadActionLoad;
-	} else
-		SetClear();
-	
 	try {
 		if (!curVertexShader)
 			throw "No vertex shader specified";
@@ -212,16 +191,37 @@ void gs_device::Draw(gs_draw_mode drawMode, uint32_t startVert,
 		blog(LOG_ERROR, "device_draw (Metal): %s", error);
 		return;
 	}
-	
+
+	if (pipelineState == nil || piplineStateChanged) {
+		NSError *error = nil;
+		pipelineState = [device newRenderPipelineStateWithDescriptor:
+				pipelineDesc error:&error];
+		
+		if (pipelineState == nil) {
+			blog(LOG_ERROR, "device_draw (Metal): %s",
+					error.localizedDescription.UTF8String);
+			return;
+		}
+		
+		piplineStateChanged = false;
+	}
+
+	if (preserveClearTarget != curRenderTarget) {
+		passDesc.colorAttachments[0].loadAction = MTLLoadActionLoad;
+		passDesc.depthAttachment.loadAction     = MTLLoadActionLoad;
+		passDesc.stencilAttachment.loadAction   = MTLLoadActionLoad;
+	} else
+		SetClear();
+
 	id<MTLRenderCommandEncoder> commandEncoder = [commandBuffer
 			renderCommandEncoderWithDescriptor:passDesc];
 	[commandEncoder setRenderPipelineState:pipelineState];
-	
+
 	try {
 		gs_effect_t *effect = gs_get_effect();
 		if (effect)
 			gs_effect_update_params(effect);
-		
+
 		LoadRasterState(commandEncoder);
 		LoadZStencilState(commandEncoder);
 		UpdateViewProjMatrix();
@@ -230,11 +230,11 @@ void gs_device::Draw(gs_draw_mode drawMode, uint32_t startVert,
 		UploadVertexBuffer(commandEncoder);
 		UploadTextures(commandEncoder);
 		DrawPrimitives(commandEncoder, drawMode, startVert, numVerts);
-		
+
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_draw (Metal): %s", error);
 	}
-	
+
 	[commandEncoder endEncoding];
 }
 
