@@ -1245,8 +1245,6 @@ void gs_texture_unmap(gs_texture_t *tex)
 
 void *gs_texture_get_obj(gs_texture_t *tex)
 {
-	assert(tex != nullptr);
-	
 	if (tex->type != GS_TEXTURE_2D)
 		return nullptr;
 
@@ -1262,8 +1260,6 @@ void gs_cubetexture_destroy(gs_texture_t *cubetex)
 
 uint32_t gs_cubetexture_get_size(const gs_texture_t *cubetex)
 {
-	assert(cubetex != nullptr);
-	
 	if (cubetex->type != GS_TEXTURE_CUBE)
 		return 0;
 
@@ -1274,8 +1270,6 @@ uint32_t gs_cubetexture_get_size(const gs_texture_t *cubetex)
 enum gs_color_format gs_cubetexture_get_color_format(
 		const gs_texture_t *cubetex)
 {
-	assert(cubetex != nullptr);
-	
 	if (cubetex->type != GS_TEXTURE_CUBE)
 		return GS_UNKNOWN;
 
