@@ -2,6 +2,17 @@
 
 #include "metal-subsystem.hpp"
 
+void gs_texture_2d::GenerateMipmap()
+{
+	@autoreleasepool {
+		id<MTLCommandBuffer> buf = [device->commandQueue commandBuffer];
+		id<MTLBlitCommandEncoder> blit = [buf blitCommandEncoder];
+		[blit generateMipmapsForTexture:texture];
+		[buf commit];
+		[buf waitUntilCompleted];
+	}
+}
+
 void gs_texture_2d::BackupTexture(const uint8_t **data)
 {
 	this->data.resize(levels);
@@ -126,11 +137,12 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, uint32_t width,
 	default:
 		break;
 	}
-	textureDesc.arrayLength      = type == GS_TEXTURE_CUBE ? 6 : 1;
-	textureDesc.cpuCacheMode     = MTLCPUCacheModeWriteCombined;
-	textureDesc.storageMode      = MTLStorageModeManaged;
-	textureDesc.usage            = MTLTextureUsageShaderRead;
-	
+	if (genMipmaps)
+		textureDesc.mipmapLevelCount = levels;
+	textureDesc.arrayLength              = type == GS_TEXTURE_CUBE ? 6 : 1;
+	textureDesc.cpuCacheMode             = MTLCPUCacheModeWriteCombined;
+	textureDesc.storageMode              = MTLStorageModeManaged;
+	textureDesc.usage                    = MTLTextureUsageShaderRead;
 	if (isRenderTarget)
 		textureDesc.usage |= MTLTextureUsageRenderTarget;
 	
@@ -139,6 +151,8 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, uint32_t width,
 	if (data) {
 		BackupTexture(data);
 		UploadTexture();
+		if (genMipmaps)
+			GenerateMipmap();
 	}
 }
 
@@ -155,7 +169,8 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, id<MTLTexture> texture)
 	  isShared        (true),
 	  mtlPixelFormat  (texture.pixelFormat),
 	  texture         (texture)
-{}
+{
+}
 
 gs_texture_2d::gs_texture_2d(gs_device_t *device, IOSurfaceRef iosurf)
 	: gs_texture      (device, gs_type::gs_texture_2d,

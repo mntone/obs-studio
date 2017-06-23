@@ -606,7 +606,7 @@ inline void ShaderBuilder::AnalysisFunction(struct cf_token *&token,
 			string name(token->str.array, token->str.len);
 			
 			/* Check function */
-			auto fi = functionInfo.find(name);
+			const auto fi = functionInfo.find(name);
 			if (fi != functionInfo.end()) {
 				if (fi->second.useUniform)
 					info.useUniform = true;

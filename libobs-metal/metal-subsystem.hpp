@@ -302,6 +302,7 @@ struct gs_texture_2d : gs_texture {
 	
 	IOSurfaceRef ioSurface = nil;
 
+	void GenerateMipmap();
 	void BackupTexture(const uint8_t **data);
 	void UploadTexture();
 	void SynchronizeTexture();
