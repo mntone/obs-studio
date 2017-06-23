@@ -48,21 +48,24 @@ void gs_device::SetClear()
 		colorAttachment.clearColor = MTLClearColorMake(
 				state.color.x, state.color.y, state.color.z,
 				state.color.w);
-	}
+	} else
+		passDesc.colorAttachments[0].loadAction = MTLLoadActionLoad;
 	
 	if (state.flags & GS_CLEAR_DEPTH) {
 		MTLRenderPassDepthAttachmentDescriptor *depthAttachment =
 				passDesc.depthAttachment;
 		depthAttachment.loadAction = MTLLoadActionClear;
 		depthAttachment.clearDepth = state.depth;
-	}
+	} else
+		passDesc.depthAttachment.loadAction = MTLLoadActionLoad;
 	
 	if (state.flags & GS_CLEAR_STENCIL) {
 		MTLRenderPassStencilAttachmentDescriptor *stencilAttachment =
 				passDesc.stencilAttachment;
 		stencilAttachment.loadAction   = MTLLoadActionClear;
 		stencilAttachment.clearStencil = state.stencil;
-	}
+	} else
+		passDesc.stencilAttachment.loadAction = MTLLoadActionLoad;
 	
 	clearStates.pop();
 	if (clearStates.size())
