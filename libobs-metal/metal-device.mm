@@ -73,7 +73,6 @@ void gs_device::SetClear()
 
 void gs_device::UploadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder)
 {
-	NSRange               range;
 	vector<id<MTLBuffer>> buffers;
 	vector<NSUInteger>    offsets;
 	
@@ -87,12 +86,11 @@ void gs_device::UploadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder)
 		buffers.resize(buffersToClear);
 	}
 	
-	range.location = 0;
-	range.length   = buffers.size();
 	offsets.resize(buffers.size());
 	
 	[commandEncoder setVertexBuffers:buffers.data()
-			offsets:offsets.data() withRange:range];
+			offsets:offsets.data()
+			withRange:NSMakeRange(0, buffers.size())];
 	
 	lastVertexBuffer = curVertexBuffer;
 	lastVertexShader = curVertexShader;
