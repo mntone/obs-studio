@@ -92,8 +92,6 @@ int device_create(gs_device_t **p_device, uint32_t adapter)
 
 void device_destroy(gs_device_t *device)
 {
-	assert(device != nullptr);
-	
 	delete device;
 }
 
@@ -125,8 +123,6 @@ gs_swapchain_t *device_swapchain_create(gs_device_t *device,
 
 void device_resize(gs_device_t *device, uint32_t cx, uint32_t cy)
 {
-	assert(device != nullptr);
-	
 	if (device->curSwapChain == nullptr) {
 		blog(LOG_WARNING, "device_resize (Metal): No active swap");
 		return;
@@ -157,8 +153,6 @@ void device_resize(gs_device_t *device, uint32_t cx, uint32_t cy)
 
 void device_get_size(const gs_device_t *device, uint32_t *cx, uint32_t *cy)
 {
-	assert(device != nullptr);
-	
 	if (device->curSwapChain) {
 		CGSize curSize = device->curSwapChain->metalLayer.drawableSize;
 		*cx = curSize.width;
@@ -172,8 +166,6 @@ void device_get_size(const gs_device_t *device, uint32_t *cx, uint32_t *cy)
 
 uint32_t device_get_width(const gs_device_t *device)
 {
-	assert(device != nullptr);
-	
 	if (device->curSwapChain) {
 		CGSize curSize = device->curSwapChain->metalLayer.drawableSize;
 		return curSize.width;
@@ -185,8 +177,6 @@ uint32_t device_get_width(const gs_device_t *device)
 
 uint32_t device_get_height(const gs_device_t *device)
 {
-	assert(device != nullptr);
-	
 	if (device->curSwapChain) {
 		CGSize curSize = device->curSwapChain->metalLayer.drawableSize;
 		return curSize.height;
@@ -263,25 +253,23 @@ gs_texture_t *device_texture_create_from_iosurface(gs_device_t *device,
 
 bool gs_texture_rebind_iosurface(gs_texture_t *texture, void *iosurf)
 {
-	assert(texture != nullptr);
-	
 	if (texture->type != GS_TEXTURE_2D) {
 		blog(LOG_ERROR, "gs_texture_rebind_iosurface (Metal): "
 		                "texture is not a 2D texture");
 		return false;
 	}
-	
+
 	IOSurfaceRef ref = (IOSurfaceRef)iosurf;
 	OSType format = IOSurfaceGetPixelFormat(ref);
 	gs_color_format gsformat = ConvertOSTypePixelFormat(format);
-	
+
 	gs_texture_2d *tex2d = static_cast<gs_texture_2d*>(texture);
 	if (tex2d->format != gsformat) {
 		blog(LOG_ERROR, "gs_texture_rebind_iosurface (Metal): "
 		                "pixel format is not matched");
 		return false;
 	}
-	
+
 	if (tex2d->ioSurface != ref) {
 		tex2d->ioSurface = ref;
 		tex2d->Rebuild();
