@@ -213,7 +213,7 @@ gs_texture_t *device_texture_create(gs_device_t *device, uint32_t width,
 	try {
 		texture = new gs_texture_2d(device, width, height, color_format,
 				levels, data, flags, GS_TEXTURE_2D);
-		
+
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_texture_create (Metal): %s", error);
 	}
@@ -229,7 +229,7 @@ gs_texture_t *device_cubetexture_create(gs_device_t *device, uint32_t size,
 	try {
 		texture = new gs_texture_2d(device, size, size, color_format,
 				levels, data, flags, GS_TEXTURE_CUBE);
-		
+
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_cubetexture_create (Metal): %s", error);
 	}
@@ -261,7 +261,7 @@ gs_texture_t *device_texture_create_from_iosurface(gs_device_t *device,
 	try {
 		IOSurfaceRef ref = (IOSurfaceRef)iosurf;
 		texture = new gs_texture_2d(device, ref);
-		
+
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_texture_create_from_iosurface (Metal): "
 		                "%s", error);
@@ -304,6 +304,7 @@ gs_zstencil_t *device_zstencil_create(gs_device_t *device, uint32_t width,
 	try {
 		zstencil = new gs_zstencil_buffer(device, width, height,
 				format);
+
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_zstencil_create (Metal): %s", error);
 	}
@@ -318,6 +319,7 @@ gs_stagesurf_t *device_stagesurface_create(gs_device_t *device, uint32_t width,
 	try {
 		surf = new gs_stage_surface(device, width, height,
 				color_format);
+
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_stagesurface_create (Metal): %s",
 				error);
@@ -332,7 +334,7 @@ gs_samplerstate_t *device_samplerstate_create(gs_device_t *device,
 	gs_sampler_state *ss = nullptr;
 	try {
 		ss = new gs_sampler_state(device, info);
-		
+
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_samplerstate_create (Metal): %s",
 				error);
@@ -484,7 +486,7 @@ void device_load_vertexshader(gs_device_t *device, gs_shader_t *vertshader)
 	device->piplineStateChanged = true;
 }
 
-static inline void clear_textures(gs_device_t *device)
+void device_clear_textures(gs_device_t *device)
 {
 	memset(device->curTextures, 0, sizeof(device->curTextures));
 }
@@ -508,7 +510,7 @@ void device_load_pixelshader(gs_device_t *device, gs_shader_t *pixelshader)
 		function  = ps->function;
 	}
 
-	clear_textures(device);
+	device_clear_textures(device);
 
 	device->curPixelShader = ps;
 	
@@ -1034,7 +1036,6 @@ void device_stencil_function(gs_device_t *device, enum gs_stencil_side side,
 		enum gs_depth_test test)
 {
 	int sideVal = static_cast<int>(side);
-
 	if (sideVal & GS_STENCIL_FRONT)
 		update_stencilside_test(
 				device->zstencilState.stencilFront,

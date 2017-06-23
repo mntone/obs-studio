@@ -702,5 +702,17 @@ struct gs_device {
 };
 #endif
 
-extern "C" gs_texture_t *device_texture_create_from_iosurface(
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef libobs_metal_EXPORTS
+void device_clear_textures(gs_device_t *device);
+#endif
+	
+gs_texture_t *device_texture_create_from_iosurface(
 		gs_device_t *device, void *iosurf);
+
+#ifdef __cplusplus
+}
+#endif

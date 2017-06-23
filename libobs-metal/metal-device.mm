@@ -13,7 +13,7 @@ void gs_device::InitDevice(uint32_t deviceIdx)
 	devices = MTLCopyAllDevices();
 	if (devices == nil)
 		throw "Failed to create MTLDevice";
-	
+
 	for (size_t i = 0; i < devices.count; i++) {
 		if (i == devIdx) {
 			device = devices[i];
@@ -22,8 +22,8 @@ void gs_device::InitDevice(uint32_t deviceIdx)
 	}
 
 	blog(LOG_INFO, "Loading up Metal on adapter %s (%" PRIu32 ")",
-			[device name].UTF8String, deviceIdx);
-	
+			device.name.UTF8String, deviceIdx);
+
 	if ([device supportsFeatureSet:MTLFeatureSet_OSX_GPUFamily1_v2]) {
 		featureSetFamily  = 1;
 		featureSetVersion = 2;
@@ -284,6 +284,6 @@ gs_device::gs_device(uint32_t adapterIdx)
 	passDesc = [[MTLRenderPassDescriptor alloc] init];
 	pipelineDesc = [[MTLRenderPipelineDescriptor alloc] init];
 	
-	memset(curTextures, 0, sizeof(curTextures));
+	device_clear_textures(this);
 	device_set_render_target(this, nullptr, nullptr);
 }
