@@ -168,6 +168,10 @@ void gs_shader::UploadParams(id<MTLRenderCommandEncoder> commandEncoder)
 		UpdateParam(ptr, params[i]);
 	
 	id<MTLBuffer> cnt = device->GetBuffer(ptr, data.size());
+#if _DEBUG
+	cnt.label = @"constants";
+#endif
+
 	if (type == GS_SHADER_VERTEX)
 		[commandEncoder setVertexBuffer:cnt offset:0 atIndex:30];
 	else if (type == GS_SHADER_PIXEL)

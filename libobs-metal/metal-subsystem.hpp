@@ -221,7 +221,8 @@ struct gs_vertex_buffer : gs_obj {
 	id<MTLBuffer>              tangentBuffer;
 	std::vector<id<MTLBuffer>> uvBuffers;
 	
-	inline id<MTLBuffer> PrepareBuffer(void *array, size_t elementSize);
+	inline id<MTLBuffer> PrepareBuffer(void *array, size_t elementSize,
+			__weak NSString *name);
 	void PrepareBuffers();
 
 	inline void FlushBuffer(id<MTLBuffer> buffer,

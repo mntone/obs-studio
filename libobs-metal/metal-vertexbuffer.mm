@@ -6,30 +6,34 @@
 using namespace std;
 
 inline id<MTLBuffer> gs_vertex_buffer::PrepareBuffer(
-		void *array, size_t elementSize)
+		void *array, size_t elementSize, __weak NSString *name)
 {
-	return device->GetBuffer(array, elementSize * vbData->num);
+	id<MTLBuffer> b = device->GetBuffer(array, elementSize * vbData->num);
+#if _DEBUG
+	b.label = name;
+#endif
+	return b;
 }
 
 void gs_vertex_buffer::PrepareBuffers()
 {
 	assert(isDynamic);
 	
-	vertexBuffer = PrepareBuffer(vbData->points, sizeof(vec3));
-	
+	vertexBuffer = PrepareBuffer(vbData->points, sizeof(vec3), @"point");
 	if (vbData->normals)
-		normalBuffer = PrepareBuffer(vbData->normals, sizeof(vec3));
-	
+		normalBuffer = PrepareBuffer(vbData->normals, sizeof(vec3),
+				@"normal");
 	if (vbData->tangents)
-		tangentBuffer = PrepareBuffer(vbData->tangents, sizeof(vec3));
-	
+		tangentBuffer = PrepareBuffer(vbData->tangents, sizeof(vec3),
+				@"color");
 	if (vbData->colors)
-		colorBuffer = PrepareBuffer(vbData->colors, sizeof(uint32_t));
+		colorBuffer = PrepareBuffer(vbData->colors, sizeof(uint32_t),
+				@"tangent");
 	
 	for (size_t i = 0; i < vbData->num_tex; i++) {
 		gs_tvertarray &tv = vbData->tvarray[i];
 		uvBuffers.push_back(PrepareBuffer(tv.array,
-				tv.width * sizeof(float)));
+				tv.width * sizeof(float), @"texcoord"));
 	}
 }
 
@@ -44,16 +48,12 @@ void gs_vertex_buffer::FlushBuffers()
 	assert(isDynamic);
 	
 	FlushBuffer(vertexBuffer, vbData->points, sizeof(vec3));
-	
 	if (normalBuffer)
 		FlushBuffer(normalBuffer, vbData->normals, sizeof(vec3));
-	
 	if (tangentBuffer)
 		FlushBuffer(tangentBuffer, vbData->tangents, sizeof(vec3));
-	
 	if (colorBuffer)
 		FlushBuffer(colorBuffer, vbData->colors, sizeof(uint32_t));
-	
 	for (size_t i = 0; i < uvBuffers.size(); i++) {
 		gs_tvertarray &tv = vbData->tvarray[i];
 		FlushBuffer(uvBuffers[i], tv.array, tv.width * sizeof(float));
@@ -98,12 +98,12 @@ inline id<MTLBuffer> gs_vertex_buffer::InitBuffer(size_t elementSize,
 	MTLResourceOptions options = MTLResourceCPUCacheModeWriteCombined |
 			(isDynamic ? MTLResourceStorageModeShared :
 			MTLResourceStorageModeManaged);
-	
+
 	id<MTLBuffer> buffer = [device->device newBufferWithBytes:array
 			length:length options:options];
 	if (buffer == nil)
 		throw "Failed to create buffer";
-	
+
 #ifdef _DEBUG
 	buffer.label = [[NSString alloc] initWithUTF8String:name];
 #endif

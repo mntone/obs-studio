@@ -25,6 +25,9 @@ void gs_index_buffer::PrepareBuffer()
 	assert(isDynamic);
 	
 	indexBuffer = device->GetBuffer(indices.get(), len);
+#if _DEBUG
+	indexBuffer.label = @"index";
+#endif
 }
 
 void gs_index_buffer::FlushBuffer()
