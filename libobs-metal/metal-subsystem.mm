@@ -1190,15 +1190,11 @@ void gs_swapchain_destroy(gs_swapchain_t *swapchain)
 
 void gs_texture_destroy(gs_texture_t *tex)
 {
-	assert(tex != nullptr);
-	
 	delete tex;
 }
 
 uint32_t gs_texture_get_width(const gs_texture_t *tex)
 {
-	assert(tex != nullptr);
-	
 	if (tex->type != GS_TEXTURE_2D)
 		return 0;
 
@@ -1207,8 +1203,6 @@ uint32_t gs_texture_get_width(const gs_texture_t *tex)
 
 uint32_t gs_texture_get_height(const gs_texture_t *tex)
 {
-	assert(tex != nullptr);
-	
 	if (tex->type != GS_TEXTURE_2D)
 		return 0;
 
@@ -1217,8 +1211,6 @@ uint32_t gs_texture_get_height(const gs_texture_t *tex)
 
 enum gs_color_format gs_texture_get_color_format(const gs_texture_t *tex)
 {
-	assert(tex != nullptr);
-	
 	if (tex->type != GS_TEXTURE_2D)
 		return GS_UNKNOWN;
 
@@ -1227,8 +1219,6 @@ enum gs_color_format gs_texture_get_color_format(const gs_texture_t *tex)
 
 bool gs_texture_map(gs_texture_t *tex, uint8_t **ptr, uint32_t *linesize)
 {
-	assert(tex != nullptr);
-	
 	if (tex->type != GS_TEXTURE_2D)
 		return false;
 
@@ -1246,8 +1236,6 @@ bool gs_texture_map(gs_texture_t *tex, uint8_t **ptr, uint32_t *linesize)
 
 void gs_texture_unmap(gs_texture_t *tex)
 {
-	assert(tex != nullptr);
-	
 	if (tex->type != GS_TEXTURE_2D)
 		return;
 	
@@ -1332,41 +1320,36 @@ enum gs_color_format gs_voltexture_get_color_format(const gs_texture_t *voltex)
 
 void gs_stagesurface_destroy(gs_stagesurf_t *stagesurf)
 {
-	assert(stagesurf != nullptr);
 	assert(stagesurf->obj_type == gs_type::gs_stage_surface);
-	
+
 	delete stagesurf;
 }
 
 uint32_t gs_stagesurface_get_width(const gs_stagesurf_t *stagesurf)
 {
-	assert(stagesurf != nullptr);
 	assert(stagesurf->obj_type == gs_type::gs_stage_surface);
-	
+
 	return stagesurf->width;
 }
 
 uint32_t gs_stagesurface_get_height(const gs_stagesurf_t *stagesurf)
 {
-	assert(stagesurf != nullptr);
 	assert(stagesurf->obj_type == gs_type::gs_stage_surface);
-	
+
 	return stagesurf->height;
 }
 
 enum gs_color_format gs_stagesurface_get_color_format(
 		const gs_stagesurf_t *stagesurf)
 {
-	assert(stagesurf != nullptr);
 	assert(stagesurf->obj_type == gs_type::gs_stage_surface);
-	
+
 	return stagesurf->format;
 }
 
 bool gs_stagesurface_map(gs_stagesurf_t *stagesurf, uint8_t **data,
 		uint32_t *linesize)
 {
-	assert(stagesurf != nullptr);
 	assert(stagesurf->obj_type == gs_type::gs_stage_surface);
 	assert(stagesurf->device->commandBuffer != nil);
 	
@@ -1378,10 +1361,10 @@ bool gs_stagesurface_map(gs_stagesurf_t *stagesurf, uint8_t **data,
 				slice:0 level:0];
 		[commandEncoder endEncoding];
 	}
-	
+
 	*data     = (uint8_t *)stagesurf->data.data();
 	*linesize = stagesurf->bytePerRow;
-	
+
 	stagesurf->device->curStageSurface = stagesurf;
 	return true;
 }
@@ -1395,16 +1378,14 @@ void gs_stagesurface_unmap(gs_stagesurf_t *stagesurf)
 
 void gs_zstencil_destroy(gs_zstencil_t *zstencil)
 {
-	assert(zstencil != nullptr);
 	assert(zstencil->obj_type == gs_type::gs_zstencil_buffer);
-	
+
 	delete zstencil;
 }
 
 
 void gs_samplerstate_destroy(gs_samplerstate_t *samplerstate)
 {
-	assert(samplerstate != nullptr);
 	assert(samplerstate->obj_type == gs_type::gs_sampler_state);
 
 	delete samplerstate;
@@ -1413,20 +1394,18 @@ void gs_samplerstate_destroy(gs_samplerstate_t *samplerstate)
 
 void gs_vertexbuffer_destroy(gs_vertbuffer_t *vertbuffer)
 {
-	assert(vertbuffer != nullptr);
 	assert(vertbuffer->obj_type == gs_type::gs_vertex_buffer);
-	
+
 	if (vertbuffer->device->lastVertexBuffer == vertbuffer)
 		vertbuffer->device->lastVertexBuffer = nullptr;
-	
+
 	delete vertbuffer;
 }
 
 void gs_vertexbuffer_flush(gs_vertbuffer_t *vertbuffer)
 {
-	assert(vertbuffer != nullptr);
 	assert(vertbuffer->obj_type == gs_type::gs_vertex_buffer);
-	
+
 	if (!vertbuffer->isDynamic) {
 		blog(LOG_ERROR, "gs_vertexbuffer_flush: vertex buffer is not "
 		                "dynamic");
@@ -1439,56 +1418,50 @@ void gs_vertexbuffer_flush(gs_vertbuffer_t *vertbuffer)
 
 struct gs_vb_data *gs_vertexbuffer_get_data(const gs_vertbuffer_t *vertbuffer)
 {
-	assert(vertbuffer != nullptr);
 	assert(vertbuffer->obj_type == gs_type::gs_vertex_buffer);
-	
+
 	return vertbuffer->vbData.get();
 }
 
 
 void gs_indexbuffer_destroy(gs_indexbuffer_t *indexbuffer)
 {
-	assert(indexbuffer != nullptr);
 	assert(indexbuffer->obj_type == gs_type::gs_index_buffer);
-	
+
 	delete indexbuffer;
 }
 
 void gs_indexbuffer_flush(gs_indexbuffer_t *indexbuffer)
 {
-	assert(indexbuffer != nullptr);
 	assert(indexbuffer->obj_type == gs_type::gs_index_buffer);
-	
+
 	if (!indexbuffer->isDynamic) {
 		blog(LOG_ERROR, "gs_indexbuffer_flush: index buffer is not "
 		                "dynamic");
 		return;
 	}
-	
+
 	indexbuffer->PrepareBuffer();
 	//indexbuffer->FlushBuffer();
 }
 
 void *gs_indexbuffer_get_data(const gs_indexbuffer_t *indexbuffer)
 {
-	assert(indexbuffer != nullptr);
 	assert(indexbuffer->obj_type == gs_type::gs_index_buffer);
-	
+
 	return indexbuffer->indices.get();
 }
 
 size_t gs_indexbuffer_get_num_indices(const gs_indexbuffer_t *indexbuffer)
 {
-	assert(indexbuffer != nullptr);
 	assert(indexbuffer->obj_type == gs_type::gs_index_buffer);
-	
+
 	return indexbuffer->num;
 }
 
 enum gs_index_type gs_indexbuffer_get_type(const gs_indexbuffer_t *indexbuffer)
 {
-	assert(indexbuffer != nullptr);
 	assert(indexbuffer->obj_type == gs_type::gs_index_buffer);
-	
+
 	return indexbuffer->type;
 }
