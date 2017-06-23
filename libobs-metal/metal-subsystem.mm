@@ -8,6 +8,25 @@
 
 using namespace std;
 
+gs_obj::gs_obj(gs_device_t *device_, gs_type type) :
+	device   (device_),
+	obj_type (type)
+{
+	prev_next = &device->first_obj;
+	next = device->first_obj;
+	device->first_obj = this;
+	if (next)
+		next->prev_next = &next;
+}
+
+gs_obj::~gs_obj()
+{
+	if (prev_next)
+		*prev_next = next;
+	if (next)
+		next->prev_next = prev_next;
+}
+
 const char *device_get_name(void)
 {
 	return "Metal";
