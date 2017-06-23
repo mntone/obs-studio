@@ -121,10 +121,12 @@ void gs_device::LoadRasterState(id<MTLRenderCommandEncoder> commandEncoder)
 void gs_device::LoadZStencilState(id<MTLRenderCommandEncoder> commandEncoder)
 {
 	if (zstencilState.depthEnabled) {
-		id<MTLDepthStencilState> state = [device
-				newDepthStencilStateWithDescriptor:
-				zstencilState.dsd];
-		[commandEncoder setDepthStencilState:state];
+		if (depthStencilState == nil) {
+			depthStencilState = [device
+					newDepthStencilStateWithDescriptor:
+					zstencilState.dsd];
+		}
+		[commandEncoder setDepthStencilState:depthStencilState];
 	}
 }
 

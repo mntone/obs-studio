@@ -905,6 +905,8 @@ void device_enable_depth_test(gs_device_t *device, bool enable)
 		return;
 
 	device->zstencilState.depthEnabled = enable;
+
+	device->depthStencilState = nil;
 }
 
 void device_enable_stencil_test(gs_device_t *device, bool enable)
@@ -918,6 +920,8 @@ void device_enable_stencil_test(gs_device_t *device, bool enable)
 
 	state.dsd.frontFaceStencil.readMask = enable ? 1 : 0;
 	state.dsd.backFaceStencil.readMask  = enable ? 1 : 0;
+
+	device->depthStencilState = nil;
 }
 
 void device_enable_stencil_write(gs_device_t *device, bool enable)
@@ -931,6 +935,8 @@ void device_enable_stencil_write(gs_device_t *device, bool enable)
 
 	state.dsd.frontFaceStencil.writeMask = enable ? 1 : 0;
 	state.dsd.backFaceStencil.writeMask  = enable ? 1 : 0;
+
+	device->depthStencilState = nil;
 }
 
 void device_enable_color(gs_device_t *device, bool red, bool green,
@@ -1018,9 +1024,11 @@ void device_depth_function(gs_device_t *device, enum gs_depth_test test)
 
 	device->zstencilState.dsd.depthCompareFunction =
 			ConvertGSDepthTest(test);
+
+	device->depthStencilState = nil;
 }
 
-static inline void update_stencilside_test(
+static inline void update_stencilside_test(gs_device_t *device,
 		StencilSide &side, MTLStencilDescriptor *desc,
 		gs_depth_test test)
 {
@@ -1030,6 +1038,8 @@ static inline void update_stencilside_test(
 	side.test = test;
 
 	desc.stencilCompareFunction = ConvertGSDepthTest(test);
+
+	device->depthStencilState = nil;
 }
 
 void device_stencil_function(gs_device_t *device, enum gs_stencil_side side,
@@ -1037,18 +1047,18 @@ void device_stencil_function(gs_device_t *device, enum gs_stencil_side side,
 {
 	int sideVal = static_cast<int>(side);
 	if (sideVal & GS_STENCIL_FRONT)
-		update_stencilside_test(
+		update_stencilside_test(device,
 				device->zstencilState.stencilFront,
 				device->zstencilState.dsd.frontFaceStencil,
 				test);
 	if (sideVal & GS_STENCIL_BACK)
-		update_stencilside_test(
+		update_stencilside_test(device,
 				device->zstencilState.stencilBack,
 				device->zstencilState.dsd.backFaceStencil,
 				test);
 }
 
-static inline void update_stencilside_op(
+static inline void update_stencilside_op(gs_device_t *device,
 		StencilSide &side, MTLStencilDescriptor *desc,
 		enum gs_stencil_op_type fail, enum gs_stencil_op_type zfail,
 		enum gs_stencil_op_type zpass)
@@ -1063,6 +1073,8 @@ static inline void update_stencilside_op(
 	desc.stencilFailureOperation   = ConvertGSStencilOp(fail);
 	desc.depthFailureOperation     = ConvertGSStencilOp(zfail);
 	desc.depthStencilPassOperation = ConvertGSStencilOp(zpass);
+
+	device->depthStencilState = nil;
 }
 
 void device_stencil_op(gs_device_t *device, enum gs_stencil_side side,
@@ -1072,12 +1084,12 @@ void device_stencil_op(gs_device_t *device, enum gs_stencil_side side,
 	int sideVal = static_cast<int>(side);
 
 	if (sideVal & GS_STENCIL_FRONT)
-		update_stencilside_op(
+		update_stencilside_op(device,
 				device->zstencilState.stencilFront,
 				device->zstencilState.dsd.frontFaceStencil,
 				fail, zfail, zpass);
 	if (sideVal & GS_STENCIL_BACK)
-		update_stencilside_op(
+		update_stencilside_op(device,
 				device->zstencilState.stencilBack,
 				device->zstencilState.dsd.backFaceStencil,
 				fail, zfail, zpass);

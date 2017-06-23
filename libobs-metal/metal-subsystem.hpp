@@ -635,6 +635,7 @@ struct gs_device {
 	id<MTLCommandQueue>         commandQueue = nil;
 	id<MTLCommandBuffer>        commandBuffer = nil;
 	id<MTLRenderPipelineState>  pipelineState = nil;
+	id<MTLDepthStencilState>    depthStencilState;
 	MTLRenderPipelineDescriptor *pipelineDesc = nil;
 	MTLRenderPassDescriptor     *passDesc = nil;
 	uint32_t                    devIdx = 0;
