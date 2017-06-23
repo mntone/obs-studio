@@ -1103,11 +1103,13 @@ void OBSBasicSettings::LoadRendererList()
 #ifdef _WIN32
 	ui->renderer->addItem(QT_UTF8("Direct3D 11"));
 #endif
-#if defined(__APPLE__)
+#if defined(__APPLE__) && defined(__MAC_10_11)
 	if (ver.identifier >= OSX_EL_CAPITAN)
 		ui->renderer->addItem(QT_UTF8("Metal"));
 #endif
+#ifdef _WIN32
 	if (opt_allow_opengl || strcmp(renderer, "OpenGL") == 0)
+#endif
 		ui->renderer->addItem(QT_UTF8("OpenGL"));
 
 	int idx = ui->renderer->findText(QT_UTF8(renderer));

@@ -62,7 +62,7 @@ void gs_shader::BuildConstantBuffer()
 {
 	for (size_t i = 0; i < params.size(); i++) {
 		gs_shader_param &param = params[i];
-		size_t       size   = 0;
+		size_t          size   = 0;
 
 		switch (param.type) {
 		case GS_SHADER_PARAM_BOOL:
