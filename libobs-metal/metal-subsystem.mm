@@ -558,7 +558,7 @@ void device_set_render_target(gs_device_t *device, gs_texture_t *tex,
 		if (!tex)
 			tex = device->curSwapChain->GetTarget();
 	}
-	
+
 	if (device->curRenderTarget   == tex &&
 	    device->curZStencilBuffer == zstencil)
 		return;
@@ -575,18 +575,18 @@ void device_set_render_target(gs_device_t *device, gs_texture_t *tex,
 		                "texture is null");
 		return;
 	}
-	
+
 	device->curRenderTarget   = tex2d;
 	device->curRenderSide     = 0;
 	device->curZStencilBuffer = zstencil;
-	
+
 	if (tex2d) {
 		device->passDesc.colorAttachments[0].texture = tex2d->texture;
 		device->pipelineDesc.colorAttachments[0].pixelFormat =
 				tex2d->mtlPixelFormat;
 	} else
 		device->passDesc.colorAttachments[0].texture = nil;
-	
+
 	if (zstencil) {
 		device->passDesc.depthAttachment.texture   = zstencil->texture;
 		device->passDesc.stencilAttachment.texture = zstencil->texture;
@@ -598,20 +598,18 @@ void device_set_render_target(gs_device_t *device, gs_texture_t *tex,
 		device->passDesc.depthAttachment.texture   = nil;
 		device->passDesc.stencilAttachment.texture = nil;
 	}
-	
+
 	device->piplineStateChanged = true;
 }
 
 void device_set_cube_render_target(gs_device_t *device, gs_texture_t *tex,
 		int side, gs_zstencil_t *zstencil)
 {
-	assert(device != nullptr);
-	
 	if (device->curSwapChain) {
 		if (!tex)
 			tex = device->curSwapChain->GetTarget();
 	}
-	
+
 	if (device->curRenderTarget   == tex  &&
 	    device->curRenderSide     == side &&
 	    device->curZStencilBuffer == zstencil)
@@ -629,18 +627,18 @@ void device_set_cube_render_target(gs_device_t *device, gs_texture_t *tex,
 				"texture is null");
 		return;
 	}
-	
+
 	device->curRenderTarget   = tex2d;
 	device->curRenderSide     = side;
 	device->curZStencilBuffer = zstencil;
-	
+
 	if (tex2d) {
 		device->passDesc.colorAttachments[0].texture = tex2d->texture;
 		device->pipelineDesc.colorAttachments[0].pixelFormat =
 				tex2d->mtlPixelFormat;
 	} else
 		device->passDesc.colorAttachments[0].texture = nil;
-	
+
 	if (zstencil) {
 		device->passDesc.depthAttachment.texture   = zstencil->texture;
 		device->passDesc.stencilAttachment.texture = zstencil->texture;
@@ -652,7 +650,7 @@ void device_set_cube_render_target(gs_device_t *device, gs_texture_t *tex,
 		device->passDesc.depthAttachment.texture   = nil;
 		device->passDesc.stencilAttachment.texture = nil;
 	}
-	
+
 	device->piplineStateChanged = true;
 }
 
@@ -661,6 +659,8 @@ inline void gs_device::CopyTex(id<MTLTexture> dst,
 		gs_texture_t *src, uint32_t src_x, uint32_t src_y,
 		uint32_t src_w, uint32_t src_h)
 {
+	assert(commandBuffer != nil);
+	
 	gs_texture_2d *tex2d = static_cast<gs_texture_2d*>(src);
 	if (src_w == 0)
 		src_w = tex2d->width;
