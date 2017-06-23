@@ -4,6 +4,8 @@
 
 void gs_texture_2d::GenerateMipmap()
 {
+	assert(device->commandBuffer != nil);
+
 	@autoreleasepool {
 		id<MTLCommandBuffer> buf = [device->commandQueue commandBuffer];
 		id<MTLBlitCommandEncoder> blit = [buf blitCommandEncoder];

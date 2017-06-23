@@ -339,6 +339,7 @@ gs_samplerstate_t *device_samplerstate_create(gs_device_t *device,
 		blog(LOG_ERROR, "device_samplerstate_create (Metal): %s",
 				error);
 	}
+
 	return ss;
 }
 
@@ -362,7 +363,7 @@ gs_shader_t *device_vertexshader_create(gs_device_t *device,
 	}
 
 	return shader;
-	
+
 	UNUSED_PARAMETER(error_string);
 }
 
@@ -385,7 +386,7 @@ gs_shader_t *device_pixelshader_create(gs_device_t *device,
 	}
 
 	return shader;
-	
+
 	UNUSED_PARAMETER(error_string);
 }
 
@@ -395,7 +396,7 @@ gs_vertbuffer_t *device_vertexbuffer_create(gs_device_t *device,
 	gs_vertex_buffer *buffer = nullptr;
 	try {
 		buffer = new gs_vertex_buffer(device, data, flags);
-		
+
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_vertexbuffer_create (Metal): %s",
 				error);
@@ -411,7 +412,7 @@ gs_indexbuffer_t *device_indexbuffer_create(gs_device_t *device,
 	gs_index_buffer *buffer = nullptr;
 	try {
 		buffer = new gs_index_buffer(device, type, indices, num, flags);
-		
+
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_indexbuffer_create (Metal): %s", error);
 	}
