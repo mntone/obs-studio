@@ -111,6 +111,17 @@ void gs_device::UploadTextures(id<MTLRenderCommandEncoder> commandEncoder)
 	}
 }
 
+void gs_device::UploadSamplers(id<MTLRenderCommandEncoder> commandEncoder)
+{
+	for (size_t i = 0; i < GS_MAX_TEXTURES; i++) {
+		gs_sampler_state *sampler = curSamplers[i];
+		if (sampler != nullptr) {
+			[commandEncoder setFragmentSamplerState:
+					sampler->samplerState atIndex:i];
+		}
+	}
+}
+
 void gs_device::LoadRasterState(id<MTLRenderCommandEncoder> commandEncoder)
 {
 	[commandEncoder setViewport:rasterState.mtlViewport];
@@ -232,6 +243,7 @@ void gs_device::Draw(gs_draw_mode drawMode, uint32_t startVert,
 		curPixelShader->UploadParams(commandEncoder);
 		UploadVertexBuffer(commandEncoder);
 		UploadTextures(commandEncoder);
+		UploadSamplers(commandEncoder);
 		DrawPrimitives(commandEncoder, drawMode, startVert, numVerts);
 
 	} catch (const char *error) {

@@ -452,10 +452,10 @@ void device_load_texture(gs_device_t *device, gs_texture_t *tex, int unit)
 void device_load_samplerstate(gs_device_t *device,
 		gs_samplerstate_t *samplerstate, int unit)
 {
-	/* TODO */
-	UNUSED_PARAMETER(device);
-	UNUSED_PARAMETER(samplerstate);
-	UNUSED_PARAMETER(unit);
+	if (device->curSamplers[unit] == samplerstate)
+		return;
+	
+	device->curSamplers[unit] = samplerstate;
 }
 
 void device_load_vertexshader(gs_device_t *device, gs_shader_t *vertshader)
@@ -495,6 +495,7 @@ void device_clear_textures(gs_device_t *device)
 void device_load_pixelshader(gs_device_t *device, gs_shader_t *pixelshader)
 {
 	id<MTLFunction> function = nil;
+	gs_sampler_state *states[GS_MAX_TEXTURES];
 
 	if (device->curPixelShader == pixelshader)
 		return;
@@ -509,11 +510,14 @@ void device_load_pixelshader(gs_device_t *device, gs_shader_t *pixelshader)
 		}
 
 		function  = ps->function;
+		ps->GetSamplerStates(states);
 	}
 
 	device_clear_textures(device);
 
 	device->curPixelShader = ps;
+	for (size_t i = 0; i < GS_MAX_TEXTURES; i++)
+		device->curSamplers[i] = states[i];
 	
 	device->pipelineDesc.fragmentFunction = function;
 	

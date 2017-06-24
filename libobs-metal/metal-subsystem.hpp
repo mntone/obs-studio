@@ -481,13 +481,13 @@ struct ShaderSampler {
 struct gs_pixel_shader : gs_shader {
 	std::vector<std::unique_ptr<ShaderSampler>> samplers;
 
-	inline void GetSamplerStates(MTLSamplerDescriptor **states)
+	inline void GetSamplerStates(gs_sampler_state **states)
 	{
 		size_t i;
 		for (i = 0; i < samplers.size(); i++)
-			states[i] = samplers[i]->sampler.samplerDesc;
+			states[i] = &samplers[i]->sampler;
 		for (; i < GS_MAX_TEXTURES; i++)
-			states[i] = nil;
+			states[i] = nullptr;
 	}
 
 	gs_pixel_shader(gs_device_t *device, const char *file,
@@ -648,6 +648,7 @@ struct gs_device {
 	int                         curRenderSide = 0;
 	gs_zstencil_buffer          *curZStencilBuffer = nullptr;
 	gs_texture                  *curTextures[GS_MAX_TEXTURES];
+	gs_sampler_state            *curSamplers[GS_MAX_TEXTURES];
 	gs_vertex_buffer            *curVertexBuffer = nullptr;
 	gs_index_buffer             *curIndexBuffer = nullptr;
 	gs_vertex_shader            *curVertexShader = nullptr;
@@ -689,6 +690,7 @@ struct gs_device {
 	void UpdateViewProjMatrix();
 	void UploadVertexBuffer(id<MTLRenderCommandEncoder> commandEncoder);
 	void UploadTextures(id<MTLRenderCommandEncoder> commandEncoder);
+	void UploadSamplers(id<MTLRenderCommandEncoder> commandEncoder);
 	void DrawPrimitives(id<MTLRenderCommandEncoder> commandEncoder,
 			gs_draw_mode drawMode,
 			uint32_t startVert, uint32_t numVerts);

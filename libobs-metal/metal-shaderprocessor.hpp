@@ -9,13 +9,20 @@ struct ShaderParser : shader_parser {
 
 #ifdef __OBJC__
 struct ShaderProcessor {
+	gs_device_t *device;
 	ShaderParser parser;
 
 	void BuildVertexDesc(__weak MTLVertexDescriptor *vertexDesc);
 	void BuildParamInfo(ShaderBufferInfo &info);
 	void BuildParams(std::vector<gs_shader_param> &params);
+	void BuildSamplers(std::vector<std::unique_ptr<ShaderSampler>>
+			&samplers);
 	std::string BuildString(gs_shader_type type);
 	void Process(const char *shader_string, const char *file);
+	
+	inline ShaderProcessor(gs_device_t *device) : device(device)
+	{
+	}
 };
 #endif
 

@@ -18,7 +18,7 @@ gs_vertex_shader::gs_vertex_shader(gs_device_t *device, const char *file,
 	  hasTangents (false),
 	  texUnits    (0)
 {
-	ShaderProcessor     processor;
+	ShaderProcessor     processor(device);
 	ShaderBufferInfo    info;
 	MTLVertexDescriptor *vertdesc;
 	
@@ -48,11 +48,12 @@ gs_pixel_shader::gs_pixel_shader(gs_device_t *device, const char *file,
 		const char *shaderString)
 	: gs_shader(device, gs_type::gs_pixel_shader, GS_SHADER_PIXEL)
 {
-	ShaderProcessor processor;
+	ShaderProcessor processor(device);
 	
 	processor.Process(shaderString, file);
 	source = processor.BuildString(type);
 	processor.BuildParams(params);
+	processor.BuildSamplers(samplers);
 	BuildConstantBuffer();
 
 	Compile(source);
@@ -151,12 +152,11 @@ inline void gs_shader::UpdateParam(uint8_t *data, gs_shader_param &param)
 		memcpy(&tex, param.curValue.data(), sizeof(gs_texture_t*));
 		device_load_texture(device, tex, param.textureID);
 
-		/*if (param.nextSampler) {
-			ID3D11SamplerState *state = param.nextSampler->state;
-			device->context->PSSetSamplers(param.textureID, 1,
-					&state);
+		if (param.nextSampler) {
+			device_load_samplerstate(device, param.nextSampler,
+					param.textureID);
 			param.nextSampler = nullptr;
-		}*/
+		}
 	}
 }
 

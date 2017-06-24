@@ -119,9 +119,9 @@ gs_sampler_state::gs_sampler_state(gs_device_t *device,
 	  info   (*info)
 {
 	samplerDesc = [[MTLSamplerDescriptor alloc] init];
-	samplerDesc.rAddressMode    = ConvertGSAddressMode(info->address_u);
-	samplerDesc.sAddressMode    = ConvertGSAddressMode(info->address_v);
-	samplerDesc.tAddressMode    = ConvertGSAddressMode(info->address_w);
+	samplerDesc.sAddressMode    = ConvertGSAddressMode(info->address_u);
+	samplerDesc.tAddressMode    = ConvertGSAddressMode(info->address_v);
+	samplerDesc.rAddressMode    = ConvertGSAddressMode(info->address_w);
 	samplerDesc.minFilter       = ConvertGSMinFilter(info->filter);
 	samplerDesc.magFilter       = ConvertGSMagFilter(info->filter);
 	samplerDesc.mipFilter       = ConvertGSMipFilter(info->filter);
@@ -140,7 +140,7 @@ gs_sampler_state::gs_sampler_state(gs_device_t *device,
 	    info->address_v == GS_ADDRESS_BORDER ||
 	    info->address_w == GS_ADDRESS_BORDER) {
 		blog(LOG_WARNING, "GS_ADDRESS_BORDER is not supported with "
-	                          "OS X El Capitan in Metal. Sampler use "
+		                  "OS X El Capitan in Metal. Sampler use "
 		                  "GS_ADDRESS_CLAMP instead of it.");
 	}
 #endif

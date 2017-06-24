@@ -144,8 +144,26 @@ void ShaderProcessor::BuildParams(vector<gs_shader_param> &params)
 {
 	uint32_t texCounter = 0;
 
-	for (size_t i = 0; i < parser.params.num; i++)
-		AddParam(parser.params.array[i], params, texCounter);
+	for (struct shader_var *var = parser.params.array;
+	     var != parser.params.array + parser.params.num;
+	     var++)
+		AddParam(*var, params, texCounter);
+}
+
+static inline void AddSampler(gs_device_t *device, shader_sampler &sampler,
+			vector<unique_ptr<ShaderSampler>> &samplers)
+{
+	gs_sampler_info si;
+	shader_sampler_convert(&sampler, &si);
+	samplers.emplace_back(new ShaderSampler(sampler.name, device, &si));
+}
+
+void ShaderProcessor::BuildSamplers(vector<unique_ptr<ShaderSampler>> &samplers)
+{
+	for (struct shader_sampler *sampler = parser.samplers.array;
+	     sampler != parser.samplers.array + parser.samplers.num;
+	     sampler++)
+		AddSampler(device, *sampler, samplers);
 }
 
 string ShaderProcessor::BuildString(gs_shader_type type)
