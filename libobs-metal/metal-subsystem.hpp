@@ -449,8 +449,6 @@ struct gs_vertex_shader : gs_shader {
 	uint32_t texUnits;
 	
 	gs_shader_param *world, *viewProj;
-	
-	void UpdateDesc(size_t elementSize);
 
 	inline uint32_t NumBuffersExpected() const
 	{
