@@ -1,6 +1,15 @@
 #pragma once
 
+#include <string>
+
 #include <graphics/shader-parser.h>
+
+struct ShaderBufferInfo {
+	bool     normals  = false;
+	bool     colors   = false;
+	bool     tangents = false;
+	uint32_t texUnits = 0;
+};
 
 struct ShaderParser : shader_parser {
 	inline ShaderParser()  {shader_parser_init(this);}

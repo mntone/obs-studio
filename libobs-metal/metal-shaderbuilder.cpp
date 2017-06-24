@@ -1,4 +1,3 @@
-#include "metal-subsystem.hpp"
 #include "metal-shaderprocessor.hpp"
 
 #include <strstream>

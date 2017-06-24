@@ -430,16 +430,7 @@ struct gs_shader : gs_obj {
 	{
 	}
 };
-#endif
 
-struct ShaderBufferInfo {
-	bool     normals  = false;
-	bool     colors   = false;
-	bool     tangents = false;
-	uint32_t texUnits = 0;
-};
-
-#ifdef __OBJC__
 struct gs_vertex_shader : gs_shader {
 	MTLVertexDescriptor *vertexDesc;
 
