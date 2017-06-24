@@ -26,8 +26,8 @@ gs_stage_surface::gs_stage_surface(gs_device_t *device, uint32_t width,
 			ConvertGSTextureFormat(colorFormat)
 			width:width height:height mipmapped:NO];
 	textureDesc.storageMode = MTLStorageModeManaged;
-	
+
 	data.resize(height * bytePerRow);
-	
+
 	InitTexture();
 }

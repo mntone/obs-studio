@@ -9,7 +9,7 @@ static inline MTLPixelFormat ConvertGSZStencilFormat(gs_zstencil_format format,
 	    !device->device.isDepth24Stencil8PixelFormatSupported) {
 		throw "GS_Z24_S8 is not supported in this device.";
 	}
-	
+
 	switch (format) {
 	case GS_ZS_NONE:    return MTLPixelFormatInvalid;
 #ifdef __MAC_10_12
@@ -20,7 +20,7 @@ static inline MTLPixelFormat ConvertGSZStencilFormat(gs_zstencil_format format,
 	case GS_Z32F_S8X24: return MTLPixelFormatDepth32Float_Stencil8;
 	default:            throw "Cannot initialize zstencil buffer";
 	}
-	
+
 	return MTLPixelFormatInvalid;
 }
 
@@ -29,7 +29,7 @@ void gs_zstencil_buffer::InitBuffer()
 	texture = [device->device newTextureWithDescriptor:textureDesc];
 	if (texture == nil)
 		throw "Failed to create depth stencil texture";
-	
+
 #if _DEBUG
 	texture.label = @"zstencil";
 #endif
@@ -48,6 +48,6 @@ gs_zstencil_buffer::gs_zstencil_buffer(gs_device_t *device,
 			width:width height:height mipmapped:NO];
 	textureDesc.cpuCacheMode = MTLCPUCacheModeWriteCombined;
 	textureDesc.storageMode  = MTLStorageModeManaged;
-	
+
 	InitBuffer();
 }

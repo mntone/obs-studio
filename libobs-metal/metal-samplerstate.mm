@@ -71,7 +71,7 @@ static inline MTLSamplerMinMagFilter ConvertGSMagFilter(gs_sample_filter filter)
 	case GS_FILTER_ANISOTROPIC:
 		return MTLSamplerMinMagFilterLinear;
 	}
-	
+
 	return MTLSamplerMinMagFilterNearest;
 }
 
@@ -97,7 +97,7 @@ static inline MTLSamplerMipFilter ConvertGSMipFilter(gs_sample_filter filter)
 	case GS_FILTER_ANISOTROPIC:
 		return MTLSamplerMipFilterLinear;
 	}
-	
+
 	return MTLSamplerMipFilterNearest;
 }
 
@@ -131,6 +131,6 @@ gs_sampler_state::gs_sampler_state(gs_device_t *device,
 	else
 		samplerDesc.borderColor = MTLSamplerBorderColorOpaqueBlack;
 
-	
+
 	InitSampler();
 }

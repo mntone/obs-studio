@@ -28,7 +28,7 @@ struct ShaderProcessor {
 			&samplers);
 	std::string BuildString(gs_shader_type type);
 	void Process(const char *shader_string, const char *file);
-	
+
 	inline ShaderProcessor(gs_device_t *device) : device(device)
 	{
 	}
