@@ -10,6 +10,7 @@ void gs_texture_2d::GenerateMipmap()
 		id<MTLCommandBuffer> buf = [device->commandQueue commandBuffer];
 		id<MTLBlitCommandEncoder> blit = [buf blitCommandEncoder];
 		[blit generateMipmapsForTexture:texture];
+		[blit endEncoding];
 		[buf commit];
 		[buf waitUntilCompleted];
 	}
