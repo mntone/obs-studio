@@ -767,6 +767,8 @@ void device_stage_texture(gs_device_t *device, gs_stagesurf_t *dst,
 
 void device_begin_scene(gs_device_t *device)
 {
+	device_clear_textures(device);
+
 	device->commandBuffer = [device->commandQueue commandBuffer];
 }
 
@@ -846,7 +848,7 @@ void device_present(gs_device_t *device)
 
 	[device->commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> buf) {
 		device->ReleaseResources();
-		
+
 		UNUSED_PARAMETER(buf);
 	}];
 	[device->commandBuffer commit];
@@ -1247,14 +1249,13 @@ bool gs_texture_map(gs_texture_t *tex, uint8_t **ptr, uint32_t *linesize)
 		return false;
 
 	gs_texture_2d *tex2d = static_cast<gs_texture_2d*>(tex);
-	uint32_t rowSizeBytes = tex2d->width * gs_get_format_bpp(tex2d->format) / 8;
-	uint32_t texSizeBytes = tex2d->height * rowSizeBytes;
+	uint32_t texSizeBytes = tex2d->height * tex2d->bytePerRow;
 
 	tex2d->data.resize(1);
 	tex2d->data[0].resize(texSizeBytes);
 
 	*ptr      = (uint8_t *)tex2d->data[0].data();
-	*linesize = rowSizeBytes;
+	*linesize = tex2d->bytePerRow;
 	return true;
 }
 
@@ -1405,6 +1406,13 @@ void gs_zstencil_destroy(gs_zstencil_t *zstencil)
 void gs_samplerstate_destroy(gs_samplerstate_t *samplerstate)
 {
 	assert(samplerstate->obj_type == gs_type::gs_sampler_state);
+
+	if (samplerstate->device) {
+		for (size_t i = 0; i < GS_MAX_TEXTURES; i++)
+			if (samplerstate->device->curSamplers[i] ==
+			    samplerstate)
+				samplerstate->device->curSamplers[i] = nullptr;
+	}
 
 	delete samplerstate;
 }

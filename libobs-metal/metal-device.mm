@@ -308,7 +308,6 @@ gs_device::gs_device(uint32_t adapterIdx)
 	commandQueue = [device newCommandQueue];
 	passDesc = [[MTLRenderPassDescriptor alloc] init];
 	pipelineDesc = [[MTLRenderPipelineDescriptor alloc] init];
-	
-	device_clear_textures(this);
+
 	device_set_render_target(this, nullptr, nullptr);
 }

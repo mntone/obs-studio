@@ -291,7 +291,7 @@ struct gs_texture : gs_obj {
 };
 
 struct gs_texture_2d : gs_texture {
-	const uint32_t       width = 0, height = 0;
+	const uint32_t       width = 0, height = 0, bytePerRow = 0;
 	const bool           isRenderTarget = false;
 	const bool           isDynamic      = false;
 	const bool           genMipmaps     = false;
@@ -626,20 +626,20 @@ struct ZStencilState {
 struct gs_device {
 	uint16_t                    featureSetFamily = 0;
 	uint16_t                    featureSetVersion = 0;
-	id<MTLDevice>               device = nil;
-	id<MTLCommandQueue>         commandQueue = nil;
-	id<MTLCommandBuffer>        commandBuffer = nil;
-	id<MTLRenderPipelineState>  pipelineState = nil;
+	id<MTLDevice>               device;
+	id<MTLCommandQueue>         commandQueue;
+	id<MTLCommandBuffer>        commandBuffer;
+	id<MTLRenderPipelineState>  pipelineState;
 	id<MTLDepthStencilState>    depthStencilState;
-	MTLRenderPipelineDescriptor *pipelineDesc = nil;
-	MTLRenderPassDescriptor     *passDesc = nil;
+	MTLRenderPipelineDescriptor *pipelineDesc;
+	MTLRenderPassDescriptor     *passDesc;
 	uint32_t                    devIdx = 0;
 
 	gs_texture_2d               *curRenderTarget = nullptr;
 	int                         curRenderSide = 0;
 	gs_zstencil_buffer          *curZStencilBuffer = nullptr;
-	gs_texture                  *curTextures[GS_MAX_TEXTURES];
-	gs_sampler_state            *curSamplers[GS_MAX_TEXTURES];
+	gs_texture                  *curTextures[GS_MAX_TEXTURES] = {};
+	gs_sampler_state            *curSamplers[GS_MAX_TEXTURES] = {};
 	gs_vertex_buffer            *curVertexBuffer = nullptr;
 	gs_index_buffer             *curIndexBuffer = nullptr;
 	gs_vertex_shader            *curVertexShader = nullptr;

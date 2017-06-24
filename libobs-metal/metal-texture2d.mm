@@ -41,15 +41,15 @@ void gs_texture_2d::BackupTexture(const uint8_t **data)
 void gs_texture_2d::UploadTexture()
 {
 	assert(!isIOSurfaceCompatible);
-	
+
 	const uint32_t bpp = gs_get_format_bpp(format) / 8;
 	uint32_t w = width;
 	uint32_t h = height;
-	
+
 	for (uint32_t i = 0; i < levels; i++) {
 		if (i >= data.size())
 			break;
-		
+
 		const uint32_t rowSizeBytes = w * bpp;
 		const uint32_t texSizeBytes = h * rowSizeBytes;
 		MTLRegion region = MTLRegionMake2D(0, 0, w, h);
@@ -57,7 +57,7 @@ void gs_texture_2d::UploadTexture()
 				withBytes:data[i].data()
 				bytesPerRow:rowSizeBytes
 				bytesPerImage:texSizeBytes];
-		
+
 		w /= 2;
 		h /= 2;
 	}
@@ -73,7 +73,7 @@ void gs_texture_2d::SynchronizeTexture()
 void gs_texture_2d::InitTextureWithIOSurface()
 {
 	assert(isIOSurfaceCompatible);
-	
+
 	texture = [device->device newTextureWithDescriptor:textureDesc
 			iosurface:ioSurface plane:0];
 	if (texture == nil)
@@ -83,7 +83,7 @@ void gs_texture_2d::InitTextureWithIOSurface()
 void gs_texture_2d::InitTexture()
 {
 	assert(!isShared);
-	
+
 	texture = [device->device newTextureWithDescriptor:textureDesc];
 	if (texture == nil)
 		throw "Failed to create 2D texture";
@@ -95,7 +95,7 @@ void gs_texture_2d::Rebuild()
 		texture = nil;
 		return;
 	}
-	
+
 	if (isIOSurfaceCompatible)
 		InitTextureWithIOSurface();
 	else
@@ -109,6 +109,7 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, uint32_t width,
 	                   colorFormat),
 	  width           (width),
 	  height          (height),
+	  bytePerRow      (width * gs_get_format_bpp(colorFormat) / 8),
 	  isRenderTarget  ((flags & GS_RENDER_TARGET) != 0),
 	  isDynamic       ((flags & GS_DYNAMIC) != 0),
 	  genMipmaps      ((flags & GS_BUILD_MIPMAPS) != 0),
@@ -127,7 +128,7 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, uint32_t width,
 				mtlPixelFormat width:width height:height
 				mipmapped:genMipmaps ? YES : NO];
 	}
-	
+
 	switch (type) {
 	case GS_TEXTURE_3D:
 		textureDesc.textureType = MTLTextureType3D;
@@ -147,9 +148,9 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, uint32_t width,
 	textureDesc.usage                    = MTLTextureUsageShaderRead;
 	if (isRenderTarget)
 		textureDesc.usage |= MTLTextureUsageRenderTarget;
-	
+
 	InitTexture();
-	
+
 	if (data) {
 		BackupTexture(data);
 		UploadTexture();
@@ -165,6 +166,7 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, id<MTLTexture> texture)
 			   ConvertMTLTextureFormat(texture.pixelFormat)),
 	  width           (texture.width),
 	  height          (texture.height),
+	  bytePerRow      (width * gs_get_format_bpp(format) / 8),
 	  isRenderTarget  (false),
 	  isDynamic       (false),
 	  genMipmaps      (false),
@@ -182,6 +184,7 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, IOSurfaceRef iosurf)
 					iosurf))),
 	  width           (IOSurfaceGetWidth(iosurf)),
 	  height          (IOSurfaceGetHeight(iosurf)),
+	  bytePerRow      (width * gs_get_format_bpp(format) / 8),
 	  isRenderTarget  (false),
 	  isDynamic       (false),
 	  genMipmaps      (false),
@@ -195,6 +198,6 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, IOSurfaceRef iosurf)
 			width:width height:height mipmapped:NO];
 	textureDesc.storageMode = MTLStorageModeManaged;
 	textureDesc.usage       = MTLTextureUsageShaderRead;
-	
+
 	InitTextureWithIOSurface();
 }

@@ -18,7 +18,7 @@ inline id<MTLBuffer> gs_vertex_buffer::PrepareBuffer(
 void gs_vertex_buffer::PrepareBuffers()
 {
 	assert(isDynamic);
-	
+
 	vertexBuffer = PrepareBuffer(vbData->points, sizeof(vec3), @"point");
 	if (vbData->normals)
 		normalBuffer = PrepareBuffer(vbData->normals, sizeof(vec3),
@@ -29,7 +29,7 @@ void gs_vertex_buffer::PrepareBuffers()
 	if (vbData->colors)
 		colorBuffer = PrepareBuffer(vbData->colors, sizeof(uint32_t),
 				@"tangent");
-	
+
 	for (size_t i = 0; i < vbData->num_tex; i++) {
 		gs_tvertarray &tv = vbData->tvarray[i];
 		uvBuffers.push_back(PrepareBuffer(tv.array,
@@ -46,7 +46,7 @@ inline void gs_vertex_buffer::FlushBuffer(id<MTLBuffer> buffer, void *array,
 void gs_vertex_buffer::FlushBuffers()
 {
 	assert(isDynamic);
-	
+
 	FlushBuffer(vertexBuffer, vbData->points, sizeof(vec3));
 	if (normalBuffer)
 		FlushBuffer(normalBuffer, vbData->normals, sizeof(vec3));
@@ -107,7 +107,7 @@ inline id<MTLBuffer> gs_vertex_buffer::InitBuffer(size_t elementSize,
 #ifdef _DEBUG
 	buffer.label = [[NSString alloc] initWithUTF8String:name];
 #endif
-	
+
 	return buffer;
 }
 
