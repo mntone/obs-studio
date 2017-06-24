@@ -17,7 +17,7 @@ void gs_device::InitDevice(uint32_t deviceIdx)
 	for (size_t i = 0; i < devices.count; i++) {
 		if (i == devIdx) {
 			device = devices[i];
-			continue;
+			break;
 		}
 	}
 
