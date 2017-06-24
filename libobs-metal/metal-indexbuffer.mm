@@ -7,7 +7,7 @@ static inline MTLIndexType ConvertGSIndexType(gs_index_type type)
 		case GS_UNSIGNED_LONG:  return MTLIndexTypeUInt32;
 	}
 	
-	throw "Cannot initialize index buffer";
+	throw "Failed to initialize index buffer";
 }
 
 static inline size_t ConvertGSIndexTypeToSize(gs_index_type type)
@@ -17,7 +17,7 @@ static inline size_t ConvertGSIndexTypeToSize(gs_index_type type)
 		case GS_UNSIGNED_LONG:  return 4;
 	}
 	
-	throw "Cannot initialize index buffer";
+	throw "Failed to initialize index buffer";
 }
 
 void gs_index_buffer::PrepareBuffer()

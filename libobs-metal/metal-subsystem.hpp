@@ -15,7 +15,9 @@
 #include <graphics/device-exports.h>
 
 #ifdef __OBJC__
-#import <MetalKit/MetalKit.h>
+#import <AppKit/NSView.h>
+#import <QuartzCore/CoreAnimation.h>
+#import <Metal/Metal.h>
 
 struct shader_var;
 struct gs_vertex_shader;

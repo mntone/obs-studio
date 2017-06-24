@@ -1089,12 +1089,13 @@ void OBSBasicSettings::LoadStream1Settings()
 
 void OBSBasicSettings::LoadRendererList()
 {
-#if defined(_WIN32) || (defined(__APPLE__) && defined(__MAC_10_11))
+#if defined(_WIN32) || (defined(__APPLE__) && defined(__MAC_10_12))
 #if defined(__APPLE__)
 	struct mac_version_info ver;
 	get_mac_ver(&ver);
 	
-	if (ver.identifier < OSX_EL_CAPITAN) return;
+	if (ver.identifier < OSX_EL_CAPITAN)
+		return;
 #endif
 	
 	const char *renderer = config_get_string(GetGlobalConfig(), "Video",
@@ -1103,8 +1104,8 @@ void OBSBasicSettings::LoadRendererList()
 #ifdef _WIN32
 	ui->renderer->addItem(QT_UTF8("Direct3D 11"));
 #endif
-#if defined(__APPLE__) && defined(__MAC_10_11)
-	if (ver.identifier >= OSX_EL_CAPITAN)
+#if defined(__APPLE__) && defined(__MAC_10_12)
+	if (ver.identifier >= MACOS_SIERRA)
 		ui->renderer->addItem(QT_UTF8("Metal"));
 #endif
 #ifdef _WIN32

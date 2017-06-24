@@ -4,8 +4,6 @@
 
 #include "metal-subsystem.hpp"
 
-#import <QuartzCore/QuartzCore.h>
-
 using namespace std;
 
 gs_obj::gs_obj(gs_device_t *device_, gs_type type) :

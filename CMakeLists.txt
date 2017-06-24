@@ -111,7 +111,7 @@ if(NOT INSTALLER_RUN)
 		add_subdirectory(libobs-d3d11)
 	endif()
 
-	if(${MACOS_VERSION} VERSION_GREATER 10.11)
+	if(APPLE AND ${MACOS_VERSION} VERSION_GREATER 10.11)
 		add_subdirectory(libobs-metal)
 	endif()
 

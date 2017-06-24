@@ -1,28 +1,28 @@
 project(libobs-metal)
 
-find_library(IOSURF IOSurface)
-include_directories(${IOSURF})
-mark_as_advanced(${IOSURF})
+find_library(APPKIT AppKit)
+mark_as_advanced(APPKIT)
+include_directories(${APPKIT})
 
 find_library(QUARTZCORE QuartzCore)
 mark_as_advanced(QUARTZCORE)
 include_directories(${QUARTZCORE})
 
+find_library(IOSURF IOSurface)
+mark_as_advanced(IOSURF)
+include_directories(${IOSURF})
+
 find_library(METAL Metal)
 mark_as_advanced(METAL)
 include_directories(${METAL})
 
-find_library(METALKIT MetalKit)
-mark_as_advanced(METALKIT)
-include_directories(${METALKIT})
-
 set(libobs-metal_PLATFORM_DEPS
-	${IOSURF}
-	${QUARTZCORE})
+	${APPKIT}
+	${QUARTZCORE}
+	${IOSURF})
 
 set(libobs-metal_PLATFORM_DEPS_WEAK
-	Metal
-	MetalKit)
+	Metal)
 
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/libobs")
 

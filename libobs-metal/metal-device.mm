@@ -27,11 +27,8 @@ void gs_device::InitDevice(uint32_t deviceIdx)
 	if ([device supportsFeatureSet:MTLFeatureSet_OSX_GPUFamily1_v2]) {
 		featureSetFamily  = 1;
 		featureSetVersion = 2;
-	} else if ([device
-			supportsFeatureSet:MTLFeatureSet_OSX_GPUFamily1_v1]) {
-		featureSetFamily  = 1;
-		featureSetVersion = 1;
-	}
+	} else
+		throw "Failed to initialize Metal";
 
 	blog(LOG_INFO, "Metal loaded successfully, feature set used: %u_v%u",
 			featureSetFamily, featureSetVersion);

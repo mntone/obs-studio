@@ -15,11 +15,7 @@ static inline MTLSamplerAddressMode ConvertGSAddressMode(gs_address_mode mode)
 	case GS_ADDRESS_MIRROR:
 		return MTLSamplerAddressModeMirrorRepeat;
 	case GS_ADDRESS_BORDER:
-#ifdef __MAC_10_12
 		return MTLSamplerAddressModeClampToBorderColor;
-#else
-		return MTLSamplerAddressModeClampToEdge;
-#endif
 	case GS_ADDRESS_MIRRORONCE:
 		return MTLSamplerAddressModeMirrorClampToEdge;
 	}
@@ -128,22 +124,13 @@ gs_sampler_state::gs_sampler_state(gs_device_t *device,
 	samplerDesc.maxAnisotropy   = min(max(info->max_anisotropy, 1), 16);
 	samplerDesc.compareFunction = MTLCompareFunctionAlways;
 
-#ifdef __MAC_10_12
 	if ((info->border_color & 0x000000FF) == 0)
 		samplerDesc.borderColor = MTLSamplerBorderColorTransparentBlack;
 	else if (info->border_color == 0xFFFFFFFF)
 		samplerDesc.borderColor = MTLSamplerBorderColorOpaqueWhite;
 	else
 		samplerDesc.borderColor = MTLSamplerBorderColorOpaqueBlack;
-#else
-	if (info->address_u == GS_ADDRESS_BORDER ||
-	    info->address_v == GS_ADDRESS_BORDER ||
-	    info->address_w == GS_ADDRESS_BORDER) {
-		blog(LOG_WARNING, "GS_ADDRESS_BORDER is not supported with "
-		                  "OS X El Capitan in Metal. Sampler use "
-		                  "GS_ADDRESS_CLAMP instead of it.");
-	}
-#endif
+
 	
 	InitSampler();
 }

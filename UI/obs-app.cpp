@@ -912,11 +912,11 @@ const char *OBSApp::GetRenderModule() const
 
 #if defined(_WIN32)
 	return (astrcmpi(renderer, "Direct3D 11") == 0) ? DL_D3D11 : DL_OPENGL;
-#elif defined(__APPLE__) && defined(__MAC_10_11)
+#elif defined(__APPLE__) && defined(__MAC_10_12)
 	struct mac_version_info ver;
 	get_mac_ver(&ver);
 	
-	return (ver.identifier >= OSX_EL_CAPITAN &&
+	return (ver.identifier >= MACOS_SIERRA &&
 		astrcmpi(renderer, "Metal") == 0) ? DL_METAL : DL_OPENGL;
 #else
 	return DL_OPENGL;
