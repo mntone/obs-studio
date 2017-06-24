@@ -1,20 +1,10 @@
 #include "metal-subsystem.hpp"
 
-static inline MTLPixelFormat ConvertGSZStencilFormat(gs_zstencil_format format,
-		gs_device_t *device)
+static inline MTLPixelFormat ConvertGSZStencilFormat(gs_zstencil_format format)
 {
-	if (format == GS_Z24_S8 &&
-	    device->featureSetFamily == 1 &&
-	    device->featureSetVersion == 1 &&
-	    !device->device.isDepth24Stencil8PixelFormatSupported) {
-		throw "GS_Z24_S8 is not supported in this device.";
-	}
-
 	switch (format) {
 	case GS_ZS_NONE:    return MTLPixelFormatInvalid;
-#ifdef __MAC_10_12
 	case GS_Z16:        return MTLPixelFormatDepth16Unorm;
-#endif
 	case GS_Z24_S8:     return MTLPixelFormatDepth24Unorm_Stencil8;
 	case GS_Z32F:       return MTLPixelFormatDepth32Float;
 	case GS_Z32F_S8X24: return MTLPixelFormatDepth32Float_Stencil8;
@@ -44,7 +34,7 @@ gs_zstencil_buffer::gs_zstencil_buffer(gs_device_t *device,
 	  format (format)
 {
 	textureDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:
-			ConvertGSZStencilFormat(format, device)
+			ConvertGSZStencilFormat(format)
 			width:width height:height mipmapped:NO];
 	textureDesc.cpuCacheMode = MTLCPUCacheModeWriteCombined;
 	textureDesc.storageMode  = MTLStorageModeManaged;
