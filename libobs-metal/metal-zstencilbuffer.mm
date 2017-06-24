@@ -8,7 +8,7 @@ static inline MTLPixelFormat ConvertGSZStencilFormat(gs_zstencil_format format)
 	case GS_Z24_S8:     return MTLPixelFormatDepth24Unorm_Stencil8;
 	case GS_Z32F:       return MTLPixelFormatDepth32Float;
 	case GS_Z32F_S8X24: return MTLPixelFormatDepth32Float_Stencil8;
-	default:            throw "Cannot initialize zstencil buffer";
+	default:            throw "Failed to initialize zstencil buffer";
 	}
 
 	return MTLPixelFormatInvalid;
