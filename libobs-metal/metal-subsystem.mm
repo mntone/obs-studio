@@ -252,49 +252,6 @@ gs_texture_t *device_voltexture_create(gs_device_t *device, uint32_t width,
 	return NULL;
 }
 
-gs_texture_t *device_texture_create_from_iosurface(gs_device_t *device,
-		void *iosurf)
-{
-	gs_texture *texture = nullptr;
-	try {
-		IOSurfaceRef ref = (IOSurfaceRef)iosurf;
-		texture = new gs_texture_2d(device, ref);
-
-	} catch (const char *error) {
-		blog(LOG_ERROR, "device_texture_create_from_iosurface (Metal): "
-		                "%s", error);
-	}
-
-	return texture;
-}
-
-bool gs_texture_rebind_iosurface(gs_texture_t *texture, void *iosurf)
-{
-	if (texture->type != GS_TEXTURE_2D) {
-		blog(LOG_ERROR, "gs_texture_rebind_iosurface (Metal): "
-		                "texture is not a 2D texture");
-		return false;
-	}
-
-	IOSurfaceRef ref = (IOSurfaceRef)iosurf;
-	OSType format = IOSurfaceGetPixelFormat(ref);
-	gs_color_format gsformat = ConvertOSTypePixelFormat(format);
-
-	gs_texture_2d *tex2d = static_cast<gs_texture_2d*>(texture);
-	if (tex2d->format != gsformat) {
-		blog(LOG_ERROR, "gs_texture_rebind_iosurface (Metal): "
-		                "pixel format is not matched");
-		return false;
-	}
-
-	if (tex2d->ioSurface != ref) {
-		tex2d->ioSurface = ref;
-		tex2d->Rebuild();
-	}
-	tex2d->SynchronizeTexture();
-	return true;
-}
-
 gs_zstencil_t *device_zstencil_create(gs_device_t *device, uint32_t width,
 		uint32_t height, enum gs_zstencil_format format)
 {

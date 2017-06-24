@@ -40,8 +40,6 @@ void gs_texture_2d::BackupTexture(const uint8_t **data)
 
 void gs_texture_2d::UploadTexture()
 {
-	assert(!isIOSurfaceCompatible);
-
 	const uint32_t bpp = gs_get_format_bpp(format) / 8;
 	uint32_t w = width;
 	uint32_t h = height;
@@ -63,23 +61,6 @@ void gs_texture_2d::UploadTexture()
 	}
 }
 
-void gs_texture_2d::SynchronizeTexture()
-{
-	id<MTLBlitCommandEncoder> blitCE =
-			[device->commandBuffer blitCommandEncoder];
-	[blitCE synchronizeTexture:texture slice:0 level:0];
-}
-
-void gs_texture_2d::InitTextureWithIOSurface()
-{
-	assert(isIOSurfaceCompatible);
-
-	texture = [device->device newTextureWithDescriptor:textureDesc
-			iosurface:ioSurface plane:0];
-	if (texture == nil)
-		throw "Failed to create 2D texture with IOSurface";
-}
-
 void gs_texture_2d::InitTexture()
 {
 	assert(!isShared);
@@ -96,10 +77,7 @@ void gs_texture_2d::Rebuild()
 		return;
 	}
 
-	if (isIOSurfaceCompatible)
-		InitTextureWithIOSurface();
-	else
-		InitTexture();
+	InitTexture();
 }
 
 gs_texture_2d::gs_texture_2d(gs_device_t *device, uint32_t width,
@@ -174,30 +152,4 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, id<MTLTexture> texture)
 	  mtlPixelFormat  (texture.pixelFormat),
 	  texture         (texture)
 {
-}
-
-gs_texture_2d::gs_texture_2d(gs_device_t *device, IOSurfaceRef iosurf)
-	: gs_texture      (device, gs_type::gs_texture_2d,
-			   GS_TEXTURE_2D,
-			   1,
-			   ConvertOSTypePixelFormat(IOSurfaceGetPixelFormat(
-					iosurf))),
-	  width           (IOSurfaceGetWidth(iosurf)),
-	  height          (IOSurfaceGetHeight(iosurf)),
-	  bytePerRow      (width * gs_get_format_bpp(format) / 8),
-	  isRenderTarget  (false),
-	  isDynamic       (false),
-	  genMipmaps      (false),
-	  isShared        (false),
-	  isIOSurfaceCompatible (true),
-	  mtlPixelFormat  (ConvertGSTextureFormat(format)),
-	  ioSurface       (iosurf)
-{
-	textureDesc = [MTLTextureDescriptor
-			texture2DDescriptorWithPixelFormat:mtlPixelFormat
-			width:width height:height mipmapped:NO];
-	textureDesc.storageMode = MTLStorageModeManaged;
-	textureDesc.usage       = MTLTextureUsageShaderRead;
-
-	InitTextureWithIOSurface();
 }

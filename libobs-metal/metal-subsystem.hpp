@@ -296,21 +296,16 @@ struct gs_texture_2d : gs_texture {
 	const bool           isDynamic      = false;
 	const bool           genMipmaps     = false;
 	const bool           isShared       = false;
-	const bool           isIOSurfaceCompatible = false;
 	const MTLPixelFormat mtlPixelFormat = MTLPixelFormatInvalid;
 	
 	MTLTextureDescriptor *textureDesc = nil;
 	id<MTLTexture>       texture = nil;
 	
 	std::vector<std::vector<uint8_t>> data;
-	
-	IOSurfaceRef ioSurface = nil;
 
 	void GenerateMipmap();
 	void BackupTexture(const uint8_t **data);
 	void UploadTexture();
-	void SynchronizeTexture();
-	void InitTextureWithIOSurface();
 	void InitTexture();
 	
 	inline void Release() {texture = nil;}
@@ -322,8 +317,6 @@ struct gs_texture_2d : gs_texture {
 			gs_texture_type type);
 
 	gs_texture_2d(gs_device_t *device, id<MTLTexture> texture);
-	
-	gs_texture_2d(gs_device_t *device, IOSurfaceRef iosurf);
 };
 
 struct gs_zstencil_buffer : gs_obj {
@@ -710,9 +703,6 @@ extern "C" {
 #ifdef libobs_metal_EXPORTS
 void device_clear_textures(gs_device_t *device);
 #endif
-	
-gs_texture_t *device_texture_create_from_iosurface(
-		gs_device_t *device, void *iosurf);
 
 #ifdef __cplusplus
 }
