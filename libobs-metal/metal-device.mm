@@ -104,10 +104,10 @@ void gs_device::UploadTextures(id<MTLRenderCommandEncoder> commandEncoder)
 	for (size_t i = 0; i < GS_MAX_TEXTURES; i++) {
 		gs_texture_2d *tex2d = static_cast<gs_texture_2d*>(
 				curTextures[i]);
-		if (tex2d != nullptr) {
-			[commandEncoder setFragmentTexture:tex2d->texture
-					atIndex:i];
-		}
+		if (tex2d == nullptr)
+			break;
+
+		[commandEncoder setFragmentTexture:tex2d->texture atIndex:i];
 	}
 }
 
@@ -115,10 +115,11 @@ void gs_device::UploadSamplers(id<MTLRenderCommandEncoder> commandEncoder)
 {
 	for (size_t i = 0; i < GS_MAX_TEXTURES; i++) {
 		gs_sampler_state *sampler = curSamplers[i];
-		if (sampler != nullptr) {
-			[commandEncoder setFragmentSamplerState:
-					sampler->samplerState atIndex:i];
-		}
+		if (sampler == nullptr)
+			break;
+
+		[commandEncoder setFragmentSamplerState:sampler->samplerState
+				atIndex:i];
 	}
 }
 
