@@ -846,16 +846,13 @@ void device_present(gs_device_t *device)
 
 	device->PushResources();
 
-	[device->commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> b) {
+	[device->commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> buf) {
 		device->ReleaseResources();
+		
+		UNUSED_PARAMETER(buf);
 	}];
 	[device->commandBuffer commit];
 	device->commandBuffer = nil;
-
-	if (device->curStageSurface) {
-		device->curStageSurface->DownloadTexture();
-		device->curStageSurface = nullptr;
-	}
 
 	if (device->curSwapChain)
 		device->curSwapChain->NextTarget();
@@ -867,12 +864,11 @@ void device_flush(gs_device_t *device)
 	if (device->commandBuffer != nil) {
 		device->PushResources();
 
-		[device->commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> b) {
-			device->ReleaseResources();
-		}];
 		[device->commandBuffer commit];
 		[device->commandBuffer waitUntilCompleted];
 		device->commandBuffer = nil;
+
+		device->ReleaseResources();
 
 		if (device->curStageSurface) {
 			device->curStageSurface->DownloadTexture();
