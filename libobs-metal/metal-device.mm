@@ -254,6 +254,8 @@ void gs_device::Draw(gs_draw_mode drawMode, uint32_t startVert,
 static inline id<MTLBuffer> CreateBuffer(id<MTLDevice> device,
 		void *data, size_t length)
 {
+	length = (length + 15) & ~15;
+	
 	MTLResourceOptions options = MTLResourceCPUCacheModeWriteCombined |
 			MTLResourceStorageModeShared;
 	id<MTLBuffer> buffer = [device newBufferWithBytes:data
