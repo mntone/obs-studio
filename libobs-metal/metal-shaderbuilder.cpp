@@ -58,6 +58,7 @@ struct ShaderBuilder
 private:
 	struct shader_var *GetVariable(struct cf_token *token);
 
+	bool IsNextCompareOperator(struct cf_token *&token);
 	void AnalysisFunction(struct cf_token *&token, const char *end,
 			ShaderFunctionInfo &info);
 
@@ -416,6 +417,7 @@ inline void ShaderBuilder::WriteStructs()
  *   SampleGrad  -> sample(.., gradient2d(..))
  *   SampleLevel -> sample(.., level(..))
  *   Load        -> read
+ *   A cmp B     -> all(A cmp B)
  *
  *   All else can be left as-is
  */
@@ -702,6 +704,22 @@ inline void ShaderBuilder::WriteFunctionAdditionalParam(string funcionName)
 	}
 }
 
+inline bool ShaderBuilder::IsNextCompareOperator(struct cf_token *&token)
+{
+	struct cf_token *token2 = token + 1;
+	if (token2->type != CFTOKEN_OTHER)
+		return false;
+
+	if (astrcmp_n(token2->str.array, "==", token2->str.len) == 0 ||
+	    astrcmp_n(token2->str.array, "!=", token2->str.len) == 0 ||
+	    astrcmp_n(token2->str.array, "<", token2->str.len) == 0 ||
+	    astrcmp_n(token2->str.array, "<=", token2->str.len) == 0 ||
+	    astrcmp_n(token2->str.array, ">", token2->str.len) == 0 ||
+	    astrcmp_n(token2->str.array, ">=", token2->str.len) == 0)
+		return true;
+	return false;
+}
+
 inline void ShaderBuilder::WriteFunctionContent(struct cf_token *&token,
 		const char *end)
 {
@@ -716,6 +734,7 @@ inline void ShaderBuilder::WriteFunctionContent(struct cf_token *&token,
 	}
 
 	bool dot = false;
+	bool cmp = false;
 	while (token->type != CFTOKEN_NONE) {
 		token++;
 
@@ -728,8 +747,19 @@ inline void ShaderBuilder::WriteFunctionContent(struct cf_token *&token,
 				if (dot)
 					dot = false;
 
+				bool cmp2 = IsNextCompareOperator(token);
+				if (cmp2)
+					output << "all(";
+
 				temp = string(token->str.array, token->str.len);
 				output << temp;
+
+				if (cmp) {
+					output << ")";
+					cmp = false;
+				}
+
+				cmp = cmp2;
 			}
 
 		} else if (token->type == CFTOKEN_OTHER) {
@@ -768,7 +798,8 @@ inline void ShaderBuilder::WriteFunction(const shader_func *func)
 	struct cf_token *token = func->start;
 	AnalysisFunction(token, "}", info);
 	unique(info.useTextures.begin(), info.useTextures.end());
-	functionInfo.insert(make_pair(funcName, info));
+	unique(info.useSamplers.begin(), info.useSamplers.end());
+	functionInfo.emplace(funcName, info);
 
 	output << func->return_type << ' ' << funcName << '(';
 
