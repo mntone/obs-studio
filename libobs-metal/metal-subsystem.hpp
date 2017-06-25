@@ -416,7 +416,7 @@ struct gs_shader : gs_obj {
 		function = nil;
 		library = nil;
 	}
-	inline void Rebuild() {Compile(source);}
+	void Rebuild();
 
 	inline gs_shader(gs_device_t *device, gs_type obj_type,
 			gs_shader_type type)
@@ -617,16 +617,18 @@ struct ZStencilState {
 };
 
 struct gs_device {
+	uint32_t                    devIdx = 0;
 	uint16_t                    featureSetFamily = 0;
 	uint16_t                    featureSetVersion = 0;
+
+	MTLRenderPassDescriptor     *passDesc;
+	MTLRenderPipelineDescriptor *pipelineDesc;
+	
 	id<MTLDevice>               device;
 	id<MTLCommandQueue>         commandQueue;
 	id<MTLCommandBuffer>        commandBuffer;
 	id<MTLRenderPipelineState>  pipelineState;
 	id<MTLDepthStencilState>    depthStencilState;
-	MTLRenderPipelineDescriptor *pipelineDesc;
-	MTLRenderPassDescriptor     *passDesc;
-	uint32_t                    devIdx = 0;
 
 	gs_texture_2d               *curRenderTarget = nullptr;
 	int                         curRenderSide = 0;

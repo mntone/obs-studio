@@ -97,8 +97,8 @@ void gs_shader::BuildConstantBuffer()
 		constantSize += size;
 	}
 
-	for (size_t i = 0; i < params.size(); i++)
-		gs_shader_set_default(&params[i]);
+	for (gs_shader_param &param : params)
+		gs_shader_set_default(&param);
 
 	data.resize(constantSize);
 }
@@ -133,6 +133,18 @@ void gs_shader::Compile(string shaderString)
 
 	library  = lib;
 	function = func;
+}
+
+void gs_shader::Rebuild()
+{
+	Compile(source);
+
+	for (gs_shader_param &param : params) {
+		param.nextSampler = nullptr;
+		param.curValue.clear();
+		param.changed = true;
+		gs_shader_set_default(&param);
+	}
 }
 
 inline void gs_shader::UpdateParam(uint8_t *data, gs_shader_param &param)

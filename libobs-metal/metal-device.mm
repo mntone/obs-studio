@@ -303,11 +303,12 @@ gs_device::gs_device(uint32_t adapterIdx)
 	matrix4_identity(&curViewMatrix);
 	matrix4_identity(&curViewProjMatrix);
 
-	InitDevice(adapterIdx);
-	
-	commandQueue = [device newCommandQueue];
 	passDesc = [[MTLRenderPassDescriptor alloc] init];
 	pipelineDesc = [[MTLRenderPipelineDescriptor alloc] init];
+
+	InitDevice(adapterIdx);
+
+	commandQueue = [device newCommandQueue];
 
 	device_set_render_target(this, nullptr, nullptr);
 }
