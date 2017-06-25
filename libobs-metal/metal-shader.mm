@@ -107,7 +107,7 @@ void gs_shader::Compile(string shaderString)
 {
 	if (mtlCompileOptions == nil) {
 		mtlCompileOptions = [[MTLCompileOptions alloc] init];
-		mtlCompileOptions.languageVersion = MTLLanguageVersion1_1;
+		mtlCompileOptions.languageVersion = MTLLanguageVersion1_2;
 	}
 
 	NSString *nsShaderString = [[NSString alloc]

@@ -9,7 +9,7 @@ using namespace std;
 
 #define METAL_VERSION_1_1      ((1 << 16) | 1)
 #define METAL_VERSION_1_2      ((1 << 16) | 2)
-#define COMPILE_METAL_VERSION  METAL_VERSION_1_1
+#define COMPILE_METAL_VERSION  METAL_VERSION_1_2
 
 #define USE_PROGRAMMABLE_SAMPLER 1
 
