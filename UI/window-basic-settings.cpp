@@ -446,11 +446,11 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 	ui->enableAutoUpdates = nullptr;
 #endif
 	
-#if defined(__APPLE__) && defined(__MAC_10_11)
+#if defined(__APPLE__) && defined(__MAC_10_12)
 	struct mac_version_info ver;
 	get_mac_ver(&ver);
 	
-	if (ver.identifier < OSX_EL_CAPITAN) {
+	if (ver.identifier < MACOS_SIERRA) {
 #endif
 #ifndef _WIN32
 		delete ui->rendererLabel;
@@ -462,7 +462,7 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 		ui->adapterLabel = nullptr;
 		ui->adapter = nullptr;
 #endif
-#if defined(__APPLE__) && defined(__MAC_10_11)
+#if defined(__APPLE__) && defined(__MAC_10_12)
 	}
 #endif
 
