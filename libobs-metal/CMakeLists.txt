@@ -31,6 +31,7 @@ add_definitions(-DLIBOBS_EXPORTS)
 set(libobs-metal_SOURCES
 	metal-device.mm
 	metal-indexbuffer.mm
+	metal-rebuild.mm
 	metal-samplerstate.mm
 	metal-shader.mm
 	metal-shaderbuilder.cpp
