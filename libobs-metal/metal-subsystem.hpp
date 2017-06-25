@@ -218,13 +218,13 @@ struct gs_obj {
 struct gs_vertex_buffer : gs_obj {
 	const bool                 isDynamic;
 	const std::unique_ptr<gs_vb_data, decltype(&gs_vbdata_destroy)> vbData;
-	
+
 	id<MTLBuffer>              vertexBuffer;
 	id<MTLBuffer>              normalBuffer;
 	id<MTLBuffer>              colorBuffer;
 	id<MTLBuffer>              tangentBuffer;
 	std::vector<id<MTLBuffer>> uvBuffers;
-	
+
 	inline id<MTLBuffer> PrepareBuffer(void *array, size_t elementSize,
 			__weak NSString *name);
 	void PrepareBuffers();
@@ -260,7 +260,7 @@ struct gs_index_buffer : gs_obj {
 	const std::unique_ptr<void, decltype(&bfree)> indices;
 	const size_t        num = 0, len = 0;
 	const MTLIndexType  indexType;
-	
+
 	id<MTLBuffer>       indexBuffer;
 
 	void PrepareBuffer();
@@ -297,17 +297,17 @@ struct gs_texture_2d : gs_texture {
 	const bool           genMipmaps     = false;
 	const bool           isShared       = false;
 	const MTLPixelFormat mtlPixelFormat = MTLPixelFormatInvalid;
-	
+
 	MTLTextureDescriptor *textureDesc = nil;
 	id<MTLTexture>       texture = nil;
-	
+
 	std::vector<std::vector<uint8_t>> data;
 
 	void GenerateMipmap();
 	void BackupTexture(const uint8_t **data);
 	void UploadTexture();
 	void InitTexture();
-	
+
 	inline void Release() {texture = nil;}
 	void Rebuild();
 
@@ -322,12 +322,12 @@ struct gs_texture_2d : gs_texture {
 struct gs_zstencil_buffer : gs_obj {
 	const uint32_t           width = 0, height = 0;
 	const gs_zstencil_format format = GS_ZS_NONE;
-	
+
 	MTLTextureDescriptor     *textureDesc;
 	id<MTLTexture>           texture;
-	
+
 	void InitBuffer();
-	
+
 	inline void Release() {texture = nil;}
 	inline void Rebuild() {InitBuffer();}
 
@@ -338,15 +338,15 @@ struct gs_zstencil_buffer : gs_obj {
 struct gs_stage_surface : gs_obj {
 	const uint32_t        width = 0, height = 0, bytePerRow = 0;
 	const gs_color_format format = GS_UNKNOWN;
-	
+
 	MTLTextureDescriptor  *textureDesc;
 	id<MTLTexture>        texture;
-	
+
 	std::vector<uint8_t>  data;
-	
+
 	void DownloadTexture();
 	void InitTexture();
-	
+
 	inline void Release() {texture = nil;}
 	inline void Rebuild() {InitTexture();};
 
@@ -356,12 +356,12 @@ struct gs_stage_surface : gs_obj {
 
 struct gs_sampler_state : gs_obj {
 	const gs_sampler_info info;
-	
+
 	MTLSamplerDescriptor  *samplerDesc;
 	id<MTLSamplerState>   samplerState;
-	
+
 	void InitSampler();
-	
+
 	inline void Release() {samplerState = nil;}
 	inline void Rebuild() {InitSampler();}
 
@@ -374,7 +374,7 @@ struct gs_shader_param {
 	const int                  arrayCount;
 
 	struct gs_sampler_state    *nextSampler = nullptr;
-	
+
 	uint32_t                   textureID;
 	size_t                     pos;
 
@@ -400,9 +400,9 @@ struct gs_shader : gs_obj {
 	id<MTLLibrary>               library;
 	id<MTLFunction>              function;
 	std::vector<gs_shader_param> params;
-	
+
 	size_t                       constantSize = 0;
-	
+
 	std::vector<uint8_t>         data;
 
 	inline void UpdateParam(uint8_t *data, gs_shader_param &param);
@@ -410,7 +410,7 @@ struct gs_shader : gs_obj {
 
 	void BuildConstantBuffer();
 	void Compile(std::string shaderStr);
-	
+
 	inline void Release()
 	{
 		function = nil;
@@ -433,7 +433,7 @@ struct gs_vertex_shader : gs_shader {
 	bool     hasColors;
 	bool     hasTangents;
 	uint32_t texUnits;
-	
+
 	gs_shader_param *world, *viewProj;
 
 	inline uint32_t NumBuffersExpected() const
@@ -453,7 +453,7 @@ struct gs_vertex_shader : gs_shader {
 struct ShaderSampler {
 	std::string      name;
 	gs_sampler_state sampler;
-	
+
 	inline ShaderSampler(const char *name, gs_device_t *device,
 			gs_sampler_info *info)
 		: name    (name),
@@ -482,11 +482,11 @@ struct gs_swap_chain : gs_obj {
 	uint32_t            numBuffers;
 	NSView              *view;
 	CAMetalLayer        *metalLayer;
-	
+
 	gs_init_data        initData;
 	id<CAMetalDrawable> nextDrawable;
 	std::unique_ptr<gs_texture_2d> nextTarget;
-	
+
 	gs_texture_2d *GetTarget();
 	gs_texture_2d *NextTarget();
 	void Resize(uint32_t cx, uint32_t cy);
@@ -507,7 +507,7 @@ struct ClearState {
 	struct vec4 color;
 	float       depth;
 	uint8_t     stencil;
-	
+
 	inline ClearState()
 		: flags   (0),
 		  color   ({}),
@@ -553,7 +553,7 @@ struct RasterState {
 	gs_cull_mode   cullMode;
 	bool           scissorEnabled;
 	gs_rect        scissorRect;
-	
+
 	MTLViewport    mtlViewport;
 	MTLCullMode    mtlCullMode;
 	MTLScissorRect mtlScissorRect;
@@ -578,7 +578,7 @@ struct StencilSide {
 	gs_stencil_op_type fail;
 	gs_stencil_op_type zfail;
 	gs_stencil_op_type zpass;
-	
+
 	inline StencilSide()
 		: test  (GS_ALWAYS),
 		  fail  (GS_KEEP),
@@ -592,14 +592,14 @@ struct ZStencilState {
 	bool          depthEnabled;
 	bool          depthWriteEnabled;
 	gs_depth_test depthFunc;
-	
+
 	bool          stencilEnabled;
 	bool          stencilWriteEnabled;
 	StencilSide   stencilFront;
 	StencilSide   stencilBack;
-	
+
 	MTLDepthStencilDescriptor *dsd;
-	
+
 	inline ZStencilState()
 		: depthEnabled        (true),
 		  depthWriteEnabled   (true),
@@ -609,7 +609,7 @@ struct ZStencilState {
 	{
 		dsd = [[MTLDepthStencilDescriptor alloc] init];
 	}
-	
+
 	inline ZStencilState(const ZStencilState &state)
 	{
 		memcpy(this, &state, sizeof(ZStencilState));
@@ -639,10 +639,10 @@ struct gs_device {
 	gs_pixel_shader             *curPixelShader = nullptr;
 	gs_swap_chain               *curSwapChain = nullptr;
 	gs_stage_surface            *curStageSurface = nullptr;
-	
+
 	gs_vertex_buffer            *lastVertexBuffer = nullptr;
 	gs_vertex_shader            *lastVertexShader = nullptr;
-	
+
 	gs_texture_2d               *preserveClearTarget = nullptr;
 	std::stack<std::pair<gs_texture_2d *, ClearState>> clearStates;
 
@@ -658,14 +658,14 @@ struct gs_device {
 	matrix4                     curViewProjMatrix;
 
 	gs_obj                      *first_obj = nullptr;
-	
+
 	std::mutex                  mutexObj;
 	std::vector<id<MTLBuffer>>  curBufferPool;
 	std::queue<std::vector<id<MTLBuffer>>> bufferPools;
 	std::vector<id<MTLBuffer>>  unusedBufferPool;
-	
+
 	void InitDevice(uint32_t adapterIdx);
-	
+
 	/* Create Draw Command */
 	void SetClear();
 	void LoadSamplers(id<MTLRenderCommandEncoder> commandEncoder);
@@ -679,12 +679,12 @@ struct gs_device {
 			gs_draw_mode drawMode,
 			uint32_t startVert, uint32_t numVerts);
 	void Draw(gs_draw_mode drawMode, uint32_t startVert, uint32_t numVerts);
-	
+
 	/* Buffer Management */
 	id<MTLBuffer> GetBuffer(void *data, size_t length);
 	void PushResources();
 	void ReleaseResources();
-	
+
 	/* Other */
 	void RebuildDevice();
 	inline void CopyTex(id<MTLTexture> dst,
