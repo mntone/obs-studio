@@ -229,10 +229,6 @@ struct gs_vertex_buffer : gs_obj {
 			__weak NSString *name);
 	void PrepareBuffers();
 
-	inline void FlushBuffer(id<MTLBuffer> buffer,
-			void *array, size_t elementSize);
-	void FlushBuffers();
-
 	void MakeBufferList(gs_vertex_shader *shader,
 			std::vector<id<MTLBuffer>> &buffers);
 
@@ -264,7 +260,6 @@ struct gs_index_buffer : gs_obj {
 	id<MTLBuffer>       indexBuffer;
 
 	void PrepareBuffer();
-	void FlushBuffer();
 	void InitBuffer();
 
 	inline void Release() {indexBuffer = nil;}

@@ -37,29 +37,6 @@ void gs_vertex_buffer::PrepareBuffers()
 	}
 }
 
-inline void gs_vertex_buffer::FlushBuffer(id<MTLBuffer> buffer, void *array,
-		size_t elementSize)
-{
-	memcpy(buffer.contents, array, elementSize * vbData->num);
-}
-
-void gs_vertex_buffer::FlushBuffers()
-{
-	assert(isDynamic);
-
-	FlushBuffer(vertexBuffer, vbData->points, sizeof(vec3));
-	if (normalBuffer)
-		FlushBuffer(normalBuffer, vbData->normals, sizeof(vec3));
-	if (tangentBuffer)
-		FlushBuffer(tangentBuffer, vbData->tangents, sizeof(vec3));
-	if (colorBuffer)
-		FlushBuffer(colorBuffer, vbData->colors, sizeof(uint32_t));
-	for (size_t i = 0; i < uvBuffers.size(); i++) {
-		gs_tvertarray &tv = vbData->tvarray[i];
-		FlushBuffer(uvBuffers[i], tv.array, tv.width * sizeof(float));
-	}
-}
-
 static inline void PushBuffer(vector<id<MTLBuffer>> &buffers,
 		id<MTLBuffer> buffer, const char *name)
 {

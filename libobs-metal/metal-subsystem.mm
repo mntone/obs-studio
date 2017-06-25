@@ -1396,7 +1396,6 @@ void gs_vertexbuffer_flush(gs_vertbuffer_t *vertbuffer)
 	}
 
 	vertbuffer->PrepareBuffers();
-	//vertbuffer->FlushBuffers();
 }
 
 struct gs_vb_data *gs_vertexbuffer_get_data(const gs_vertbuffer_t *vertbuffer)
@@ -1425,7 +1424,6 @@ void gs_indexbuffer_flush(gs_indexbuffer_t *indexbuffer)
 	}
 
 	indexbuffer->PrepareBuffer();
-	//indexbuffer->FlushBuffer();
 }
 
 void *gs_indexbuffer_get_data(const gs_indexbuffer_t *indexbuffer)

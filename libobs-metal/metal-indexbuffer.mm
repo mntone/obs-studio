@@ -30,13 +30,6 @@ void gs_index_buffer::PrepareBuffer()
 #endif
 }
 
-void gs_index_buffer::FlushBuffer()
-{
-	assert(isDynamic);
-	
-	memcpy(indexBuffer.contents, indices.get(), len);
-}
-
 void gs_index_buffer::InitBuffer()
 {
 	NSUInteger         length  = len;
