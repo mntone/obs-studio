@@ -287,11 +287,7 @@ inline void ShaderBuilder::WriteSamplerFilter(enum gs_sample_filter filter,
 inline void ShaderBuilder::WriteSamplerAddress(enum gs_address_mode address,
 		const char key, bool &first)
 {
-#if COMPILE_METAL_VERSION >= METAL_VERSION_1_2
 	if (address != GS_ADDRESS_CLAMP) {
-#else
-	if (address != GS_ADDRESS_CLAMP && address != GS_ADDRESS_BORDER) {
-#endif
 		WriteSamplerParamDelimitter(first);
 
 		output << "\t" << key << "_address::";
@@ -303,10 +299,12 @@ inline void ShaderBuilder::WriteSamplerAddress(enum gs_address_mode address,
 		case GS_ADDRESS_MIRROR:
 			output << "mirrored_repeat";
 			break;
-#if COMPILE_METAL_VERSION >= METAL_VERSION_1_2
 		case GS_ADDRESS_BORDER:
+#if COMPILE_METAL_VERSION >= METAL_VERSION_1_2
 			output << "clamp_to_border";
 			break;
+#else
+			throw "GS_ADDRESS_BORDER is not supported in MSL 1.1";
 #endif
 		case GS_ADDRESS_MIRRORONCE:
 			throw "GS_ADDRESS_MIRRORONCE is not supported in Metal";
