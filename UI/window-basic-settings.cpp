@@ -1094,7 +1094,7 @@ void OBSBasicSettings::LoadRendererList()
 	struct mac_version_info ver;
 	get_mac_ver(&ver);
 	
-	if (ver.identifier < OSX_EL_CAPITAN)
+	if (ver.identifier < MACOS_SIERRA)
 		return;
 #endif
 	
