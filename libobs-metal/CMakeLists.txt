@@ -8,18 +8,13 @@ find_library(QUARTZCORE QuartzCore)
 mark_as_advanced(QUARTZCORE)
 include_directories(${QUARTZCORE})
 
-find_library(IOSURF IOSurface)
-mark_as_advanced(IOSURF)
-include_directories(${IOSURF})
-
 find_library(METAL Metal)
 mark_as_advanced(METAL)
 include_directories(${METAL})
 
 set(libobs-metal_PLATFORM_DEPS
 	${APPKIT}
-	${QUARTZCORE}
-	${IOSURF})
+	${QUARTZCORE})
 
 set(libobs-metal_PLATFORM_DEPS_WEAK
 	Metal)
