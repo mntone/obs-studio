@@ -472,7 +472,7 @@ inline bool ShaderBuilder::WriteTextureCall(struct cf_token *&token,
 		if (!cf_token_is(cfp, ",")) return false;
 		output << ", ";
 	} else
-		output << "read((";
+		output << "read((u";
 
 	/* location */
 	if (!cf_next_token(cfp))    return false;
