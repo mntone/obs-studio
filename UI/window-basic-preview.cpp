@@ -24,7 +24,7 @@ OBSBasicPreview::OBSBasicPreview(QWidget *parent, Qt::WindowFlags flags)
 vec2 OBSBasicPreview::GetMouseEventPos(QMouseEvent *event)
 {
 	OBSBasic *main = reinterpret_cast<OBSBasic*>(App()->GetMainWindow());
-	float pixelRatio = main->devicePixelRatio();
+	float pixelRatio = main->devicePixelRatioF();
 	float scale = pixelRatio / main->previewScale;
 	vec2 pos;
 	vec2_set(&pos,
@@ -138,6 +138,7 @@ static inline vec2 GetOBSScreenSize()
 vec3 OBSBasicPreview::GetSnapOffset(const vec3 &tl, const vec3 &br)
 {
 	OBSBasic *main = reinterpret_cast<OBSBasic*>(App()->GetMainWindow());
+	float pixelRatio = main->devicePixelRatioF();
 	vec2 screenSize = GetOBSScreenSize();
 	vec3 clampOffset;
 
@@ -154,7 +155,7 @@ vec3 OBSBasicPreview::GetSnapOffset(const vec3 &tl, const vec3 &br)
 			"BasicWindow", "CenterSnapping");
 
 	const float clampDist = config_get_double(GetGlobalConfig(),
-			"BasicWindow", "SnapDistance") / main->previewScale;
+			"BasicWindow", "SnapDistance") * pixelRatio / main->previewScale;
 	const float centerX = br.x - (br.x - tl.x) / 2.0f;
 	const float centerY = br.y - (br.y - tl.y) / 2.0f;
 
@@ -250,6 +251,7 @@ bool OBSBasicPreview::SelectedAtPos(const vec2 &pos)
 struct HandleFindData {
 	const vec2   &pos;
 	const float  scale;
+	const float  pixelAspect;
 
 	OBSSceneItem item;
 	ItemHandle   handle = ItemHandle::None;
@@ -259,9 +261,11 @@ struct HandleFindData {
 	HandleFindData& operator=(const HandleFindData &) = delete;
 	HandleFindData& operator=(HandleFindData &&) = delete;
 
-	inline HandleFindData(const vec2 &pos_, float scale_)
-		: pos   (pos_),
-		  scale (scale_)
+	inline HandleFindData(const vec2 &pos_, float scale_,
+			float pixelAspect_)
+		: pos         (pos_),
+		  scale       (scale_),
+		  pixelAspect (pixelAspect_)
 	{}
 };
 
@@ -274,7 +278,7 @@ static bool FindHandleAtPos(obs_scene_t *scene, obs_sceneitem_t *item,
 	HandleFindData *data = reinterpret_cast<HandleFindData*>(param);
 	matrix4        transform;
 	vec3           pos3;
-	float          closestHandle = HANDLE_SEL_RADIUS;
+	float          closestHandle = HANDLE_SEL_RADIUS * data->pixelAspect;
 
 	vec3_set(&pos3, data->pos.x, data->pos.y, 0.0f);
 
@@ -286,7 +290,7 @@ static bool FindHandleAtPos(obs_scene_t *scene, obs_sceneitem_t *item,
 				data->scale);
 
 		float dist = vec3_dist(&handlePos, &pos3);
-		if (dist < HANDLE_SEL_RADIUS) {
+		if (dist < HANDLE_SEL_RADIUS * data->pixelAspect) {
 			if (dist < closestHandle) {
 				closestHandle = dist;
 				data->handle  = handle;
@@ -339,7 +343,9 @@ void OBSBasicPreview::GetStretchHandleData(const vec2 &pos)
 	if (!scene)
 		return;
 
-	HandleFindData data(pos, main->previewScale / main->devicePixelRatio());
+	HandleFindData data(pos,
+			main->previewScale / main->devicePixelRatioF(),
+			main->devicePixelRatioF());
 	obs_scene_enum_items(scene, FindHandleAtPos, &data);
 
 	stretchItem     = std::move(data.item);
@@ -436,7 +442,7 @@ void OBSBasicPreview::mousePressEvent(QMouseEvent *event)
 	}
 
 	OBSBasic *main = reinterpret_cast<OBSBasic*>(App()->GetMainWindow());
-	float pixelRatio = main->devicePixelRatio();
+	float pixelRatio = main->devicePixelRatioF();
 	float x = float(event->x()) - main->previewX / pixelRatio;
 	float y = float(event->y()) - main->previewY / pixelRatio;
 	Qt::KeyboardModifiers modifiers = QGuiApplication::keyboardModifiers();
@@ -652,9 +658,11 @@ void OBSBasicPreview::SnapItemMovement(vec2 &offset)
 		offset.y += snapOffset.y;
 		return;
 	}
-
+	
+	const float pixelRatio = main->devicePixelRatioF();
 	const float clampDist = config_get_double(GetGlobalConfig(),
-			"BasicWindow", "SnapDistance") / main->previewScale;
+			"BasicWindow", "SnapDistance") * pixelRatio /
+			main->previewScale;
 
 	OffsetData offsetData;
 	offsetData.clampDist = clampDist;
@@ -1064,7 +1072,7 @@ void OBSBasicPreview::mouseMoveEvent(QMouseEvent *event)
 }
 
 static void DrawCircleAtPos(float x, float y, matrix4 &matrix,
-		float previewScale)
+		float previewScale, float pixelAspect)
 {
 	struct vec3 pos;
 	vec3_set(&pos, x, y, 0.0f);
@@ -1073,7 +1081,8 @@ static void DrawCircleAtPos(float x, float y, matrix4 &matrix,
 
 	gs_matrix_push();
 	gs_matrix_translate(&pos);
-	gs_matrix_scale3f(HANDLE_RADIUS, HANDLE_RADIUS, 1.0f);
+	gs_matrix_scale3f(HANDLE_RADIUS * pixelAspect,
+			HANDLE_RADIUS * pixelAspect, 1.0f);
 	gs_draw(GS_LINESTRIP, 0, 0);
 	gs_matrix_pop();
 }
@@ -1126,14 +1135,15 @@ bool OBSBasicPreview::DrawSelectedItem(obs_scene_t *scene,
 
 	gs_load_vertexbuffer(main->circle);
 
-	DrawCircleAtPos(0.0f, 0.0f, boxTransform, main->previewScale);
-	DrawCircleAtPos(0.0f, 1.0f, boxTransform, main->previewScale);
-	DrawCircleAtPos(1.0f, 0.0f, boxTransform, main->previewScale);
-	DrawCircleAtPos(1.0f, 1.0f, boxTransform, main->previewScale);
-	DrawCircleAtPos(0.5f, 0.0f, boxTransform, main->previewScale);
-	DrawCircleAtPos(0.0f, 0.5f, boxTransform, main->previewScale);
-	DrawCircleAtPos(0.5f, 1.0f, boxTransform, main->previewScale);
-	DrawCircleAtPos(1.0f, 0.5f, boxTransform, main->previewScale);
+	const float pixelRatio = main->devicePixelRatioF();
+	DrawCircleAtPos(0.0f, 0.0f, boxTransform, main->previewScale, pixelRatio);
+	DrawCircleAtPos(0.0f, 1.0f, boxTransform, main->previewScale, pixelRatio);
+	DrawCircleAtPos(1.0f, 0.0f, boxTransform, main->previewScale, pixelRatio);
+	DrawCircleAtPos(1.0f, 1.0f, boxTransform, main->previewScale, pixelRatio);
+	DrawCircleAtPos(0.5f, 0.0f, boxTransform, main->previewScale, pixelRatio);
+	DrawCircleAtPos(0.0f, 0.5f, boxTransform, main->previewScale, pixelRatio);
+	DrawCircleAtPos(0.5f, 1.0f, boxTransform, main->previewScale, pixelRatio);
+	DrawCircleAtPos(1.0f, 0.5f, boxTransform, main->previewScale, pixelRatio);
 
 	gs_matrix_push();
 	gs_matrix_scale3f(main->previewScale, main->previewScale, 1.0f);
@@ -1162,8 +1172,68 @@ bool OBSBasicPreview::DrawSelectedItem(obs_scene_t *scene,
 		DRAW_SIDE(bottom, boxBottom);
 #undef DRAW_SIDE
 	} else {
-		gs_load_vertexbuffer(main->box);
-		gs_draw(GS_LINESTRIP, 0, 0);
+		float borderSize = std::floor(2.0 * pixelRatio);
+		
+		vec3 size, scale;
+		vec3_set(&size, borderSize / main->previewScale, borderSize / main->previewScale, 0.0f);
+		
+		if (obs_sceneitem_get_bounds_type(item) != OBS_BOUNDS_NONE) {
+			obs_sceneitem_get_bounds(item, (vec2*)&scale);
+		} else {
+			obs_sceneitem_get_scale(item, (vec2*)&scale);
+			
+			obs_source_t *source = obs_sceneitem_get_source(item);
+			scale.x *= obs_source_get_width(source);
+			scale.y *= obs_source_get_height(source);
+		}
+		scale.z = 1.0f;
+		vec3_div(&size, &size, &scale);
+
+		float halfPixelX = 0.5f * size.x;
+		float halfPixelY = 0.5f * size.y;
+		
+		gs_render_start(true);
+		gs_vertex2f(1.0f - halfPixelX, 1.0f + halfPixelY);
+		gs_vertex2f(1.0f + halfPixelX, 1.0f + halfPixelY);
+		gs_vertex2f(1.0f - halfPixelX, -halfPixelY);
+		gs_vertex2f(1.0f + halfPixelX, -halfPixelY);
+		gs_vertbuffer_t *right = gs_render_save();
+		gs_load_vertexbuffer(right);
+		gs_draw(GS_TRISTRIP, 0, 0);
+		gs_vertexbuffer_destroy(right);
+
+		gs_render_start(true);
+		gs_vertex2f(-halfPixelX, 1.0f + halfPixelY);
+		gs_vertex2f(1.0f + halfPixelX, 1.0f + halfPixelY);
+		gs_vertex2f(-halfPixelX, 1.0f - halfPixelY);
+		gs_vertex2f(1.0f + halfPixelX, 1.0f - halfPixelY);
+		gs_vertbuffer_t *top = gs_render_save();
+		gs_load_vertexbuffer(top);
+		gs_draw(GS_TRISTRIP, 0, 0);
+		gs_vertexbuffer_destroy(top);
+		
+		gs_render_start(true);
+		gs_vertex2f(-halfPixelX, 1.0f + halfPixelY);
+		gs_vertex2f(halfPixelX, 1.0f + halfPixelY);
+		gs_vertex2f(-halfPixelX, -halfPixelY);
+		gs_vertex2f(halfPixelX, -halfPixelY);
+		gs_vertbuffer_t *left = gs_render_save();
+		gs_load_vertexbuffer(left);
+		gs_draw(GS_TRISTRIP, 0, 0);
+		gs_vertexbuffer_destroy(left);
+
+		gs_render_start(true);
+		gs_vertex2f(-halfPixelX, -halfPixelY);
+		gs_vertex2f(1.0f + halfPixelX, -halfPixelY);
+		gs_vertex2f(-halfPixelX, halfPixelY);
+		gs_vertex2f(1.0f + halfPixelX, halfPixelY);
+		gs_vertbuffer_t *bottom = gs_render_save();
+		gs_load_vertexbuffer(bottom);
+		gs_draw(GS_TRISTRIP, 0, 0);
+		gs_vertexbuffer_destroy(bottom);
+
+		//gs_load_vertexbuffer(main->box);
+		//gs_draw(GS_LINESTRIP, 0, 0);
 	}
 
 	gs_matrix_pop();

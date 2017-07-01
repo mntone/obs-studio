@@ -1177,7 +1177,7 @@ void OBSBasic::InitPrimitives()
 	boxBottom = gs_render_save();
 
 	gs_render_start(true);
-	for (int i = 0; i <= 360; i += (360/20)) {
+	for (int i = 0; i <= 360; i += (360/30)) {
 		float pos = RAD(float(i));
 		gs_vertex2f(cosf(pos), sinf(pos));
 	}
@@ -2844,20 +2844,22 @@ void OBSBasic::ResetAudioDevice(const char *sourceId, const char *deviceId,
 void OBSBasic::ResizePreview(uint32_t cx, uint32_t cy)
 {
 	QSize  targetSize;
+	float edgeSize;
 	ScalingMode scalingMode;
 	obs_video_info ovi;
 
 	/* resize preview panel to fix to the top section of the window */
 	targetSize = GetPixelSize(ui->preview);
 
+	edgeSize = PREVIEW_EDGE_SIZE * devicePixelRatioF();
 	scalingMode = ui->preview->GetScalingMode();
 	obs_get_video_info(&ovi);
 
 	if (scalingMode == ScalingMode::Canvas) {
 		previewScale = 1.0f;
 		GetCenterPosFromFixedScale(int(cx), int(cy),
-				targetSize.width() - PREVIEW_EDGE_SIZE * 2,
-				targetSize.height() - PREVIEW_EDGE_SIZE * 2,
+				targetSize.width() - edgeSize * 2,
+				targetSize.height() - edgeSize * 2,
 				previewX, previewY, previewScale);
 		previewX += ui->preview->ScrollX();
 		previewY += ui->preview->ScrollY();
@@ -2865,21 +2867,21 @@ void OBSBasic::ResizePreview(uint32_t cx, uint32_t cy)
 	} else if (scalingMode == ScalingMode::Output) {
 		previewScale = float(ovi.output_width) / float(ovi.base_width);
 		GetCenterPosFromFixedScale(int(cx), int(cy),
-				targetSize.width() - PREVIEW_EDGE_SIZE * 2,
-				targetSize.height() - PREVIEW_EDGE_SIZE * 2,
+				targetSize.width() - edgeSize * 2,
+				targetSize.height() - edgeSize * 2,
 				previewX, previewY, previewScale);
 		previewX += ui->preview->ScrollX();
 		previewY += ui->preview->ScrollY();
 
 	} else {
 		GetScaleAndCenterPos(int(cx), int(cy),
-				targetSize.width() - PREVIEW_EDGE_SIZE * 2,
-				targetSize.height() - PREVIEW_EDGE_SIZE * 2,
+				targetSize.width() - edgeSize * 2,
+				targetSize.height() - edgeSize * 2,
 				previewX, previewY, previewScale);
 	}
 
-	previewX += float(PREVIEW_EDGE_SIZE);
-	previewY += float(PREVIEW_EDGE_SIZE);
+	previewX += edgeSize;
+	previewY += edgeSize;
 }
 
 void OBSBasic::CloseDialogs()
