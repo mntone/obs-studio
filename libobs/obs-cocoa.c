@@ -1325,3 +1325,140 @@ bool obs_hotkeys_platform_is_pressed(obs_hotkeys_platform_t *plat,
 
 	return false;
 }
+
+#include <IOKit/graphics/IOAccelClientConnect.h>
+
+bool os_get_gpu_usage(os_gpu_usage_t **usage, size_t size)
+{
+	CFMutableDictionaryRef pciDevices =
+			IOServiceMatching(kIOAcceleratorClassName);
+
+	io_iterator_t iterator;
+	if (IOServiceGetMatchingServices(kIOMasterPortDefault, pciDevices,
+	    &iterator) != kIOReturnSuccess)
+		return false;
+	
+	size_t idx = 0;
+	io_registry_entry_t registry;
+	while ((registry = IOIteratorNext(iterator))) {
+		CFMutableDictionaryRef services;
+
+		if (IORegistryEntryCreateCFProperties(registry,
+		    &services, kCFAllocatorDefault, kNilOptions) !=
+		    kIOReturnSuccess)
+			goto next1;
+
+		CFMutableDictionaryRef properties =
+				(CFMutableDictionaryRef)CFDictionaryGetValue(
+				services, CFSTR("PerformanceStatistics"));
+		if (properties) {
+			const void *gpuUsage = CFDictionaryGetValue(properties,
+					CFSTR("Device Utilization %"));
+			if (!gpuUsage)
+				gpuUsage = CFDictionaryGetValue(properties,
+						CFSTR(
+						"Device Unit 0 Utilization %"));
+			if (gpuUsage) {
+				int64_t temp = 0;
+				CFNumberGetValue((CFNumberRef)gpuUsage,
+						kCFNumberSInt64Type, &temp);
+				
+				usage[idx]->usage = temp;
+			} else {
+				gpuUsage = CFDictionaryGetValue(properties,
+						CFSTR("GPU Core Utilization"));
+				
+				if (gpuUsage) {
+					int64_t temp = 0;
+					CFNumberGetValue((CFNumberRef)gpuUsage,
+							kCFNumberSInt64Type,
+							&temp);
+					usage[idx]->usage =
+							(float)temp /
+							100000.f;
+				} else
+					usage[idx]->usage = 0.f;
+			}
+
+			const void *used = CFDictionaryGetValue(properties,
+					CFSTR("inUseVidMemoryBytes"));
+			if (!used)
+				used = CFDictionaryGetValue(properties,
+						CFSTR("vramUsedBytes"));
+			if (used) {
+				int64_t temp = 0;
+				CFNumberGetValue((CFNumberRef)used,
+						 kCFNumberSInt64Type, &temp);
+				usage[idx]->used_size = temp;
+			} else
+				usage[idx]->used_size = 0;
+			
+			const void *free = CFDictionaryGetValue(properties,
+					CFSTR("vramFreeBytes"));
+			if (free) {
+				int64_t temp = 0;
+				CFNumberGetValue((CFNumberRef)free,
+						kCFNumberSInt64Type, &temp);
+				usage[idx]->free_size = temp;
+			} else
+				usage[idx]->free_size = 0;
+
+			CFRelease(services);
+		}
+
+next1:
+		IOObjectRelease(registry);
+
+		if (idx++ < size)
+			break;
+	}
+	IOObjectRelease(iterator);
+	
+	if (IOServiceGetMatchingServices(kIOMasterPortDefault,
+	    IOServiceMatching("IOPCIDevice"), &iterator) != kIOReturnSuccess)
+		return false;
+
+	idx = 0;
+	while ((registry = IOIteratorNext(iterator))) {
+		CFMutableDictionaryRef services;
+		
+		if (IORegistryEntryCreateCFProperties(registry,
+		    &services, kCFAllocatorDefault, kNilOptions) !=
+		    kIOReturnSuccess)
+			goto next2;
+		
+		const void *vendor = CFDictionaryGetValue(services,
+				CFSTR("vendor-id"));
+		if (vendor && CFGetTypeID(vendor) == CFDataGetTypeID()) {
+#define INTERNAL_VENDOR_ID_INTEL  0x8086
+#define INTERNAL_VENDOR_ID_NVIDIA 0x10de
+#define INTERNAL_VENDOR_ID_AMD    0x1002
+
+			switch (*(int*)CFDataGetBytePtr(vendor))
+			{
+			case INTERNAL_VENDOR_ID_INTEL:
+				usage[idx]->vendor_type = GPU_VENDOR_INTEL;
+				break;
+			case INTERNAL_VENDOR_ID_NVIDIA:
+				usage[idx]->vendor_type = GPU_VENDOR_NVIDIA;
+				break;
+			case INTERNAL_VENDOR_ID_AMD:
+				usage[idx]->vendor_type = GPU_VENDOR_AMD;
+				break;
+			default:
+				usage[idx]->vendor_type = GPU_VENDOR_UNKNOWN;
+				break;
+			}
+		} else
+			usage[idx]->vendor_type = GPU_VENDOR_UNKNOWN;
+
+next2:
+		IOObjectRelease(registry);
+	
+		if (idx++ < size)
+			break;
+	}
+	IOObjectRelease(iterator);
+	
+	return true;
+}

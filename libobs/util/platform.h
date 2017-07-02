@@ -181,6 +181,21 @@ EXPORT void os_breakpoint(void);
 EXPORT int os_get_physical_cores(void);
 EXPORT int os_get_logical_cores(void);
 
+#define GPU_VENDOR_UNKNOWN 0
+#define GPU_VENDOR_INTEL   1
+#define GPU_VENDOR_NVIDIA  2
+#define GPU_VENDOR_AMD     3
+
+struct os_gpu_usage {
+	int vendor_type;
+	float usage;
+	uint64_t used_size;
+	uint64_t free_size;
+};
+typedef struct os_gpu_usage os_gpu_usage_t;
+	
+EXPORT bool os_get_gpu_usage(os_gpu_usage_t **usage, size_t size);
+
 #ifdef _MSC_VER
 #define strtoll _strtoi64
 #if _MSC_VER < 1900

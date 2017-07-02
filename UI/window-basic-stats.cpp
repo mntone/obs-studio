@@ -56,12 +56,18 @@ OBSBasicStats::OBSBasicStats(QWidget *parent)
 	/* --------------------------------------------- */
 
 	cpuUsage = new QLabel(this);
+#if defined(_WIN32) || defined(__APPLE__)
+	gpuUsage = new QLabel(this);
+#endif
 	hddSpace = new QLabel(this);
 #ifdef _WIN32
 	memUsage = new QLabel(this);
 #endif
 
 	newStat("CPUUsage", cpuUsage, 0);
+#if defined(_WIN32) || defined(__APPLE__)
+	newStat("GPUUsage", gpuUsage, 0);
+#endif
 	newStat("HDDSpaceAvailable", hddSpace, 0);
 #ifdef _WIN32
 	newStat("MemoryUsage", memUsage, 0);
@@ -264,6 +270,20 @@ void OBSBasicStats::Update()
 	double usage = os_cpu_usage_info_query(cpu_info);
 	str = QString::number(usage, 'g', 2) + QStringLiteral("%");
 	cpuUsage->setText(str);
+	
+	/* ------------------ */
+
+#if defined(_WIN32) || defined(__APPLE__)
+	std::vector<os_gpu_usage_t> gpuUsageData;
+	gpuUsageData.resize(2);
+	
+	os_gpu_usage_t *beginUsage = gpuUsageData.data();
+	if (os_get_gpu_usage(&beginUsage, 2)) {
+		str = QString::number(gpuUsageData[0].usage, 'g', 2) +
+				QStringLiteral("%");
+		gpuUsage->setText(str);
+	}
+#endif
 
 	/* ------------------ */
 
