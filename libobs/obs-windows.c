@@ -611,3 +611,17 @@ void uninitialize_com(void)
 {
 	CoUninitialize();
 }
+
+
+// DDK はいってないとむり。要件等案件かな。GPU 日本語
+// https://github.com/processhacker2/processhacker2/blob/569da8a8d9c581c5c744cf2146f9b746766395ed/plugins/ExtendedTools/gpumon.c#L745
+// https://github.com/tpn/winsdk-10/blob/master/Include/10.0.10240.0/km/d3dkmthk.h
+// https://msdn.microsoft.com/en-us/library/windows/hardware/ff546814(v=VS.85).aspx
+#include <d3dkmthk.h>
+
+bool os_get_gpu_usage(os_gpu_usage_t **usage, size_t size)
+{
+	D3DKMT_QUERYSTATISTICS queryStatistics;
+
+
+}
