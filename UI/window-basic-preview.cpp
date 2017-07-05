@@ -1,6 +1,7 @@
 #include <QGuiApplication>
 #include <QMouseEvent>
 
+#include <array>
 #include <algorithm>
 #include <cmath>
 #include <graphics/vec4.h>
@@ -8,9 +9,13 @@
 #include "window-basic-preview.hpp"
 #include "window-basic-main.hpp"
 #include "obs-app.hpp"
+#include "graphics-util.hpp"
 
+#define HANDLE_BORDER     2.0f
 #define HANDLE_RADIUS     4.0f
 #define HANDLE_SEL_RADIUS (HANDLE_RADIUS * 1.5f)
+
+using namespace std;
 
 /* TODO: make C++ math classes and clean up code here later */
 
@@ -19,6 +24,29 @@ OBSBasicPreview::OBSBasicPreview(QWidget *parent, Qt::WindowFlags flags)
 {
 	ResetScrollingOffset();
 	setMouseTracking(true);
+}
+
+OBSBasicPreview::~OBSBasicPreview()
+{
+	obs_enter_graphics();
+	gsutil_geometry_destroy(plane);
+	gsutil_geometry_destroy(circle);
+	obs_leave_graphics();
+}
+
+void OBSBasicPreview::InitPrimitives()
+{
+	OBSBasic *main = reinterpret_cast<OBSBasic*>(App()->GetMainWindow());
+	float pixelRatio = main->devicePixelRatioF();
+	float radius = floor(HANDLE_RADIUS * pixelRatio);
+	
+	vec2 tl, tr, br, bl;
+	vec2_set(&tl, 0.0f, 0.0f);
+	vec2_set(&tr, 1.0f, 0.0f);
+	vec2_set(&br, 1.0f, 1.0f);
+	vec2_set(&bl, 0.0f, 1.0f);
+	plane = rect_geometry_create(tl, tr, bl, br);
+	circle = circle_geometry_create(tl, radius, 12, 0.0f, M_PI * 2.0f);
 }
 
 vec2 OBSBasicPreview::GetMouseEventPos(QMouseEvent *event)
@@ -1071,28 +1099,20 @@ void OBSBasicPreview::mouseMoveEvent(QMouseEvent *event)
 	}
 }
 
-static void DrawCircleAtPos(float x, float y, matrix4 &matrix,
-		float previewScale, float pixelAspect)
-{
-	struct vec3 pos;
-	vec3_set(&pos, x, y, 0.0f);
-	vec3_transform(&pos, &pos, &matrix);
-	vec3_mulf(&pos, &pos, previewScale);
-
-	gs_matrix_push();
-	gs_matrix_translate(&pos);
-	gs_matrix_scale3f(HANDLE_RADIUS * pixelAspect,
-			HANDLE_RADIUS * pixelAspect, 1.0f);
-	gs_draw(GS_LINESTRIP, 0, 0);
-	gs_matrix_pop();
-}
-
 static inline bool crop_enabled(const obs_sceneitem_crop *crop)
 {
 	return crop->left > 0  ||
 	       crop->top > 0   ||
 	       crop->right > 0 ||
 	       crop->bottom > 0;
+}
+
+static inline void DrawCircle(vec2 origin)
+{
+	gs_matrix_push();
+	gs_matrix_translate3f(origin.x, origin.y, 0.0f);
+	gs_draw(GS_TRIS, 0, 0);
+	gs_matrix_pop();
 }
 
 bool OBSBasicPreview::DrawSelectedItem(obs_scene_t *scene,
@@ -1133,110 +1153,86 @@ bool OBSBasicPreview::DrawSelectedItem(obs_scene_t *scene,
 	obs_transform_info info;
 	obs_sceneitem_get_info(item, &info);
 
-	gs_load_vertexbuffer(main->circle);
-
 	const float pixelRatio = main->devicePixelRatioF();
-	DrawCircleAtPos(0.0f, 0.0f, boxTransform, main->previewScale, pixelRatio);
-	DrawCircleAtPos(0.0f, 1.0f, boxTransform, main->previewScale, pixelRatio);
-	DrawCircleAtPos(1.0f, 0.0f, boxTransform, main->previewScale, pixelRatio);
-	DrawCircleAtPos(1.0f, 1.0f, boxTransform, main->previewScale, pixelRatio);
-	DrawCircleAtPos(0.5f, 0.0f, boxTransform, main->previewScale, pixelRatio);
-	DrawCircleAtPos(0.0f, 0.5f, boxTransform, main->previewScale, pixelRatio);
-	DrawCircleAtPos(0.5f, 1.0f, boxTransform, main->previewScale, pixelRatio);
-	DrawCircleAtPos(1.0f, 0.5f, boxTransform, main->previewScale, pixelRatio);
-
-	gs_matrix_push();
-	gs_matrix_scale3f(main->previewScale, main->previewScale, 1.0f);
-	gs_matrix_mul(&boxTransform);
+	gs_eparam_t *colorParam = gs_effect_get_param_by_name(
+			gs_get_effect(), "color");
+	
+	matrix4 m;
+	matrix4_identity(&m);
+	matrix4_scale3f(&m, &m, main->previewScale, main->previewScale, 1.0f);
+	matrix4_mul(&m, &boxTransform, &m);
+	
+#define SET_POS(name, vx, vy) \
+	vec2 name; \
+	{ \
+		vec3 name ## 3; \
+		vec3_set(&name ## 3, vx, vy, 0.0f); \
+		vec3_transform(&name ## 3, &name ## 3, &m); \
+		vec2_set(&name, (name ## 3).x, (name ## 3).y); \
+	}
+	
+	SET_POS(tl, 0.0f, 0.0f);
+	SET_POS(tc, 0.5f, 0.0f);
+	SET_POS(tr, 1.0f, 0.0f);
+	SET_POS(cr, 1.0f, 0.5f);
+	SET_POS(br, 1.0f, 1.0f);
+	SET_POS(bc, 0.5f, 1.0f);
+	SET_POS(bl, 0.0f, 1.0f);
+	SET_POS(cl, 0.0f, 0.5f);
+#undef SET_POS
 
 	obs_sceneitem_crop crop;
 	obs_sceneitem_get_crop(item, &crop);
-
-	if (info.bounds_type == OBS_BOUNDS_NONE && crop_enabled(&crop)) {
-		vec4 color;
-		gs_effect_t *eff = gs_get_effect();
-		gs_eparam_t *param = gs_effect_get_param_by_name(eff, "color");
-
-#define DRAW_SIDE(side, vb) \
-		if (crop.side > 0) \
-			vec4_set(&color, 0.0f, 1.0f, 0.0f, 1.0f); \
-		else \
-			vec4_set(&color, 1.0f, 0.0f, 0.0f, 1.0f); \
-		gs_effect_set_vec4(param, &color); \
-		gs_load_vertexbuffer(main->vb); \
-		gs_draw(GS_LINESTRIP, 0, 0);
-
-		DRAW_SIDE(left,   boxLeft);
-		DRAW_SIDE(top,    boxTop);
-		DRAW_SIDE(right,  boxRight);
-		DRAW_SIDE(bottom, boxBottom);
-#undef DRAW_SIDE
-	} else {
-		float borderSize = std::floor(2.0 * pixelRatio);
-		
-		vec3 size, scale;
-		vec3_set(&size, borderSize / main->previewScale, borderSize / main->previewScale, 0.0f);
-		
+	
+	const float border = floor(HANDLE_BORDER * pixelRatio);
+	vec2 oneSize;
+	{
 		if (obs_sceneitem_get_bounds_type(item) != OBS_BOUNDS_NONE) {
-			obs_sceneitem_get_bounds(item, (vec2*)&scale);
+			obs_sceneitem_get_bounds(item, &oneSize);
 		} else {
-			obs_sceneitem_get_scale(item, (vec2*)&scale);
-			
+			obs_sceneitem_get_scale(item, &oneSize);
+
 			obs_source_t *source = obs_sceneitem_get_source(item);
-			scale.x *= obs_source_get_width(source);
-			scale.y *= obs_source_get_height(source);
+			oneSize.x *= obs_source_get_width(source) - crop.left - crop.right;
+			oneSize.y *= obs_source_get_height(source) - crop.top - crop.bottom;
 		}
-		scale.z = 1.0f;
-		vec3_div(&size, &size, &scale);
-
-		float halfPixelX = 0.5f * size.x;
-		float halfPixelY = 0.5f * size.y;
-		
-		gs_render_start(true);
-		gs_vertex2f(1.0f - halfPixelX, 1.0f + halfPixelY);
-		gs_vertex2f(1.0f + halfPixelX, 1.0f + halfPixelY);
-		gs_vertex2f(1.0f - halfPixelX, -halfPixelY);
-		gs_vertex2f(1.0f + halfPixelX, -halfPixelY);
-		gs_vertbuffer_t *right = gs_render_save();
-		gs_load_vertexbuffer(right);
-		gs_draw(GS_TRISTRIP, 0, 0);
-		gs_vertexbuffer_destroy(right);
-
-		gs_render_start(true);
-		gs_vertex2f(-halfPixelX, 1.0f + halfPixelY);
-		gs_vertex2f(1.0f + halfPixelX, 1.0f + halfPixelY);
-		gs_vertex2f(-halfPixelX, 1.0f - halfPixelY);
-		gs_vertex2f(1.0f + halfPixelX, 1.0f - halfPixelY);
-		gs_vertbuffer_t *top = gs_render_save();
-		gs_load_vertexbuffer(top);
-		gs_draw(GS_TRISTRIP, 0, 0);
-		gs_vertexbuffer_destroy(top);
-		
-		gs_render_start(true);
-		gs_vertex2f(-halfPixelX, 1.0f + halfPixelY);
-		gs_vertex2f(halfPixelX, 1.0f + halfPixelY);
-		gs_vertex2f(-halfPixelX, -halfPixelY);
-		gs_vertex2f(halfPixelX, -halfPixelY);
-		gs_vertbuffer_t *left = gs_render_save();
-		gs_load_vertexbuffer(left);
-		gs_draw(GS_TRISTRIP, 0, 0);
-		gs_vertexbuffer_destroy(left);
-
-		gs_render_start(true);
-		gs_vertex2f(-halfPixelX, -halfPixelY);
-		gs_vertex2f(1.0f + halfPixelX, -halfPixelY);
-		gs_vertex2f(-halfPixelX, halfPixelY);
-		gs_vertex2f(1.0f + halfPixelX, halfPixelY);
-		gs_vertbuffer_t *bottom = gs_render_save();
-		gs_load_vertexbuffer(bottom);
-		gs_draw(GS_TRISTRIP, 0, 0);
-		gs_vertexbuffer_destroy(bottom);
-
-		//gs_load_vertexbuffer(main->box);
-		//gs_draw(GS_LINESTRIP, 0, 0);
+		vec2 t;
+		vec2_set(&t, border, border);
+		vec2_divf(&t, &t, main->previewScale);
+		vec2_div(&oneSize, &t, &oneSize);
 	}
-
+	
+	vec4 color;
+		
+	gsutil_load_geometry(main->ui->preview->plane);
+#define DRAW_LINE(side, s, e, w, ox, oy, sx, sy) \
+	if (crop.side > 0) \
+		vec4_set(&color, 0.0f, 1.0f, 0.0f, 1.0f); \
+	else \
+		vec4_set(&color, 1.0f, 0.0f, 0.0f, 1.0f); \
+	 \
+	gs_effect_set_vec4(colorParam, &color); \
+	gs_matrix_push(); \
+	gs_matrix_scale3f(main->previewScale, main->previewScale, \
+			1.0f); \
+	gs_matrix_mul(&boxTransform); \
+	gs_matrix_translate3f(ox, oy, 0.0f); \
+	gs_matrix_scale3f(sx, sy, 1.0f); \
+	gs_draw(GS_TRIS, 0, 0); \
 	gs_matrix_pop();
+		
+	DRAW_LINE(left, tl, bl, border, -oneSize.x * 0.5f, -oneSize.y * 0.5f, oneSize.x, 1.0f + oneSize.y);
+	DRAW_LINE(top, tl, tr, border, -oneSize.x * 0.5f, -oneSize.y * 0.5f, 1.0f + oneSize.x, oneSize.y);
+	DRAW_LINE(right, tr, br, border, 1.0f - oneSize.x * 0.5f, -oneSize.y * 0.5f, oneSize.x, 1.0f + oneSize.y);
+	DRAW_LINE(bottom, bl, br, border, -oneSize.x * 0.5f, 1.0f - oneSize.y * 0.5f, 1.0f + oneSize.x, oneSize.y);
+#undef DRAW_LINE
+
+	vec4_set(&color, 1.0f, 0.0f, 0.0f, 1.0f);
+	gs_effect_set_vec4(colorParam, &color);
+
+	gsutil_load_geometry(main->ui->preview->circle);
+	array<vec2, 8> cPos = {{ tl, tc, tr, cr, br, bc, bl, cl }};
+	for_each(begin(cPos), end(cPos), DrawCircle);
 
 	UNUSED_PARAMETER(scene);
 	UNUSED_PARAMETER(param);

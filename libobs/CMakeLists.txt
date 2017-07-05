@@ -218,6 +218,7 @@ set(libobs_graphics_SOURCES
 	graphics/matrix4.c
 	graphics/vec3.c
 	graphics/graphics.c
+	graphics/graphics-util.c
 	graphics/shader-parser.c
 	graphics/plane.c
 	graphics/effect.c
@@ -233,6 +234,7 @@ set(libobs_graphics_HEADERS
 	graphics/math-defs.h
 	graphics/matrix4.h
 	graphics/graphics.h
+	graphics/graphics-util.h
 	graphics/graphics-internal.h
 	graphics/libnsgif/libnsgif.h
 	graphics/device-exports.h

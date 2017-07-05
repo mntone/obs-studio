@@ -220,7 +220,8 @@ set(obs_HEADERS
 	source-label.hpp
 	remote-text.hpp
 	audio-encoders.hpp
-	qt-wrappers.hpp)
+	qt-wrappers.hpp
+	graphics-util.hpp)
 
 set(obs_UI
 	forms/NameDialog.ui

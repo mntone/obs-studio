@@ -3,6 +3,7 @@
 #include <obs.hpp>
 #include <graphics/vec2.h>
 #include <graphics/matrix4.h>
+#include <graphics/graphics-util.h>
 #include "qt-display.hpp"
 #include "obs-app.hpp"
 
@@ -56,6 +57,9 @@ private:
 	bool         cropping       = false;
 	bool         locked         = false;
 	bool         scrollMode     = false;
+	
+	gsutil_geometry_t *plane = nullptr;
+	gsutil_geometry_t *circle = nullptr;
 
 	static vec2 GetMouseEventPos(QMouseEvent *event);
 	static bool DrawSelectedItem(obs_scene_t *scene, obs_sceneitem_t *item,
@@ -84,6 +88,9 @@ private:
 
 public:
 	OBSBasicPreview(QWidget *parent, Qt::WindowFlags flags = 0);
+	virtual ~OBSBasicPreview();
+
+	void InitPrimitives();
 
 	virtual void keyPressEvent(QKeyEvent *event) override;
 	virtual void keyReleaseEvent(QKeyEvent *event) override;
