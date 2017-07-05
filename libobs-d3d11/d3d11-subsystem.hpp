@@ -735,10 +735,12 @@ struct SavedZStencilState : ZStencilState {
 struct RasterState {
 	gs_cull_mode cullMode;
 	bool         scissorEnabled;
+	bool         multiSampleEnabled;
 
 	inline RasterState()
-		: cullMode       (GS_BACK),
-		  scissorEnabled (false)
+		: cullMode           (GS_BACK),
+		  scissorEnabled     (false),
+		  multiSampleEnabled (false)
 	{
 	}
 

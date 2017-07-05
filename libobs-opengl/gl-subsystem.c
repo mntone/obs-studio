@@ -1101,6 +1101,16 @@ enum gs_cull_mode device_get_cull_mode(const gs_device_t *device)
 	return device->cur_cull_mode;
 }
 
+void device_enable_multi_sample(gs_device_t *device, bool enable)
+{
+	if (enable)
+		gl_enable(GL_MULTISAMPLE);
+	else
+		gl_disable(GL_MULTISAMPLE);
+
+	UNUSED_PARAMETER(device);
+}
+
 void device_enable_blending(gs_device_t *device, bool enable)
 {
 	if (enable)

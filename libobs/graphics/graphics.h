@@ -638,6 +638,7 @@ EXPORT void gs_flush(void);
 EXPORT void gs_set_cull_mode(enum gs_cull_mode mode);
 EXPORT enum gs_cull_mode gs_get_cull_mode(void);
 
+EXPORT void gs_enable_multi_sample(bool enable);
 EXPORT void gs_enable_blending(bool enable);
 EXPORT void gs_enable_depth_test(bool enable);
 EXPORT void gs_enable_stencil_test(bool enable);

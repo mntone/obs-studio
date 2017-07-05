@@ -116,6 +116,7 @@ struct gs_exports {
 	void (*device_set_cull_mode)(gs_device_t *device,
 			enum gs_cull_mode mode);
 	enum gs_cull_mode (*device_get_cull_mode)(const gs_device_t *device);
+	void (*device_enable_multi_sample)(gs_device_t *device, bool enable);
 	void (*device_enable_blending)(gs_device_t *device, bool enable);
 	void (*device_enable_depth_test)(gs_device_t *device, bool enable);
 	void (*device_enable_stencil_test)(gs_device_t *device, bool enable);

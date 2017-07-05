@@ -89,6 +89,7 @@ bool load_graphics_imports(struct gs_exports *exports, void *module,
 	GRAPHICS_IMPORT(device_flush);
 	GRAPHICS_IMPORT(device_set_cull_mode);
 	GRAPHICS_IMPORT(device_get_cull_mode);
+	GRAPHICS_IMPORT(device_enable_multi_sample);
 	GRAPHICS_IMPORT(device_enable_blending);
 	GRAPHICS_IMPORT(device_enable_depth_test);
 	GRAPHICS_IMPORT(device_enable_stencil_test);

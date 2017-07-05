@@ -1761,6 +1761,16 @@ enum gs_cull_mode gs_get_cull_mode(void)
 	return graphics->exports.device_get_cull_mode(graphics->device);
 }
 
+void gs_enable_multi_sample(bool enable)
+{
+	graphics_t *graphics = thread_graphics;
+
+	if (!gs_valid("gs_enable_multi_sample"))
+		return;
+
+	graphics->exports.device_enable_multi_sample(graphics->device, enable);
+}
+
 void gs_enable_blending(bool enable)
 {
 	graphics_t *graphics = thread_graphics;

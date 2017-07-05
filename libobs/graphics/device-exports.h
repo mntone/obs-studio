@@ -113,6 +113,7 @@ EXPORT void device_present(gs_device_t *device);
 EXPORT void device_flush(gs_device_t *device);
 EXPORT void device_set_cull_mode(gs_device_t *device, enum gs_cull_mode mode);
 EXPORT enum gs_cull_mode device_get_cull_mode(const gs_device_t *device);
+EXPORT void device_enable_multi_sample(gs_device_t *device, bool enable);
 EXPORT void device_enable_blending(gs_device_t *device, bool enable);
 EXPORT void device_enable_depth_test(gs_device_t *device, bool enable);
 EXPORT void device_enable_stencil_test(gs_device_t *device, bool enable);

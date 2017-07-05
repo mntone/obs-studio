@@ -309,6 +309,7 @@ ID3D11RasterizerState *gs_device::AddRasterState()
 	rd.CullMode              = ConvertGSCullMode(rasterState.cullMode);
 	rd.DepthClipEnable       = true;
 	rd.ScissorEnable         = rasterState.scissorEnabled;
+	rd.MultisampleEnable     = rasterState.multiSampleEnabled;
 
 	SavedRasterState savedState(rasterState, rd);
 	hr = device->CreateRasterizerState(&rd, savedState.state.Assign());
@@ -1471,6 +1472,15 @@ void device_set_cull_mode(gs_device_t *device, enum gs_cull_mode mode)
 enum gs_cull_mode device_get_cull_mode(const gs_device_t *device)
 {
 	return device->rasterState.cullMode;
+}
+
+void device_enable_multi_sample(gs_device_t *device, bool enable)
+{
+	if (enable == device->rasterState.multiSampleEnabled)
+		return;
+
+	device->rasterState.multiSampleEnabled = enable;
+	device->rasterStateChanged = true;
 }
 
 void device_enable_blending(gs_device_t *device, bool enable)
