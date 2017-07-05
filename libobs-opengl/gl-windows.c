@@ -292,6 +292,8 @@ static int gl_choose_pixel_format(HDC hdc, const struct gs_init_data *info)
 	add_attrib(&attribs, WGL_COLOR_BITS_ARB,     color_bits);
 	add_attrib(&attribs, WGL_DEPTH_BITS_ARB,     depth_bits);
 	add_attrib(&attribs, WGL_STENCIL_BITS_ARB,   stencil_bits);
+	add_attrib(&attribs, WGL_SAMPLE_BUFFERS_ARB, 1);
+	add_attrib(&attribs, WGL_SAMPLES_ARB,        4);
 	add_attrib(&attribs, 0, 0);
 
 	success = wglChoosePixelFormatARB(hdc, attribs.array, NULL, 1, &format,

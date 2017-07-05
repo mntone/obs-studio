@@ -45,6 +45,9 @@ static NSOpenGLContext *gl_context_create(void)
 
 	ADD_ATTR(NSOpenGLPFADoubleBuffer);
 	ADD_ATTR2(NSOpenGLPFAOpenGLProfile, NSOpenGLProfileVersion3_2Core);
+	ADD_ATTR2(NSOpenGLPFASampleBuffers, 1);
+	ADD_ATTR2(NSOpenGLPFASamples, 4);
+	ADD_ATTR(NSOpenGLPFAMultisample);
 	ADD_ATTR(0);
 
 #undef ADD_ATTR2

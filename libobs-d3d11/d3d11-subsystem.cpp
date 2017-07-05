@@ -76,7 +76,7 @@ static inline void make_swap_desc(DXGI_SWAP_CHAIN_DESC &desc,
 	desc.BufferDesc.Height = data->cy;
 	desc.BufferUsage       = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	desc.OutputWindow      = (HWND)data->window.hwnd;
-	desc.SampleDesc.Count  = 1;
+	desc.SampleDesc.Count  = 4;
 	desc.Windowed          = true;
 }
 

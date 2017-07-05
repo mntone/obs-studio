@@ -61,6 +61,8 @@ static int ctx_visual_attribs[] = {
 	GLX_BUFFER_SIZE, 32,
 	GLX_DOUBLEBUFFER, true,
 	GLX_X_RENDERABLE, true,
+	GLX_SAMPLE_BUFFERS, 1,
+	GLX_SAMPLES, 4,
 	None
 };
 
