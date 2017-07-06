@@ -36,17 +36,14 @@ OBSBasicPreview::~OBSBasicPreview()
 
 void OBSBasicPreview::InitPrimitives()
 {
-	OBSBasic *main = reinterpret_cast<OBSBasic*>(App()->GetMainWindow());
-	float pixelRatio = main->devicePixelRatioF();
-	float radius = floor(HANDLE_RADIUS * pixelRatio);
-	
 	vec2 tl, tr, br, bl;
 	vec2_set(&tl, 0.0f, 0.0f);
 	vec2_set(&tr, 1.0f, 0.0f);
 	vec2_set(&br, 1.0f, 1.0f);
 	vec2_set(&bl, 0.0f, 1.0f);
 	plane = rect_geometry_create(tl, tr, bl, br);
-	circle = circle_geometry_create(tl, radius, 12, 0.0f, M_PI * 2.0f);
+	circle = circle_geometry_create(tl, HANDLE_RADIUS, 12, 0.0f,
+			M_PI * 2.0f);
 }
 
 vec2 OBSBasicPreview::GetMouseEventPos(QMouseEvent *event)
@@ -1107,10 +1104,11 @@ static inline bool crop_enabled(const obs_sceneitem_crop *crop)
 	       crop->bottom > 0;
 }
 
-static inline void DrawCircle(vec2 origin)
+static inline void DrawCircle(vec2 origin, float pixelRatio)
 {
 	gs_matrix_push();
 	gs_matrix_translate3f(origin.x, origin.y, 0.0f);
+	gs_matrix_scale3f(pixelRatio, pixelRatio, 1.0f);
 	gs_draw(GS_TRIS, 0, 0);
 	gs_matrix_pop();
 }
@@ -1185,21 +1183,23 @@ bool OBSBasicPreview::DrawSelectedItem(obs_scene_t *scene,
 	obs_sceneitem_get_crop(item, &crop);
 	
 	const float border = floor(HANDLE_BORDER * pixelRatio);
-	vec2 oneSize;
+	vec2 onePixel;
 	{
 		if (obs_sceneitem_get_bounds_type(item) != OBS_BOUNDS_NONE) {
-			obs_sceneitem_get_bounds(item, &oneSize);
+			obs_sceneitem_get_bounds(item, &onePixel);
 		} else {
-			obs_sceneitem_get_scale(item, &oneSize);
+			obs_sceneitem_get_scale(item, &onePixel);
 
 			obs_source_t *source = obs_sceneitem_get_source(item);
-			oneSize.x *= obs_source_get_width(source) - crop.left - crop.right;
-			oneSize.y *= obs_source_get_height(source) - crop.top - crop.bottom;
+			onePixel.x *= obs_source_get_width(source)
+					- crop.left - crop.right;
+			onePixel.y *= obs_source_get_height(source)
+					- crop.top - crop.bottom;
 		}
 		vec2 t;
 		vec2_set(&t, border, border);
 		vec2_divf(&t, &t, main->previewScale);
-		vec2_div(&oneSize, &t, &oneSize);
+		vec2_div(&onePixel, &t, &onePixel);
 	}
 	
 	vec4 color;
@@ -1220,11 +1220,15 @@ bool OBSBasicPreview::DrawSelectedItem(obs_scene_t *scene,
 	gs_matrix_scale3f(sx, sy, 1.0f); \
 	gs_draw(GS_TRIS, 0, 0); \
 	gs_matrix_pop();
-		
-	DRAW_LINE(left, tl, bl, border, -oneSize.x * 0.5f, -oneSize.y * 0.5f, oneSize.x, 1.0f + oneSize.y);
-	DRAW_LINE(top, tl, tr, border, -oneSize.x * 0.5f, -oneSize.y * 0.5f, 1.0f + oneSize.x, oneSize.y);
-	DRAW_LINE(right, tr, br, border, 1.0f - oneSize.x * 0.5f, -oneSize.y * 0.5f, oneSize.x, 1.0f + oneSize.y);
-	DRAW_LINE(bottom, bl, br, border, -oneSize.x * 0.5f, 1.0f - oneSize.y * 0.5f, 1.0f + oneSize.x, oneSize.y);
+
+	const float tlX    = -onePixel.x * 0.5f;
+	const float tlY    = -onePixel.y * 0.5f;
+	const float width  = 1.0f + onePixel.x;
+	const float height = 1.0f + onePixel.y;
+	DRAW_LINE(left,   tl, bl, border, tlX, tlY, onePixel.x, height);
+	DRAW_LINE(top,    tl, tr, border, tlX, tlY, width, onePixel.y);
+	DRAW_LINE(right,  tr, br, border, 1.0f + tlX, tlY, onePixel.x, height);
+	DRAW_LINE(bottom, bl, br, border, tlX, 1.0f + tlY, width, onePixel.y);
 #undef DRAW_LINE
 
 	vec4_set(&color, 1.0f, 0.0f, 0.0f, 1.0f);
@@ -1232,7 +1236,8 @@ bool OBSBasicPreview::DrawSelectedItem(obs_scene_t *scene,
 
 	gsutil_load_geometry(main->ui->preview->circle);
 	array<vec2, 8> cPos = {{ tl, tc, tr, cr, br, bc, bl, cl }};
-	for_each(begin(cPos), end(cPos), DrawCircle);
+	for_each(begin(cPos), end(cPos),
+			bind(DrawCircle, placeholders::_1, pixelRatio));
 
 	UNUSED_PARAMETER(scene);
 	UNUSED_PARAMETER(param);
