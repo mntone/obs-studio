@@ -1,10 +1,21 @@
 #include "graphics-util.h"
 
-#define geometry_create()   bzalloc(sizeof(gsutil_geometry_t));
-#define index_create(count) bzalloc(sizeof(uint16_t) * count * 3)
-#define index_length(count) count * 3
+static inline gsutil_geometry_t *geometry_create()
+{
+	return bzalloc(sizeof(gsutil_geometry_t));
+}
 
-static inline void gs_index3f(uint16_t *ptr, size_t pos,
+static inline uint16_t *index_create(size_t count)
+{
+	return bzalloc(sizeof(uint16_t) * count * 3);
+}
+
+static inline size_t index_length(size_t count)
+{
+	return count * 3;
+}
+
+static inline void gs_index3i(uint16_t *ptr, size_t pos,
 		uint16_t a, uint16_t b, uint16_t c)
 {
 	pos *= 3;
@@ -33,7 +44,7 @@ gsutil_geometry_t *circle_geometry_create(struct vec2 origin, float radius,
 
 	uint16_t *idx = index_create(segments);
 	for (uint16_t i = 0; i < segments; i++) {
-		gs_index3f(idx, i, 0, i + 1, i + 2);
+		gs_index3i(idx, i, 0, i + 1, i + 2);
 	}
 	ret->index = gs_indexbuffer_create(GS_UNSIGNED_SHORT, idx,
 			index_length(segments), 0);
@@ -59,8 +70,8 @@ gsutil_geometry_t *line_geometry_create(struct vec2 s, struct vec2 e, float w)
 
 	const size_t count = 2;
 	uint16_t *idx = index_create(count);
-	gs_index3f(idx, 0, 0, 1, 2);
-	gs_index3f(idx, 1, 2, 3, 0);
+	gs_index3i(idx, 0, 0, 1, 2);
+	gs_index3i(idx, 1, 2, 3, 0);
 	ret->index = gs_indexbuffer_create(GS_UNSIGNED_SHORT, idx,
 			index_length(count), 0);
 	
@@ -81,8 +92,8 @@ gsutil_geometry_t *rect_geometry_create(struct vec2 tl, struct vec2 tr,
 
 	const size_t count = 2;
 	uint16_t *idx = index_create(count);
-	gs_index3f(idx, 0, 0, 1, 2);
-	gs_index3f(idx, 1, 2, 3, 0);
+	gs_index3i(idx, 0, 0, 1, 2);
+	gs_index3i(idx, 1, 2, 3, 0);
 	ret->index = gs_indexbuffer_create(GS_UNSIGNED_SHORT, idx,
 			index_length(count), 0);
 
@@ -130,14 +141,14 @@ gsutil_geometry_t *rectline_geometry_create(struct vec2 tl, struct vec2 tr,
 
 	const size_t count = 8;
 	uint16_t *idx = index_create(count);
-	gs_index3f(idx, 0, 0, 1, 2);
-	gs_index3f(idx, 1, 2, 3, 0);
-	gs_index3f(idx, 2, 1, 4, 5);
-	gs_index3f(idx, 3, 5, 6, 1);
-	gs_index3f(idx, 4, 7, 4, 8);
-	gs_index3f(idx, 5, 8, 9, 7);
-	gs_index3f(idx, 6, 3, 10, 9);
-	gs_index3f(idx, 7, 9, 11, 3);
+	gs_index3i(idx, 0, 0, 1, 2);
+	gs_index3i(idx, 1, 2, 3, 0);
+	gs_index3i(idx, 2, 1, 4, 5);
+	gs_index3i(idx, 3, 5, 6, 1);
+	gs_index3i(idx, 4, 7, 4, 8);
+	gs_index3i(idx, 5, 8, 9, 7);
+	gs_index3i(idx, 6, 3, 10, 9);
+	gs_index3i(idx, 7, 9, 11, 3);
 	ret->index = gs_indexbuffer_create(GS_UNSIGNED_SHORT, idx,
 			index_length(count), 0);
 	
